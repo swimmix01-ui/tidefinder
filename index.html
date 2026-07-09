@@ -279,6 +279,10 @@
         <div class="value accent" id="marineAirPress">-</div>
       </div>
       <div class="stat-box">
+        <div class="label">파고 (기상청 예보)</div>
+        <div class="value accent" id="marineWaveHeight">-</div>
+      </div>
+      <div class="stat-box">
         <div class="label">관측시각</div>
         <div class="value" id="marineObsTime" style="font-size:13px;">-</div>
       </div>
@@ -319,6 +323,7 @@
 
     // 해양 실시간 날씨 카드 로드
     fetchMarineWeather();
+    fetchWaveHeight();
 
     kakao.maps.load(function () {
       const container = document.getElementById('map');
@@ -404,6 +409,21 @@
       document.getElementById('marineAirTemp').textContent = '오류';
       document.getElementById('marineAirPress').textContent = '오류';
       console.error('해양 날씨 조회 실패:', err);
+    }
+  }
+
+  // 파고(WAV) - 기상청 단기예보 API 재활용 (포항 앞바다 좌표 고정)
+  async function fetchWaveHeight() {
+    try {
+      const wind = await fetchWindData(36.023, 129.419); // 포항 앞바다 대표 좌표
+      if (wind.waveHeightM !== null) {
+        document.getElementById('marineWaveHeight').textContent = `${wind.waveHeightM}m`;
+      } else {
+        document.getElementById('marineWaveHeight').textContent = '자료없음';
+      }
+    } catch (err) {
+      document.getElementById('marineWaveHeight').textContent = '오류';
+      console.error('파고 조회 실패:', err);
     }
   }
 
@@ -515,7 +535,7 @@
     return { bearing: brg, magnitude: Math.sqrt(x * x + y * y) };
   }
 
-  // 기상청 단기예보에서 풍향(VEC)/풍속(WSD) 조회
+  // 기상청 단기예보에서 풍향(VEC)/풍속(WSD)/파고(WAV) 조회
   async function fetchWindData(lat, lon) {
     const { nx, ny } = latLonToGrid(lat, lon);
     const { base_date, base_time } = getKmaBaseDateTime();
@@ -525,9 +545,11 @@
     const items = data.response.body.items.item;
     const vecItem = items.find(i => i.category === 'VEC');
     const wsdItem = items.find(i => i.category === 'WSD');
+    const wavItem = items.find(i => i.category === 'WAV');
     return {
       windDirFrom: vecItem ? parseFloat(vecItem.fcstValue) : null,
       windSpeedMS: wsdItem ? parseFloat(wsdItem.fcstValue) : null,
+      waveHeightM: wavItem ? parseFloat(wavItem.fcstValue) : null,
       nx, ny, base_date, base_time
     };
   }
@@ -611,13 +633,14 @@
       debugText += `에러 상세: ${err.stack || err.message}\n`;
     }
 
-    // 기상청 풍향/풍속 조회 + 윈드에이지(3%) 벡터 합산
-    let windSpeedMS = null, windDirFrom = null, usedWind = false;
+    // 기상청 풍향/풍속/파고 조회 + 윈드에이지(3%) 벡터 합산
+    let windSpeedMS = null, windDirFrom = null, waveHeightM = null, usedWind = false;
     try {
       const wind = await fetchWindData(lat, lon);
       windSpeedMS = wind.windSpeedMS;
       windDirFrom = wind.windDirFrom;
-      debugText += `[기상청] nx=${wind.nx}, ny=${wind.ny}, base=${wind.base_date} ${wind.base_time} → 풍속=${windSpeedMS}m/s, 풍향(FROM)=${windDirFrom}°\n`;
+      waveHeightM = wind.waveHeightM;
+      debugText += `[기상청] nx=${wind.nx}, ny=${wind.ny}, base=${wind.base_date} ${wind.base_time} → 풍속=${windSpeedMS}m/s, 풍향(FROM)=${windDirFrom}°, 파고=${waveHeightM}m\n`;
       if (windSpeedMS !== null && windDirFrom !== null) usedWind = true;
     } catch (err) {
       debugText += `[기상청] 조회 실패: ${err.message} (윈드에이지 미반영, 조류값만 사용)\n`;
@@ -673,9 +696,11 @@
     currentPolyline.setMap(map);
 
     // 시간별 오차반경 원 (IAMSAR 방식: datum 중심 원형 오차구역, 시간 경과에 따라 확대)
+    // 파고가 높을수록 표류물의 불규칙한 움직임 증가 -> 오차율 가산
+    const waveFactor = waveHeightM ? (waveHeightM * 0.02) : 0;
     centerLine.slice(1).forEach((p, idx) => {
       const t = idx + 1;
-      const errorRadiusM = 50 + 0.15 * p.distM; // 기본오차 50m + 이동거리의 15%
+      const errorRadiusM = 50 + (0.15 + waveFactor) * p.distM; // 기본오차 50m + 이동거리의 (15%+파고가산)
       const circle = new kakao.maps.Circle({
         center: new kakao.maps.LatLng(p.lat, p.lon),
         radius: errorRadiusM,
@@ -717,7 +742,7 @@
     const maxDistM = combinedSpeedMH * hoursAhead;
     const maxDistNm = (maxDistM / 1852).toFixed(2);
     const compassName = bearingToCompass(combinedBearing);
-    const finalErrorRadius = Math.round(50 + 0.15 * maxDistM);
+    const finalErrorRadius = Math.round(50 + (0.15 + waveFactor) * maxDistM);
 
     document.getElementById('statSpeed').textContent = usedWind ? `${combinedKn} kn (합성)` : `${speedKn} kn (조류만)`;
     document.getElementById('statDir').textContent = `${combinedBearing.toFixed(0)}° (${compassName})`;
@@ -725,6 +750,7 @@
       `▶ 최초 목격지점으로부터 <b>${combinedBearing.toFixed(0)}°(${compassName} 방향)</b>으로 약 <b>${maxDistNm}해리</b>(${Math.round(maxDistM)}m) 표류 예상<br>` +
       `▶ 예상 최종위치: ${formatDMS(finalPoint.lat, finalPoint.lon)}<br>&nbsp;&nbsp;&nbsp;(십진: 위도 ${finalPoint.lat.toFixed(5)}, 경도 ${finalPoint.lon.toFixed(5)}) — ${hoursAhead}시간 후, 오차반경 ±${finalErrorRadius}m<br>` +
       `▶ 조류 ${speedKn}kn` + (usedWind ? ` + 바람 ${windSpeedMS}m/s(풍압계수 ${(parseFloat(document.getElementById('leewayCoef').value)*100).toFixed(1)}% 반영)` : ` (바람 데이터 미반영)`) +
+      (waveHeightM !== null ? `<br>▶ 파고 ${waveHeightM}m (오차반경에 반영됨)` : '') +
       (usedFallback ? `<br><span style="color:var(--amber);">⚠ 조류값은 임시값 기반입니다</span>` : '');
     document.getElementById('debugBox').textContent = debugText;
     resultCard.style.display = 'block';
