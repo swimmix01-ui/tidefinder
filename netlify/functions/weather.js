@@ -1,8 +1,9 @@
+// 기상청/해양 데이터를 서버 사이드에서 대신 호출하는 프록시 함수
 exports.handler = async function (event) {
   const SERVICE_KEY = 'f26bd692b54db41eb90a99bed02f398b4a75fe6cab7c65dd03ebc8965f98b041';
 
   const params = event.queryStringParameters || {};
-  const mode = params.mode || 'fcst'; // fcst | alert | temp | scuba | surfing
+  const mode = params.mode || 'fcst'; // fcst | alert | watertemp | airtemp | airpress | scuba | surfing
 
   const corsHeaders = {
     'Content-Type': 'application/json',
@@ -10,6 +11,7 @@ exports.handler = async function (event) {
   };
 
   try {
+    // 1) 기존 단기예보 (변경 없음)
     if (mode === 'fcst') {
       const { nx, ny, base_date, base_time } = params;
       if (!nx || !ny || !base_date || !base_time) {
@@ -22,10 +24,23 @@ exports.handler = async function (event) {
       return { statusCode: 200, headers: corsHeaders, body: text };
     }
 
-    // 조위관측소 실측 수온 (obsCode 기본값: DT_0001, 포항 확인 후 교체)
+    // 2) 기상특보
+    if (mode === 'alert') {
+      const { stnId } = params;
+      if (!stnId) {
+        return { statusCode: 400, headers: corsHeaders,
+          body: JSON.stringify({ error: 'stnId(예보구역코드) 파라미터가 필요합니다.' }) };
+      }
+      const url = `https://apis.data.go.kr/1360000/WthrWrnInfoService/getWthrWrnList?serviceKey=${SERVICE_KEY}&numOfRows=10&pageNo=1&dataType=JSON&stnId=${stnId}`;
+      const res = await fetch(url);
+      const text = await res.text();
+      return { statusCode: 200, headers: corsHeaders, body: text };
+    }
+
+    // 3) 조위관측소 실측 수온 (포항: DT_0091)
     if (mode === 'watertemp') {
-      const obsCode = params.obsCode || 'DT_0001';
-      const reqDate = params.reqDate; // YYYYMMDD
+      const obsCode = params.obsCode || 'DT_0091';
+      const reqDate = params.reqDate;
       if (!reqDate) {
         return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'reqDate(YYYYMMDD) 필요' }) };
       }
@@ -35,7 +50,33 @@ exports.handler = async function (event) {
       return { statusCode: 200, headers: corsHeaders, body: text };
     }
 
-    // 스킨스쿠버지수 (파고/수온/풍속 종합) - placeCode 기본값: SS1
+    // 4) 조위관측소 실측 기온 (포항: DT_0091)
+    if (mode === 'airtemp') {
+      const obsCode = params.obsCode || 'DT_0091';
+      const reqDate = params.reqDate;
+      if (!reqDate) {
+        return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'reqDate(YYYYMMDD) 필요' }) };
+      }
+      const url = `https://apis.data.go.kr/1192136/surveyAirTemp?serviceKey=${SERVICE_KEY}&type=json&obsCode=${obsCode}&reqDate=${reqDate}&min=60&pageNo=1&numOfRows=10`;
+      const res = await fetch(url);
+      const text = await res.text();
+      return { statusCode: 200, headers: corsHeaders, body: text };
+    }
+
+    // 5) 조위관측소 실측 기압 (포항: DT_0091)
+    if (mode === 'airpress') {
+      const obsCode = params.obsCode || 'DT_0091';
+      const reqDate = params.reqDate;
+      if (!reqDate) {
+        return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'reqDate(YYYYMMDD) 필요' }) };
+      }
+      const url = `https://apis.data.go.kr/1192136/surveyAirPress?serviceKey=${SERVICE_KEY}&type=json&obsCode=${obsCode}&reqDate=${reqDate}&min=60&pageNo=1&numOfRows=10`;
+      const res = await fetch(url);
+      const text = await res.text();
+      return { statusCode: 200, headers: corsHeaders, body: text };
+    }
+
+    // 6) 스킨스쿠버지수 (placeCode 필요 - 포항 근처 코드 확인 필요, 일단 SS1)
     if (mode === 'scuba') {
       const placeCode = params.placeCode || 'SS1';
       const reqDate = params.reqDate; // YYYYMMDDHH
@@ -48,7 +89,7 @@ exports.handler = async function (event) {
       return { statusCode: 200, headers: corsHeaders, body: text };
     }
 
-    // 서핑지수 (파고 포함) - placeCode 기본값: SR1
+    // 7) 서핑지수 (파고 포함)
     if (mode === 'surfing') {
       const placeCode = params.placeCode || 'SR1';
       const reqDate = params.reqDate; // YYYYMMDD
@@ -67,3 +108,6 @@ exports.handler = async function (event) {
     return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: err.message }) };
   }
 };
+
+
+
