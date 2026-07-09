@@ -394,7 +394,7 @@
       document.getElementById('marineObsTime').textContent = latestWater.obsrvnDt ?? today.toLocaleTimeString();
 
       // 기온/기압 API의 정확한 필드명이 다를 수 있어 여러 후보를 시도
-      const airVal = latestAir.atemp ?? latestAir.temp ?? latestAir.airTemp ?? latestAir.value;
+      const airVal = latestAir.artmp ?? latestAir.atemp ?? latestAir.temp ?? latestAir.value;
       const pressVal = latestPress.atmpr ?? latestPress.press ?? latestPress.airPress ?? latestPress.value;
 
       document.getElementById('marineAirTemp').textContent = (airVal !== undefined) ? `${airVal}°C` : '확인필요';
