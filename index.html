@@ -501,7 +501,15 @@
 
   window.onload = function () {
     const today = new Date();
-    document.getElementById('dateInput').value = today.toISOString().split('T')[0];
+    // 사고 날짜 기본값: 로컬(브라우저) 기준 오늘 날짜.
+    // ※ 기존에는 today.toISOString()을 썼는데, 이는 UTC 기준이라 한국(UTC+9)
+    //   자정~오전 8시59분 사이에는 UTC 날짜가 아직 전날이라서 "어제 날짜"가
+    //   자동으로 채워지는 문제가 있었다. getFullYear/getMonth/getDate는
+    //   브라우저의 로컬 시간대를 그대로 쓰므로 이 문제가 없다.
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    document.getElementById('dateInput').value = `${yyyy}-${mm}-${dd}`;
     fetchMarineWeather();
     fetchWaveHeight();
     fetchAlert();
