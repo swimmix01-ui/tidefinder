@@ -283,10 +283,19 @@
         <div class="value accent" id="marineWaveHeight">-</div>
       </div>
       <div class="stat-box">
+        <div class="label">풍향/풍속</div>
+        <div class="value accent" id="marineWind">-</div>
+      </div>
+      <div class="stat-box">
+        <div class="label">시정</div>
+        <div class="value accent" id="marineVisibility">-</div>
+      </div>
+      <div class="stat-box">
         <div class="label">관측시각</div>
         <div class="value" id="marineObsTime" style="font-size:13px;">-</div>
       </div>
     </div>
+    <div id="marineAlertBox" style="display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(255,92,92,0.12);border:1px solid rgba(255,92,92,0.35);font-size:13px;color:var(--red);font-weight:700;"></div>
   </div>
 
   <div id="resultCard" class="card" style="display:none;">
@@ -324,6 +333,7 @@
     // 해양 실시간 날씨 카드 로드
     fetchMarineWeather();
     fetchWaveHeight();
+    fetchAlert();
 
     kakao.maps.load(function () {
       const container = document.getElementById('map');
@@ -412,7 +422,7 @@
     }
   }
 
-  // 파고(WAV) - 기상청 단기예보 API 재활용 (포항 앞바다 좌표 고정)
+  // 파고(WAV)/풍향/풍속 - 기상청 단기예보 API 재활용 (포항 앞바다 좌표 고정)
   async function fetchWaveHeight() {
     try {
       const wind = await fetchWindData(36.023, 129.419); // 포항 앞바다 대표 좌표
@@ -421,9 +431,44 @@
       } else {
         document.getElementById('marineWaveHeight').textContent = '자료없음';
       }
+      if (wind.windSpeedMS !== null && wind.windDirFrom !== null) {
+        document.getElementById('marineWind').textContent = `${bearingToCompass(wind.windDirFrom)} ${wind.windSpeedMS}m/s`;
+      } else {
+        document.getElementById('marineWind').textContent = '자료없음';
+      }
     } catch (err) {
       document.getElementById('marineWaveHeight').textContent = '오류';
-      console.error('파고 조회 실패:', err);
+      document.getElementById('marineWind').textContent = '오류';
+      console.error('파고/풍향풍속 조회 실패:', err);
+    }
+  }
+
+  // 기상특보(경보/주의보) 조회 - 포항(stnId=138)
+  async function fetchAlert() {
+    const alertBox = document.getElementById('marineAlertBox');
+    try {
+      const res = await fetch('/.netlify/functions/weather?mode=alert&stnId=138');
+      const data = await res.json();
+      const items = data?.response?.body?.items?.item || data?.body?.items?.item;
+
+      if (!items || items.length === 0) {
+        alertBox.style.display = 'none';
+        return;
+      }
+
+      // 취소(cancel) 안 된 특보만 필터링, 없으면 전체 표시
+      const active = items.filter(i => !i.cancel || i.cancel !== 'Y');
+      if (active.length === 0) {
+        alertBox.style.display = 'none';
+        return;
+      }
+
+      const titles = active.map(i => i.title || i.warnStress || i.command || '기상특보').join(' / ');
+      alertBox.textContent = `⚠ 기상특보 발효 중: ${titles}`;
+      alertBox.style.display = 'block';
+    } catch (err) {
+      alertBox.style.display = 'none';
+      console.error('특보 조회 실패:', err);
     }
   }
 
