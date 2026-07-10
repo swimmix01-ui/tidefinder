@@ -19,9 +19,7 @@
     --green: #34D399;
     --amber: #FBBF24;
   }
-
   * { box-sizing: border-box; }
-
   body {
     font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', -apple-system, sans-serif;
     margin: 0; padding: 0;
@@ -30,7 +28,6 @@
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
   }
-
   header {
     padding: 22px 20px 20px;
     display: flex;
@@ -45,16 +42,9 @@
     background: radial-gradient(circle at 30% 30%, #1B4E77, #0A2138);
     box-shadow: 0 0 0 1px rgba(34,211,238,0.35), 0 4px 14px rgba(0,0,0,0.4);
   }
-  header h1 {
-    margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.02em;
-    color: var(--text-hi);
-  }
-  header .tagline {
-    margin: 2px 0 0; font-size: 12px; color: var(--text-lo); letter-spacing: 0.02em;
-  }
-
+  header h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.02em; color: var(--text-hi); }
+  header .tagline { margin: 2px 0 0; font-size: 12px; color: var(--text-lo); letter-spacing: 0.02em; }
   main { padding: 16px; max-width: 720px; margin: 0 auto; }
-
   .card {
     background: var(--card);
     border: 1px solid var(--border);
@@ -66,21 +56,364 @@
   .card-title {
     display: flex; align-items: center; gap: 8px;
     font-size: 13px; font-weight: 700; color: var(--cyan);
-    letter-spacing: 0.03em; text-transform: uppercase;
-    margin-bottom: 14px;
+    letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 14px;
   }
-  .card-title .dot {
-    width: 6px; height: 6px; border-radius: 50%; background: var(--cyan);
-    box-shadow: 0 0 8px var(--cyan);
-  }
-
+  .card-title .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
   .field { margin-bottom: 14px; }
   .field:last-child { margin-bottom: 0; }
-  .field-label {
-    font-size: 13px; font-weight: 600; color: var(--text-lo);
-    margin-bottom: 7px; display: block;
-  }
+  .field-label { font-size: 13px; font-weight: 600; color: var(--text-lo); margin-bottom: 7px; display: block; }
   .dms-row { display: flex; gap: 6px; align-items: center; }
   .dms-row input { flex: 1; min-width: 0; }
   .unit-tag { font-size: 12px; color: var(--text-lo); flex-shrink: 0; width: 12px; text-align: center; }
-  input[type=number], input[type=date],
+  input[type=number], input[type=date], input[type=text], select {
+    background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--text-hi);
+    padding: 10px 10px; border-radius: 10px; font-size: 15px; width: 100%; outline: none;
+    transition: border-color .15s, box-shadow .15s;
+  }
+  select option { background: var(--bg-mid); color: var(--text-hi); }
+  input:focus, select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(34,211,238,0.18); }
+  .inline-num { display: flex; align-items: center; gap: 8px; }
+  .inline-num input { max-width: 80px; }
+  .inline-suffix { font-size: 13px; color: var(--text-lo); }
+  .run-btn {
+    width: 100%; padding: 15px; font-size: 15px; font-weight: 800; letter-spacing: 0.01em; color: #06222E;
+    background: linear-gradient(135deg, var(--cyan), #4EE3FF); border: none; border-radius: 12px; margin-top: 6px;
+    cursor: pointer; box-shadow: 0 6px 20px rgba(34,211,238,0.35); transition: transform .1s;
+  }
+  .run-btn:active { transform: scale(0.98); }
+  #status {
+    display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600;
+    padding: 12px 16px; border-radius: 14px; background: var(--card-soft); border: 1px solid var(--border);
+    color: var(--text-lo); margin-bottom: 14px;
+  }
+  #status.ok { color: var(--green); border-color: rgba(52,211,153,0.35); }
+  #status.warn { color: var(--amber); border-color: rgba(251,191,36,0.35); }
+  #status.busy { color: var(--cyan); border-color: rgba(34,211,238,0.35); }
+  #map { width: 100%; height: 380px; border-radius: 18px; overflow: hidden; border: 1px solid var(--border); margin-bottom: 14px; }
+  .result-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+  .stat-box { background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 12px; padding: 12px; }
+  .stat-box .label { font-size: 11px; color: var(--text-lo); margin-bottom: 4px; }
+  .stat-box .value { font-size: 17px; font-weight: 800; color: var(--text-hi); }
+  .stat-box .value.accent { color: var(--cyan); }
+  .drift-summary {
+    background: rgba(255,92,92,0.08); border: 1px solid rgba(255,92,92,0.3);
+    border-radius: 12px; padding: 14px; font-size: 13.5px; line-height: 1.7; color: var(--text-hi);
+  }
+  .drift-summary b { color: var(--red); }
+  details { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
+  summary { font-size: 12px; color: var(--text-lo); cursor: pointer; font-weight: 600; }
+  #debugBox {
+    font-family: 'SF Mono', Consolas, monospace; font-size: 11px; color: var(--text-lo);
+    white-space: pre-wrap; line-height: 1.6; max-height: 220px; overflow-y: auto; margin-top: 8px;
+  }
+  footer { text-align: center; font-size: 11px; color: var(--text-lo); padding: 10px 0 30px; opacity: 0.6; }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo-mark">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
+      <path d="M2 18c1.5 1.2 3 1.2 4.5 0s3-1.2 4.5 0 3 1.2 4.5 0 3-1.2 4.5 0" stroke="#22D3EE" stroke-width="1.6" stroke-linecap="round"/>
+      <path d="M2 14c1.5 1.2 3 1.2 4.5 0s3-1.2 4.5 0 3 1.2 4.5 0 3-1.2 4.5 0" stroke="#5AC8E8" stroke-width="1.3" stroke-linecap="round" opacity="0.6"/>
+      <circle cx="12" cy="7" r="4" stroke="#EAF4FF" stroke-width="1.4"/>
+      <path d="M12 4.3 12.9 6.7 15.3 6.9 13.4 8.4 14 10.7 12 9.3 10 10.7 10.6 8.4 8.7 6.9 11.1 6.7Z" fill="#EAF4FF"/>
+    </svg>
+  </div>
+  <div>
+    <h1>타이드파인더 <span style="color:var(--cyan);font-weight:700;">TideFinder</span></h1>
+    <p class="tagline">해양 실종자 표류예측 시스템 · 프로토타입</p>
+  </div>
+</header>
+
+<main>
+  <div class="card">
+    <div class="card-title"><span class="dot"></span>사고 발생 정보 입력</div>
+    <div class="field">
+      <label class="field-label">위도 (N)</label>
+      <div class="dms-row">
+        <input id="latD" type="number" value="36"><span class="unit-tag">°</span>
+        <input id="latM" type="number" value="1"><span class="unit-tag">′</span>
+        <input id="latS" type="number" value="23"><span class="unit-tag">″</span>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field-label">경도 (E)</label>
+      <div class="dms-row">
+        <input id="lonD" type="number" value="129"><span class="unit-tag">°</span>
+        <input id="lonM" type="number" value="25"><span class="unit-tag">′</span>
+        <input id="lonS" type="number" value="10"><span class="unit-tag">″</span>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field-label">입수 일자</label>
+      <input id="dateInput" type="date">
+    </div>
+    <div class="field">
+      <label class="field-label">입수 시각</label>
+      <div class="inline-num">
+        <input id="hourInput" type="number" value="14"><span class="inline-suffix">시</span>
+        <input id="minuteInput" type="number" value="0"><span class="inline-suffix">분</span>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field-label">예측 시간</label>
+      <div class="inline-num">
+        <input id="hoursAhead" type="number" value="6"><span class="inline-suffix">시간 이내 수색구역 예측</span>
+      </div>
+    </div>
+    <div class="field">
+      <label class="field-label">표류물 종류 (풍압계수)</label>
+      <select id="leewayCoef">
+        <option value="0.027" selected>일반 실종자 (생존정장/구명조끼) — 2.7%</option>
+        <option value="0.04">소형 고무보트 — 4%</option>
+      </select>
+    </div>
+    <button class="run-btn" onclick="runPrediction()">▶ 표류 예측구역 계산</button>
+  </div>
+
+  <div id="status" class="warn">⏳ 지도를 클릭하면 좌표가 자동 입력됩니다. 대기 중...</div>
+  <div id="map"></div>
+
+  <div id="marineCard" class="card">
+    <div class="card-title"><span class="dot"></span>현재 해상 상태 (포항)</div>
+    <div class="result-grid">
+      <div class="stat-box"><div class="label">수온</div><div class="value accent" id="marineWaterTemp">-</div></div>
+      <div class="stat-box"><div class="label">기온</div><div class="value accent" id="marineAirTemp">-</div></div>
+      <div class="stat-box"><div class="label">기압</div><div class="value accent" id="marineAirPress">-</div></div>
+      <div class="stat-box"><div class="label">파고 (기상청 예보)</div><div class="value accent" id="marineWaveHeight">-</div></div>
+      <div class="stat-box"><div class="label">풍향/풍속</div><div class="value accent" id="marineWind">-</div></div>
+      <div class="stat-box"><div class="label">시정</div><div class="value accent" id="marineVisibility">-</div></div>
+      <div class="stat-box"><div class="label">관측시각</div><div class="value" id="marineObsTime" style="font-size:13px;">-</div></div>
+    </div>
+    <div id="marineAlertBox" style="display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(255,92,92,0.12);border:1px solid rgba(255,92,92,0.35);font-size:13px;color:var(--red);font-weight:700;"></div>
+  </div>
+
+  <div id="resultCard" class="card" style="display:none;">
+    <div class="card-title"><span class="dot"></span>예측 결과 요약</div>
+    <div class="result-grid">
+      <div class="stat-box"><div class="label">조류 유속</div><div class="value accent" id="statSpeed">-</div></div>
+      <div class="stat-box"><div class="label">유향</div><div class="value accent" id="statDir">-</div></div>
+    </div>
+    <div class="drift-summary" id="driftSummary"></div>
+    <details><summary>디버그 정보</summary><div id="debugBox"></div></details>
+  </div>
+</main>
+
+<footer>KHOA 조류 데이터 기반</footer>
+
+<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=7cf14f6520831fe7a42b307b25e72103&libraries=services"></script>
+<script>
+  const SERVICE_KEY = 'srQx3b3XW8NV9RpGp9CQ==';
+  let map, clickMarker, currentPolyline, currentCircles = [], currentMarkers = [];
+
+  window.onload = function () {
+    const today = new Date();
+    document.getElementById('dateInput').value = today.toISOString().split('T')[0];
+    fetchMarineWeather();
+    fetchWaveHeight();
+    fetchAlert();
+
+    kakao.maps.load(function () {
+      const container = document.getElementById('map');
+      map = new kakao.maps.Map(container, { center: new kakao.maps.LatLng(36.023, 129.419), level: 8 });
+      clickMarker = new kakao.maps.Marker({ position: map.getCenter() });
+      clickMarker.setMap(map);
+
+      kakao.maps.event.addListener(map, 'click', function (mouseEvent) {
+        const latlng = mouseEvent.latLng;
+        clickMarker.setPosition(latlng);
+        const latDMS = decimalToDMS(latlng.getLat());
+        const lonDMS = decimalToDMS(latlng.getLng());
+        document.getElementById('latD').value = latDMS.d; document.getElementById('latM').value = latDMS.m; document.getElementById('latS').value = latDMS.s;
+        document.getElementById('lonD').value = lonDMS.d; document.getElementById('lonM').value = lonDMS.m; document.getElementById('lonS').value = lonDMS.s;
+        setStatus('ok', `🎯 좌표 자동 입력 완료`);
+      });
+      setStatus('ok', '✅ 지도 연동 완료');
+    });
+  };
+
+  async function fetchMarineWeather() {
+    const today = new Date();
+    const reqDate = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
+    try {
+      const [waterRes, airRes, pressRes] = await Promise.all([
+        fetch(`/.netlify/functions/weather?mode=watertemp&reqDate=${reqDate}`),
+        fetch(`/.netlify/functions/weather?mode=airtemp&reqDate=${reqDate}`),
+        fetch(`/.netlify/functions/weather?mode=airpress&reqDate=${reqDate}`)
+      ]);
+      const wData = await waterRes.json(); const aData = await airRes.json(); const pData = await pressRes.json();
+      const wItems = wData?.body?.items?.item || wData?.response?.body?.items?.item;
+      const aItems = aData?.body?.items?.item || aData?.response?.body?.items?.item;
+      const pItems = pData?.body?.items?.item || pData?.response?.body?.items?.item;
+
+      if (wItems && wItems.length > 0) {
+        const lw = wItems[wItems.length - 1];
+        document.getElementById('marineWaterTemp').textContent = `${lw.wtem ?? lw.value ?? '-'}°C`;
+        document.getElementById('marineObsTime').textContent = lw.obsrvnDt ?? today.toLocaleTimeString();
+      }
+      if (aItems && aItems.length > 0) {
+        const la = aItems[aItems.length - 1];
+        document.getElementById('marineAirTemp').textContent = `${la.artmp ?? la.atemp ?? la.value}°C`;
+      }
+      if (pItems && pItems.length > 0) {
+        const lp = pItems[pItems.length - 1];
+        document.getElementById('marineAirPress').textContent = `${lp.atmpr ?? lp.press ?? lp.value}hPa`;
+      }
+    } catch (err) {
+      console.error(err);
+    }
+
+    try {
+      const fogRes = await fetch(`/.netlify/functions/weather?mode=seafog&obsCode=DT_0091&reqDate=${reqDate}`);
+      if (fogRes.ok) {
+        const fData = await fogRes.json();
+        const fItems = fData?.body?.items?.item || fData?.response?.body?.items?.item;
+        if (fItems && fItems.length > 0) {
+          const lf = fItems[fItems.length - 1];
+          const v = lf.visb ?? lf.value;
+          if (v) {
+            const m = parseFloat(v);
+            document.getElementById('marineVisibility').textContent = m >= 1000 ? `${(m/1000).toFixed(1)}km` : `${m}m`;
+          } else { document.getElementById('marineVisibility').textContent = '양호'; }
+        } else { document.getElementById('marineVisibility').textContent = '양호'; }
+      } else { document.getElementById('marineVisibility').textContent = '양호'; }
+    } catch (err) {
+      document.getElementById('marineVisibility').textContent = '양호';
+    }
+  }
+
+  async function fetchWaveHeight() {
+    try {
+      const wind = await fetchWindData(36.023, 129.419);
+      document.getElementById('marineWaveHeight').textContent = wind.waveHeightM !== null ? `${wind.waveHeightM}m` : '자료없음';
+      document.getElementById('marineWind').textContent = (wind.windSpeedMS && wind.windDirFrom) ? `${bearingToCompass(wind.windDirFrom)} ${wind.windSpeedMS}m/s` : '자료없음';
+    } catch (err) { console.error(err); }
+  }
+
+  async function fetchAlert() {
+    const box = document.getElementById('marineAlertBox');
+    try {
+      const res = await fetch('/.netlify/functions/weather?mode=alert&stnId=138');
+      const data = await res.json();
+      const items = data?.response?.body?.items?.item || data?.body?.items?.item;
+      if (!items || items.length === 0) return;
+      const active = items.filter(i => !i.cancel || i.cancel !== 'Y');
+      if (active.length === 0) return;
+      box.textContent = `⚠ 기상특보 발효 중: ${active.map(i => i.title || '특보').join(' / ')}`;
+      box.style.display = 'block';
+    } catch (err) { console.error(err); }
+  }
+
+  function decimalToDMS(val) {
+    const d = Math.floor(val); const mF = (val - d) * 60; const m = Math.floor(mF); const s = Math.round((mF - m) * 60);
+    return { d, m, s };
+  }
+  function formatDMS(lat, lon) { const la = decimalToDMS(lat); const lo = decimalToDMS(lon); return `${la.d}°${la.m}′${la.s}″N, ${lo.d}°${lo.m}′${lo.s}″E`; }
+  function setStatus(kind, text) { const el = document.getElementById('status'); el.className = kind; el.textContent = text; }
+  function dmsToDecimal(d, m, s) { return d + (m / 60) + (s / 3600); }
+  function bearingToCompass(deg) {
+    const names = ['북', '북북동', '북동', '동북동', '동', '동남동', '남동', '남남동', '남', '남남서', '남서', '서남서', '서', '서북서', '북서', '북북서'];
+    return names[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
+  }
+  function destinationPoint(lat, lon, brngDeg, distM) {
+    const R = 6371000; const brng = brngDeg * Math.PI / 180; const lat1 = lat * Math.PI / 180; const lon1 = lon * Math.PI / 180;
+    const lat2 = Math.asin(Math.sin(lat1) * Math.cos(distM / R) + Math.cos(lat1) * Math.sin(distM / R) * Math.cos(brng));
+    const lon2 = lon1 + Math.atan2(Math.sin(brng) * Math.sin(distM / R) * Math.cos(lat1), Math.cos(distM / R) - Math.sin(lat1) * Math.sin(lat2));
+    return { lat: lat2 * 180 / Math.PI, lon: lon2 * 180 / Math.PI };
+  }
+  function latLonToGrid(lat, lon) {
+    const RE = 6371.00877, GRID = 5.0, SLAT1 = 30.0, SLAT2 = 60.0, OLON = 126.0, OLAT = 38.0, XO = 43, YO = 136, DEGRAD = Math.PI / 180.0;
+    const re = RE / GRID, slat1 = SLAT1 * DEGRAD, slat2 = SLAT2 * DEGRAD, olon = OLON * DEGRAD, olat = OLAT * DEGRAD;
+    let sn = Math.tan(Math.PI * 0.25 + slat2 * 0.5) / Math.tan(Math.PI * 0.25 + slat1 * 0.5); sn = Math.log(Math.cos(slat1) / Math.cos(slat2)) / Math.log(sn);
+    let sf = Math.pow(Math.tan(Math.PI * 0.25 + slat1 * 0.5), sn) * Math.cos(slat1) / sn;
+    let ro = re * sf / Math.pow(Math.tan(Math.PI * 0.25 + olat * 0.5), sn);
+    let ra = re * sf / Math.pow(Math.tan(Math.PI * 0.25 + lat * DEGRAD * 0.5), sn);
+    let th = lon * DEGRAD - olon; if (th > Math.PI) th -= 2.0 * Math.PI; if (th < -Math.PI) th += 2.0 * Math.PI; th *= sn;
+    return { nx: Math.floor(ra * Math.sin(th) + XO + 0.5), ny: Math.floor(ro - ra * Math.cos(th) + YO + 0.5) };
+  }
+  function getKmaBaseDateTime() {
+    const times = [2, 5, 8, 11, 14, 17, 20, 23]; const now = new Date(); let cand = null;
+    times.forEach(t => { if (now.getHours() > t || (now.getHours() === t && now.getMinutes() >= 10)) cand = t; });
+    let bDate = now; if (cand === null) { cand = 23; bDate = new Date(now.getTime() - 86400000); }
+    return { base_date: `${bDate.getFullYear()}${String(bDate.getMonth() + 1).padStart(2, '0')}${String(bDate.getDate()).padStart(2, '0')}`, base_time: String(cand).padStart(2, '0') + '00' };
+  }
+  function bearingToXY(b, m) { const r = b * Math.PI / 180; return { x: m * Math.sin(r), y: m * Math.cos(r) }; }
+  function xyToBearingMag(x, y) { let brg = Math.atan2(x, y) * 180 / Math.PI; if (brg < 0) brg += 360; return { bearing: brg, magnitude: Math.sqrt(x * x + y * y) }; }
+
+  async function fetchWindData(lat, lon) {
+    const { nx, ny } = latLonToGrid(lat, lon); const { base_date, base_time } = getKmaBaseDateTime();
+    const res = await fetch(`/.netlify/functions/weather?nx=${nx}&ny=${ny}&base_date=${base_date}&base_time=${base_time}`);
+    const data = await res.json(); const items = data.response.body.items.item;
+    return {
+      windDirFrom: items.find(i => i.category === 'VEC') ? parseFloat(items.find(i => i.category === 'VEC').fcstValue) : null,
+      windSpeedMS: items.find(i => i.category === 'WSD') ? parseFloat(items.find(i => i.category === 'WSD').fcstValue) : null,
+      waveHeightM: items.find(i => i.category === 'WAV') ? parseFloat(items.find(i => i.category === 'WAV').fcstValue) : null,
+      nx, ny, base_date, base_time
+    };
+  }
+
+  async function runPrediction() {
+    const card = document.getElementById('resultCard'); setStatus('busy', '⏳ 조류 연산 수행 중...'); card.style.display = 'none';
+    const lat = dmsToDecimal(parseFloat(document.getElementById('latD').value), parseFloat(document.getElementById('latM').value), parseFloat(document.getElementById('latS').value));
+    const lon = dmsToDecimal(parseFloat(document.getElementById('lonD').value), parseFloat(document.getElementById('lonM').value), parseFloat(document.getElementById('lonS').value));
+    const dateStr = document.getElementById('dateInput').value.replace(/-/g, '');
+    const hour = document.getElementById('hourInput').value.padStart(2, '0'); const minute = document.getElementById('minuteInput').value.padStart(2, '0');
+    const ahead = parseInt(document.getElementById('hoursAhead').value);
+    const minX = (lon - 0.05).toFixed(5); const maxX = (lon + 0.05).toFixed(5); const minY = (lat - 0.05).toFixed(5); const maxY = (lat + 0.05).toFixed(5);
+
+    let speed = 5.0, dir = 90, usedWind = false, waveHeightM = null, windSpeedMS = null, windDirFrom = null, debugText = '';
+    try {
+      const res = await fetch(`https://khoa.go.kr/oceandata/api/tidalCurrentArea/search.do?ServiceKey=${SERVICE_KEY}&Date=${dateStr}&Hour=${hour}&Minute=${minute}&MinX=${minX}&MaxX=${maxX}&MinY=${minY}&MaxY=${maxY}&ResultType=json`);
+      const d = await res.json(); const points = d.result.data;
+      if (points && points.length > 0) {
+        let minDist = Infinity, nearest = null;
+        points.forEach(p => {
+          const dist = Math.pow(parseFloat(p.pre_lat) - lat, 2) + Math.pow(parseFloat(p.pre_lon) - lon, 2);
+          if (dist < minDist) { minDist = dist; nearest = p; }
+        });
+        if (nearest) { speed = parseFloat(nearest.current_speed); dir = parseFloat(nearest.current_dir); setStatus('ok', '✅ 조류 수신 완료'); }
+      }
+    } catch (err) { setStatus('warn', '⚠️ 기본값 연산 수행'); }
+
+    try {
+      const w = await fetchWindData(lat, lon); windSpeedMS = w.windSpeedMS; windDirFrom = w.windDirFrom; waveHeightM = w.waveHeightM;
+      if (windSpeedMS !== null && windDirFrom !== null) usedWind = true;
+    } catch (e) {}
+
+    const curDisp = speed * 0.01 * 3600; const curXY = bearingToXY(dir, curDisp);
+    let combBrng = dir, combSpeed = curDisp;
+    if (usedWind) {
+      const wXY = bearingToXY((windDirFrom + 180) % 360, windSpeedMS * 3600 * parseFloat(document.getElementById('leewayCoef').value));
+      const comb = xyToBearingMag(curXY.x + wXY.x, curXY.y + wXY.y); combBrng = comb.bearing; combSpeed = comb.magnitude;
+    }
+
+    const cLine = [{ lat, lon }];
+    for (let t = 1; t <= ahead; t++) { cLine.push(destinationPoint(lat, lon, combBrng, combSpeed * t)); }
+
+    if (currentPolyline) currentPolyline.setMap(null);
+    currentCircles.forEach(c => c.setMap(null)); currentCircles = [];
+    currentMarkers.forEach(m => m.setMap(null)); currentMarkers = [];
+
+    const start = new kakao.maps.LatLng(lat, lon);
+    const m1 = new kakao.maps.Marker({ position: start }); m1.setMap(map); currentMarkers.push(m1);
+    
+    currentPolyline = new kakao.maps.Polyline({ path: [start, ...cLine.slice(1).map(p => new kakao.maps.LatLng(p.lat, p.lon))], strokeWeight: 3, strokeColor: '#22D3EE', strokeOpacity: 0.9 });
+    currentPolyline.setMap(map);
+
+    const wFactor = waveHeightM ? (waveHeightM * 0.02) : 0;
+    cLine.slice(1).forEach((p, idx) => {
+      const r = 50 + (0.15 + wFactor) * (combSpeed * (idx + 1));
+      const c = new kakao.maps.Circle({ center: new kakao.maps.LatLng(p.lat, p.lon), radius: r, strokeWeight: 1, strokeColor: '#FF5C5C', strokeOpacity: 0.6, strokeStyle: 'shortdash', fillColor: '#FF5C5C', fillOpacity: (idx+1)===ahead?0.18:0.06 });
+      c.setMap(map); currentCircles.push(c);
+    });
+
+    map.setCenter(start); map.setLevel(9);
+    document.getElementById('statSpeed').textContent = `${(combSpeed / 1852).toFixed(2)} kn`;
+    document.getElementById('statDir').textContent = `${combBrng.toFixed(0)}° (${bearingToCompass(combBrng)})`;
+    document.getElementById('driftSummary').innerHTML = `▶ <b>${combBrng.toFixed(0)}°방향</b>으로 약 <b>${((combSpeed * ahead)/1852).toFixed(2)}해리</b> 이동 예상<br>▶ 최종 위치: ${formatDMS(cLine[cLine.length-1].lat, cLine[cLine.length-1].lon)} (오차반경 가중 반영됨)`;
+    card.style.display = 'block';
+  }
+</script>
+</body>
+</html>
