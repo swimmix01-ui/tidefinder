@@ -66,6 +66,70 @@
   summary { font-size: 12px; color: var(--text-lo); cursor: pointer; font-weight: 600; }
   #debugBox { font-family: 'SF Mono', Consolas, monospace; font-size: 11px; color: var(--text-lo); white-space: pre-wrap; line-height: 1.6; max-height: 220px; overflow-y: auto; margin-top: 8px; }
   footer { text-align: center; font-size: 11px; color: var(--text-lo); padding: 10px 0 30px; opacity: 0.6; }
+
+  /* ===== ⑦ 결과 시각화용 Stat Card (기존 result-grid 스타일 재사용 + 보조 그리드) ===== */
+  .stat-grid-4 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 10px; }
+
+  /* ===== ① AI 분석 카드: Progress Bar ===== */
+  .factor-row { margin-bottom: 12px; }
+  .factor-row:last-child { margin-bottom: 0; }
+  .factor-label-row { display: flex; justify-content: space-between; font-size: 12.5px; color: var(--text-lo); margin-bottom: 5px; }
+  .factor-label-row .factor-pct { color: var(--cyan); font-weight: 700; }
+  .progress-track { width: 100%; height: 8px; background: rgba(255,255,255,0.08); border-radius: 6px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--cyan-dim), var(--cyan)); border-radius: 6px; width: 0%; transition: width 0.9s cubic-bezier(0.22, 1, 0.36, 1); }
+
+  .ai-confidence-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding: 12px 14px; background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.25); border-radius: 12px; }
+  .ai-confidence-label { font-size: 13px; color: var(--text-lo); font-weight: 600; }
+  .ai-confidence-value { font-size: 22px; font-weight: 800; color: var(--cyan); }
+
+  .ai-explain { margin-top: 16px; font-size: 13.5px; line-height: 1.7; color: var(--text-hi); background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
+
+  /* ===== ⑥ AI 위험도 배지 ===== */
+  .risk-badge { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 800; padding: 6px 12px; border-radius: 999px; letter-spacing: 0.02em; margin-top: 10px; }
+  .risk-badge.low { background: rgba(52,211,153,0.15); color: var(--green); border: 1px solid rgba(52,211,153,0.4); }
+  .risk-badge.medium { background: rgba(251,191,36,0.15); color: var(--amber); border: 1px solid rgba(251,191,36,0.4); }
+  .risk-badge.high { background: rgba(255,146,92,0.15); color: #FF925C; border: 1px solid rgba(255,146,92,0.4); }
+  .risk-badge.veryhigh { background: rgba(255,92,92,0.18); color: var(--red); border: 1px solid rgba(255,92,92,0.45); }
+
+  /* ===== ⑤ AI 수색 권고 카드 ===== */
+  .search-list { list-style: none; margin: 0; padding: 0; }
+  .search-list li { display: flex; justify-content: space-between; gap: 10px; font-size: 13.5px; padding: 9px 0; border-bottom: 1px solid var(--border); color: var(--text-hi); }
+  .search-list li:last-child { border-bottom: none; }
+  .search-list li .k { color: var(--text-lo); flex-shrink: 0; }
+  .search-list li .v { text-align: right; font-weight: 700; }
+  .search-order { margin-top: 12px; font-size: 13px; line-height: 1.7; color: var(--text-lo); background: rgba(255,255,255,0.04); border-radius: 10px; padding: 12px 14px; }
+  .search-order b { color: var(--cyan); }
+
+  .footnote { font-size: 11px; color: var(--text-lo); opacity: 0.75; margin-top: 14px; line-height: 1.5; text-align: center; }
+
+  /* ===== ⑧ 애니메이션 ===== */
+  @keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  .fade-in { animation: fadeInUp 0.45s ease forwards; }
+
+  /* ===== ③ 시간별 표류 마커 라벨 ===== */
+  .hour-marker {
+    background: var(--cyan); color: #06222E; font-size: 10px; font-weight: 800;
+    padding: 2px 6px; border-radius: 999px; border: 1px solid rgba(6,34,46,0.4);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.35); white-space: nowrap;
+  }
+
+  /* ===== ⑨ 모바일 최적화 (375~430px 대응) ===== */
+  @media (max-width: 390px) {
+    main { padding: 12px; }
+    .card { padding: 14px; border-radius: 16px; }
+    header h1 { font-size: 18px; }
+    .stat-box .value { font-size: 15px; }
+    .ai-confidence-value { font-size: 19px; }
+    .search-list li { font-size: 12.5px; }
+  }
+  @media (max-width: 375px) {
+    .result-grid, .stat-grid-4 { gap: 8px; }
+    .stat-box { padding: 10px; }
+    .stat-box .label { font-size: 10px; }
+  }
 </style>
 </head>
 <body>
@@ -148,14 +212,71 @@
     <div id="marineAlertBox" style="display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(255,92,92,0.12);border:1px solid rgba(255,92,92,0.35);font-size:13px;color:var(--red);font-weight:700;"></div>
   </div>
 
+  <!-- ===== ① AI 분석 카드 (예측 결과 위에 배치) ===== -->
+  <div id="aiCard" class="card" style="display:none;">
+    <div class="card-title"><span class="dot"></span>AI 기반 표류 분석</div>
+
+    <div class="ai-confidence-row">
+      <span class="ai-confidence-label">예측 신뢰도</span>
+      <span class="ai-confidence-value" id="aiConfidence">-</span>
+    </div>
+
+    <div class="factor-row">
+      <div class="factor-label-row"><span>조류 영향</span><span class="factor-pct" id="factorCurrentPct">-</span></div>
+      <div class="progress-track"><div class="progress-fill" id="factorCurrentBar"></div></div>
+    </div>
+    <div class="factor-row">
+      <div class="factor-label-row"><span>풍향 영향</span><span class="factor-pct" id="factorWindPct">-</span></div>
+      <div class="progress-track"><div class="progress-fill" id="factorWindBar"></div></div>
+    </div>
+    <div class="factor-row">
+      <div class="factor-label-row"><span>파고 영향</span><span class="factor-pct" id="factorWavePct">-</span></div>
+      <div class="progress-track"><div class="progress-fill" id="factorWaveBar"></div></div>
+    </div>
+    <div class="factor-row">
+      <div class="factor-label-row"><span>풍압계수 반영도</span><span class="factor-pct" id="factorLeewayPct">-</span></div>
+      <div class="progress-track"><div class="progress-fill" id="factorLeewayBar"></div></div>
+    </div>
+
+    <!-- ② AI 판단 설명 (자연어, 데이터에 따라 자동 생성) -->
+    <div class="ai-explain" id="aiExplain">-</div>
+
+    <!-- ⑥ AI 위험도 배지 -->
+    <div id="riskBadge" class="risk-badge medium">위험도 산정 중</div>
+
+    <div class="footnote">※ 예측 결과는 조류·기상 데이터를 기반으로 산출된 수색지원 정보입니다.</div>
+  </div>
+
   <div id="resultCard" class="card" style="display:none;">
     <div class="card-title"><span class="dot"></span>예측 결과 요약</div>
     <div class="result-grid">
       <div class="stat-box"><div class="label">조류 유속</div><div class="value accent" id="statSpeed">-</div></div>
       <div class="stat-box"><div class="label">유향</div><div class="value accent" id="statDir">-</div></div>
     </div>
-    <div class="drift-summary" id="driftSummary"></div>
+
+    <!-- ⑦ 결과 시각화: 4개 Stat Card 추가 -->
+    <div class="stat-grid-4">
+      <div class="stat-box"><div class="label">예측 이동거리</div><div class="value accent" id="statDist">-</div></div>
+      <div class="stat-box"><div class="label">예측시간</div><div class="value accent" id="statHours">-</div></div>
+      <div class="stat-box"><div class="label">평균속도</div><div class="value accent" id="statAvgSpeed">-</div></div>
+      <div class="stat-box"><div class="label">오차반경</div><div class="value accent" id="statErrorRadius">-</div></div>
+    </div>
+
+    <div class="drift-summary" id="driftSummary" style="margin-top:14px;"></div>
     <details><summary>디버그 정보</summary><div id="debugBox"></div></details>
+  </div>
+
+  <!-- ===== ⑤ AI 수색 권고 카드 ===== -->
+  <div id="searchCard" class="card" style="display:none;">
+    <div class="card-title"><span class="dot"></span>AI 수색 권고</div>
+    <ul class="search-list">
+      <li><span class="k">추천 수색 시작점</span><span class="v" id="searchStart">-</span></li>
+      <li><span class="k">추천 이동 방향</span><span class="v" id="searchDir">-</span></li>
+      <li><span class="k">우선 탐색 반경</span><span class="v" id="searchR1">-</span></li>
+      <li><span class="k">2차 탐색 반경</span><span class="v" id="searchR2">-</span></li>
+      <li><span class="k">예상 도달 위치</span><span class="v" id="searchEnd">-</span></li>
+    </ul>
+    <div class="search-order" id="searchOrder">-</div>
   </div>
 </main>
 
@@ -192,6 +313,7 @@
     });
   };
 
+  // ===== 기존 기능: 해양 실시간 날씨 카드 (변경 없음) =====
   async function fetchMarineWeather() {
     const today = new Date();
     const reqDate = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
@@ -223,9 +345,8 @@
       console.error(err);
     }
 
-    // 시정(seafog) API는 현재 국립해양조사원 측 서비스 장애(403 Forbidden)로 실측값을 받아올 수 없는 상태입니다.
-    // 안전 관련 정보이므로 값을 확보하지 못했을 때 임의의 값("양호" 등)을 표시하지 않고,
-    // 반드시 "확인불가"로 명확히 표기하여 현장에서 오판하지 않도록 합니다.
+    // 시정(seafog) API는 국립해양조사원 측 서비스 장애(403)로 실측값을 받아올 수 없는 상태.
+    // 안전 관련 정보이므로 실패 시 "확인불가"로 명확히 표기 (임의값 표시 금지).
     try {
       const fogRes = await fetch(`/.netlify/functions/weather?mode=seafog&obsCode=DT_0091&reqDate=${reqDate}`);
       if (fogRes.ok) {
@@ -273,6 +394,7 @@
     } catch (err) { console.error(err); }
   }
 
+  // ===== 기존 유틸 함수 (변경 없음) =====
   function decimalToDMS(val) {
     const d = Math.floor(val); const mF = (val - d) * 60; const m = Math.floor(mF); const s = Math.round((mF - m) * 60);
     return { d, m, s };
@@ -321,8 +443,139 @@
     };
   }
 
+  // ==========================================================================
+  // ⑧ 애니메이션 헬퍼 함수
+  // ==========================================================================
+
+  // 카드가 화면에 나타날 때 살짝 위로 올라오며 Fade-in
+  function animateCardIn(el) {
+    el.style.display = 'block';
+    el.classList.remove('fade-in');
+    void el.offsetWidth; // 리플로우 강제 -> 애니메이션 재시작 보장
+    el.classList.add('fade-in');
+  }
+
+  // Progress Bar를 0%에서 목표값까지 부드럽게 채움 (CSS transition 이용)
+  function animateProgressBar(el, targetPct) {
+    el.style.width = '0%';
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => { el.style.width = `${Math.max(0, Math.min(100, targetPct))}%`; });
+    });
+  }
+
+  // Kakao Circle을 fillOpacity 0 -> 목표값까지 단계적으로 Fade-in (카카오맵 Circle은 CSS transition 미지원이라 JS로 단계 애니메이션 구현)
+  function animateCircleFade(circle, targetOpacity, steps = 10, durationMs = 400) {
+    let step = 0;
+    const interval = setInterval(() => {
+      step++;
+      const opacity = (targetOpacity * step) / steps;
+      circle.setOptions({ fillOpacity: opacity });
+      if (step >= steps) clearInterval(interval);
+    }, durationMs / steps);
+  }
+
+  // ==========================================================================
+  // ⑥ AI 위험도 산출 (풍속·파고·예측거리 기반 규칙 기반 스코어링)
+  // ==========================================================================
+  function calcRiskLevel(windSpeedMS, waveHeightM, maxDistNm) {
+    const w = windSpeedMS || 0;
+    const wave = waveHeightM || 0;
+    const dist = maxDistNm || 0;
+    // 가중치: 파고가 위험도에 가장 민감(해상 안전 특성상), 다음 풍속, 다음 이동거리
+    const score = (w * 1.2) + (wave * 12) + (dist * 3);
+
+    if (score < 8) return { label: 'Low', cls: 'low' };
+    if (score < 18) return { label: 'Medium', cls: 'medium' };
+    if (score < 30) return { label: 'High', cls: 'high' };
+    return { label: 'Very High', cls: 'veryhigh' };
+  }
+
+  // ==========================================================================
+  // ① ② AI 기반 표류 분석 카드 렌더링 (영향요인 Progress Bar + 자연어 설명 + 위험도)
+  // ※ 실제 머신러닝 모델이 아니라, 이미 계산된 조류·바람·파고 값을 근거로 한
+  //    규칙 기반(rule-based) 상대 비교 로직입니다. 화면 문구도 이를 과장하지 않도록 구성.
+  // ==========================================================================
+  function renderAIAnalysis(params) {
+    const { speed, currentDispPerHourM, windageDispPerHourM, waveHeightM, leewayCoef, usedWind, usedFallback, combinedBearing, windDirFrom, windSpeedMS, maxDistNm } = params;
+
+    // --- 신뢰도 계산: 데이터 확보 여부에 따라 가감 (규칙 기반) ---
+    let confidence = 95;
+    if (usedFallback) confidence -= 25;      // 조류 실측 실패 -> 임시값 사용
+    if (!usedWind) confidence -= 15;         // 바람 데이터 미확보
+    if (waveHeightM === null) confidence -= 5;
+    confidence = Math.max(40, Math.min(98, confidence));
+    document.getElementById('aiConfidence').textContent = `${confidence}%`;
+
+    // --- 영향요인 비율 계산 ---
+    const windageM = windageDispPerHourM || 0;
+    const totalMag = currentDispPerHourM + windageM;
+    const currentPct = totalMag > 0 ? Math.round((currentDispPerHourM / totalMag) * 100) : 100;
+    const windPct = totalMag > 0 ? Math.round((windageM / totalMag) * 100) : 0;
+    const wavePct = waveHeightM !== null ? Math.min(100, Math.round((waveHeightM / 3) * 100)) : 0; // 3m 기준 정규화
+    const leewayPct = Math.round((leewayCoef / 0.04) * 100); // 최대 선택지(4%) 기준 정규화
+
+    document.getElementById('factorCurrentPct').textContent = `${currentPct}%`;
+    document.getElementById('factorWindPct').textContent = `${windPct}%`;
+    document.getElementById('factorWavePct').textContent = waveHeightM !== null ? `${wavePct}%` : '자료없음';
+    document.getElementById('factorLeewayPct').textContent = `${leewayPct}%`;
+
+    animateProgressBar(document.getElementById('factorCurrentBar'), currentPct);
+    animateProgressBar(document.getElementById('factorWindBar'), windPct);
+    animateProgressBar(document.getElementById('factorWaveBar'), wavePct);
+    animateProgressBar(document.getElementById('factorLeewayBar'), leewayPct);
+
+    // --- ② 자연어 설명 자동 생성 ---
+    const dominant = currentPct >= windPct ? '조류' : '바람(풍압)';
+    const compassName = bearingToCompass(combinedBearing);
+    let explain = `현재 ${dominant} 영향이 가장 크게 작용하며, `;
+    explain += usedWind
+      ? `풍향은 ${compassName} 방향 이동을 ${windPct >= 40 ? '크게' : '추가적으로'} 증가시키는 요소입니다. `
+      : `바람 데이터가 확보되지 않아 조류 값만으로 계산되었습니다. `;
+    if (waveHeightM !== null) {
+      explain += waveHeightM < 1
+        ? `파고는 ${waveHeightM}m로 낮아 표류 오차는 비교적 작을 것으로 판단됩니다.`
+        : `파고는 ${waveHeightM}m로 다소 높아 표류 경로의 불확실성이 커질 수 있으니 수색 반경을 여유 있게 설정하시기 바랍니다.`;
+    } else {
+      explain += `파고 데이터는 현재 확보되지 않았습니다.`;
+    }
+    if (usedFallback) explain += ` (※ 조류 실측 수신 실패로 임시값이 일부 반영되었습니다.)`;
+    document.getElementById('aiExplain').textContent = explain;
+
+    // --- ⑥ 위험도 배지 ---
+    const risk = calcRiskLevel(windSpeedMS, waveHeightM, maxDistNm);
+    const badge = document.getElementById('riskBadge');
+    badge.className = `risk-badge ${risk.cls}`;
+    badge.textContent = `위험도: ${risk.label}`;
+
+    animateCardIn(document.getElementById('aiCard'));
+    return risk;
+  }
+
+  // ==========================================================================
+  // ⑤ AI 수색 권고 카드 렌더링
+  // ==========================================================================
+  function renderSearchRecommendation(params) {
+    const { startLat, startLon, combinedBearing, finalErrorRadius, finalPoint } = params;
+    const compassName = bearingToCompass(combinedBearing);
+    const r1 = Math.round(finalErrorRadius * 0.5); // 우선 탐색 반경: 오차반경의 50%
+    const r2 = finalErrorRadius;                    // 2차 탐색 반경: 전체 오차반경
+
+    document.getElementById('searchStart').textContent = formatDMS(startLat, startLon);
+    document.getElementById('searchDir').textContent = `${combinedBearing.toFixed(0)}° (${compassName})`;
+    document.getElementById('searchR1').textContent = `${r1}m`;
+    document.getElementById('searchR2').textContent = `${r2}m`;
+    document.getElementById('searchEnd').textContent = formatDMS(finalPoint.lat, finalPoint.lon);
+    document.getElementById('searchOrder').innerHTML =
+      `<b>추천 수색 순서</b><br>① 최초 목격지점 반경 ${r1}m 우선 수색 → ② ${compassName} 방향 중간 경로 확인 → ③ 예상 최종위치 반경 ${r2}m 정밀 수색`;
+
+    animateCardIn(document.getElementById('searchCard'));
+  }
+
   async function runPrediction() {
     const card = document.getElementById('resultCard'); setStatus('busy', '⏳ 조류 연산 수행 중...'); card.style.display = 'none';
+    document.getElementById('aiCard').style.display = 'none';
+    document.getElementById('searchCard').style.display = 'none';
+
     const lat = dmsToDecimal(parseFloat(document.getElementById('latD').value), parseFloat(document.getElementById('latM').value), parseFloat(document.getElementById('latS').value));
     const lon = dmsToDecimal(parseFloat(document.getElementById('lonD').value), parseFloat(document.getElementById('lonM').value), parseFloat(document.getElementById('lonS').value));
     const dateStr = document.getElementById('dateInput').value.replace(/-/g, '');
@@ -330,7 +583,9 @@
     const ahead = parseInt(document.getElementById('hoursAhead').value);
     const minX = (lon - 0.05).toFixed(5); const maxX = (lon + 0.05).toFixed(5); const minY = (lat - 0.05).toFixed(5); const maxY = (lat + 0.05).toFixed(5);
 
-    let speed = 5.0, dir = 90, usedWind = false, waveHeightM = null, windSpeedMS = null, windDirFrom = null, debugText = '';
+    let speed = 5.0, dir = 90, usedWind = false, usedFallback = false, waveHeightM = null, windSpeedMS = null, windDirFrom = null, debugText = '';
+
+    // ===== 기존 기능: 조류 데이터 조회 (변경 없음) =====
     try {
       const res = await fetch(`https://khoa.go.kr/oceandata/api/tidalCurrentArea/search.do?ServiceKey=${SERVICE_KEY}&Date=${dateStr}&Hour=${hour}&Minute=${minute}&MinX=${minX}&MaxX=${maxX}&MinY=${minY}&MaxY=${maxY}&ResultType=json`);
       const d = await res.json(); const points = d.result.data;
@@ -341,18 +596,23 @@
           if (dist < minDist) { minDist = dist; nearest = p; }
         });
         if (nearest) { speed = parseFloat(nearest.current_speed); dir = parseFloat(nearest.current_dir); setStatus('ok', '✅ 조류 수신 완료'); }
+      } else {
+        usedFallback = true;
       }
-    } catch (err) { setStatus('warn', '⚠️ 기본값 연산 수행'); }
+    } catch (err) { usedFallback = true; setStatus('warn', '⚠️ 기본값 연산 수행'); }
 
+    // ===== 기존 기능: 풍향/풍속/파고 조회 (변경 없음) =====
     try {
       const w = await fetchWindData(lat, lon); windSpeedMS = w.windSpeedMS; windDirFrom = w.windDirFrom; waveHeightM = w.waveHeightM;
       if (windSpeedMS !== null && windDirFrom !== null) usedWind = true;
     } catch (e) {}
 
+    // ===== 기존 계산식: 벡터 합성 (변경 없음) =====
     const curDisp = speed * 0.01 * 3600; const curXY = bearingToXY(dir, curDisp);
-    let combBrng = dir, combSpeed = curDisp;
+    let combBrng = dir, combSpeed = curDisp, windageDisp = 0;
     if (usedWind) {
-      const wXY = bearingToXY((windDirFrom + 180) % 360, windSpeedMS * 3600 * parseFloat(document.getElementById('leewayCoef').value));
+      windageDisp = windSpeedMS * 3600 * parseFloat(document.getElementById('leewayCoef').value);
+      const wXY = bearingToXY((windDirFrom + 180) % 360, windageDisp);
       const comb = xyToBearingMag(curXY.x + wXY.x, curXY.y + wXY.y); combBrng = comb.bearing; combSpeed = comb.magnitude;
     }
 
@@ -366,21 +626,117 @@
     const start = new kakao.maps.LatLng(lat, lon);
     const m1 = new kakao.maps.Marker({ position: start }); m1.setMap(map); currentMarkers.push(m1);
 
-    currentPolyline = new kakao.maps.Polyline({ path: [start, ...cLine.slice(1).map(p => new kakao.maps.LatLng(p.lat, p.lon))], strokeWeight: 3, strokeColor: '#22D3EE', strokeOpacity: 0.9 });
+    // ===== ⑧ Polyline이 단계적으로 그려지는 애니메이션 =====
+    currentPolyline = new kakao.maps.Polyline({ path: [start], strokeWeight: 3, strokeColor: '#22D3EE', strokeOpacity: 0.9 });
     currentPolyline.setMap(map);
-
-    const wFactor = waveHeightM ? (waveHeightM * 0.02) : 0;
-    cLine.slice(1).forEach((p, idx) => {
-      const r = 50 + (0.15 + wFactor) * (combSpeed * (idx + 1));
-      const c = new kakao.maps.Circle({ center: new kakao.maps.LatLng(p.lat, p.lon), radius: r, strokeWeight: 1, strokeColor: '#FF5C5C', strokeOpacity: 0.6, strokeStyle: 'shortdash', fillColor: '#FF5C5C', fillOpacity: (idx+1)===ahead?0.18:0.06 });
-      c.setMap(map); currentCircles.push(c);
+    const fullPath = [start, ...cLine.slice(1).map(p => new kakao.maps.LatLng(p.lat, p.lon))];
+    fullPath.forEach((pos, idx) => {
+      setTimeout(() => {
+        currentPolyline.setPath(fullPath.slice(0, idx + 1));
+      }, idx * 140);
     });
 
+    // ===== ③ 시간별 표류 위치 마커 (1h~Nh 라벨) + 시간별 오차반경 원 (Fade-in 애니메이션) =====
+    const wFactor = waveHeightM ? (waveHeightM * 0.02) : 0;
+    let finalErrorRadius = 0;
+    cLine.slice(1).forEach((p, idx) => {
+      const hourNum = idx + 1;
+      const r = 50 + (0.15 + wFactor) * (combSpeed * hourNum);
+      const isFinal = hourNum === ahead;
+      if (isFinal) finalErrorRadius = Math.round(r);
+
+      const pos = new kakao.maps.LatLng(p.lat, p.lon);
+
+      // 시간별 오차 반경 원 (기존 로직 유지, 마지막 지점만 진하게)
+      const c = new kakao.maps.Circle({
+        center: pos, radius: r, strokeWeight: 1, strokeColor: '#FF5C5C', strokeOpacity: 0.6, strokeStyle: 'shortdash',
+        fillColor: '#FF5C5C', fillOpacity: 0
+      });
+      c.setMap(map); currentCircles.push(c);
+      animateCircleFade(c, isFinal ? 0.18 : 0.06);
+
+      // 1h, 2h, ... 라벨 마커 (마지막 지점은 별도의 최종지점 마커로 강조하므로 라벨만 작게 표시)
+      const label = new kakao.maps.CustomOverlay({
+        position: pos,
+        content: `<div class="hour-marker">${hourNum}h</div>`,
+        yAnchor: 1.6
+      });
+      label.setMap(map);
+      currentMarkers.push(label);
+    });
+
+    // ===== ④ 최종 예측점 강조: 빨간 Marker + 반경 Circle + 오차범위 Circle (2개) =====
+    const finalPoint = cLine[cLine.length - 1];
+    const finalPos = new kakao.maps.LatLng(finalPoint.lat, finalPoint.lon);
+
+    // 빨간 핀 마커 (SVG data URI로 간단한 빨간 핀 이미지 생성)
+    const redPinSvg = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(
+      `<svg xmlns="http://www.w3.org/2000/svg" width="28" height="38"><path d="M14 0C6 0 0 6.2 0 13.8 0 24 14 38 14 38s14-14 14-24.2C28 6.2 22 0 14 0z" fill="#FF5C5C" stroke="#06222E" stroke-width="1"/><circle cx="14" cy="14" r="5" fill="#06222E"/></svg>`
+    )}`;
+    const finalMarkerImage = new kakao.maps.MarkerImage(redPinSvg, new kakao.maps.Size(28, 38), { offset: new kakao.maps.Point(14, 38) });
+    const finalMarker = new kakao.maps.Marker({ position: finalPos, image: finalMarkerImage, zIndex: 10 });
+    finalMarker.setMap(map);
+    currentMarkers.push(finalMarker);
+
+    // 최종지점 라벨
+    const finalLabel = new kakao.maps.CustomOverlay({
+      position: finalPos,
+      content: '<div style="background:#FF5C5C;color:#06222E;font-size:11px;font-weight:800;padding:4px 8px;border-radius:6px;white-space:nowrap;transform:translateY(-46px);box-shadow:0 2px 8px rgba(0,0,0,0.3);">예상 최종지점</div>',
+      yAnchor: 1
+    });
+    finalLabel.setMap(map);
+    currentMarkers.push(finalLabel);
+
+    // 반경 Circle (우선 탐색 반경, 안쪽)
+    const innerCircle = new kakao.maps.Circle({
+      center: finalPos, radius: Math.round(finalErrorRadius * 0.5),
+      strokeWeight: 1.5, strokeColor: '#22D3EE', strokeOpacity: 0.7, strokeStyle: 'solid',
+      fillColor: '#22D3EE', fillOpacity: 0
+    });
+    innerCircle.setMap(map); currentCircles.push(innerCircle);
+    animateCircleFade(innerCircle, 0.12);
+
+    // 오차범위 Circle (2차 탐색 반경, 바깥쪽 - 기존 최종 원과 별개로 명시적 추가)
+    const outerCircle = new kakao.maps.Circle({
+      center: finalPos, radius: finalErrorRadius,
+      strokeWeight: 1.5, strokeColor: '#FF5C5C', strokeOpacity: 0.8, strokeStyle: 'solid',
+      fillColor: '#FF5C5C', fillOpacity: 0
+    });
+    outerCircle.setMap(map); currentCircles.push(outerCircle);
+    animateCircleFade(outerCircle, 0.10);
+
     map.setCenter(start); map.setLevel(9);
-    document.getElementById('statSpeed').textContent = `${(combSpeed / 1852).toFixed(2)} kn`;
+
+    // ===== 기존 요약 통계 =====
+    const combinedKn = combSpeed / 1852;
+    const maxDistM = combSpeed * ahead;
+    const maxDistNm = maxDistM / 1852;
+
+    document.getElementById('statSpeed').textContent = `${combinedKn.toFixed(2)} kn`;
     document.getElementById('statDir').textContent = `${combBrng.toFixed(0)}° (${bearingToCompass(combBrng)})`;
-    document.getElementById('driftSummary').innerHTML = `▶ <b>${combBrng.toFixed(0)}°방향</b>으로 약 <b>${((combSpeed * ahead)/1852).toFixed(2)}해리</b> 이동 예상<br>▶ 최종 위치: ${formatDMS(cLine[cLine.length-1].lat, cLine[cLine.length-1].lon)} (오차반경 가중 반영됨)`;
-    card.style.display = 'block';
+
+    // ===== ⑦ 결과 시각화: 4개 Stat Card =====
+    document.getElementById('statDist').textContent = `${maxDistNm.toFixed(2)}해리`;
+    document.getElementById('statHours').textContent = `${ahead}시간`;
+    document.getElementById('statAvgSpeed').textContent = `${combinedKn.toFixed(2)}kn`;
+    document.getElementById('statErrorRadius').textContent = `±${finalErrorRadius}m`;
+
+    document.getElementById('driftSummary').innerHTML = `▶ <b>${combBrng.toFixed(0)}°방향</b>으로 약 <b>${maxDistNm.toFixed(2)}해리</b> 이동 예상<br>▶ 최종 위치: ${formatDMS(finalPoint.lat, finalPoint.lon)} (오차반경 가중 반영됨)`;
+
+    // ===== 결과 카드 Fade-in =====
+    animateCardIn(card);
+
+    // ===== ① ② ⑥ AI 분석 카드 렌더링 =====
+    renderAIAnalysis({
+      speed, currentDispPerHourM: curDisp, windageDispPerHourM: windageDisp, waveHeightM,
+      leewayCoef: parseFloat(document.getElementById('leewayCoef').value),
+      usedWind, usedFallback, combinedBearing: combBrng, windDirFrom, windSpeedMS, maxDistNm
+    });
+
+    // ===== ⑤ AI 수색 권고 카드 렌더링 =====
+    renderSearchRecommendation({
+      startLat: lat, startLon: lon, combinedBearing: combBrng, finalErrorRadius, finalPoint
+    });
   }
 </script>
 </body>
