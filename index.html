@@ -251,7 +251,7 @@
       <select id="leewayCoef">
         <option value="0.027" data-cwangle="17.4" selected>일반 실종자 (구명복/구명조끼) — 2.7%</option>
         <option value="0.0226" data-cwangle="29.4">구명조끼 미착용 실종자 — 2.26%</option>
-        <option value="0.0063" data-cwangle="26.2">스쿠버다이버 (수면 표류) — 0.63%</option>
+        <option value="0.027">스쿠버다이버 (수면 표류, 근사치) — 2.7%</option>
         <option value="0">스쿠버다이버 (수중 실종, 조류만 적용) — 0%</option>
         <option value="0.04">소형 고무보트 — 4%</option>
       </select>
@@ -261,8 +261,8 @@
         스쿠버다이버(수면 표류)는 별도 실측자료가 없어 일반 실종자 계수를 근사치로 사용합니다.
         수중 실종은 바람 영향이 사실상 없으므로 조류(해류)만 반영합니다.<br>
         좌우발산각(오차반경 확장에 사용) 출처: Allen &amp; Plourde(1999, CG-D-08-99) 실측 DWL/CWL 계수, OpenDrift OBJECTPROP.DAT(Art Allen 2010-11-15 SAROPS 목록 기반) 재계산 —
-        일반 실종자=PIW-2(구명조끼·의식있음) 17.4°, 구명조끼 미착용=PIW-1(상태미상 평균) 29.4°, 스쿠버다이버=PIW-5(스쿠버슈트) 26.2°.
-        소형 고무보트는 매칭되는 실측 카테고리가 없어 SAR 실무 관행값(20°)을 근사치로 사용합니다.
+        일반 실종자=PIW-2(구명조끼·의식있음) 17.4°, 구명조끼 미착용=PIW-1(상태미상 평균) 29.4°.
+        스쿠버다이버·소형 고무보트는 매칭되는 실측 카테고리를 확정하지 못해 SAR 실무 관행값(20°)을 근사치로 사용합니다.
       </p>
     </div>
     <button class="run-btn" onclick="useCurrentLocation()" type="button" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px;">📍 현재 위치 사용</button>
