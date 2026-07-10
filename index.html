@@ -376,6 +376,59 @@
   let map, clickMarker, currentPolyline, currentCircles = [], currentMarkers = [], currentRectangle;
   let lastHfSpeedCms = null, lastHfDirDeg = null, lastWaterTempC = null;
 
+  // ==========================================================================
+  // 전국 HF-Radar 관측소 좌표 사전
+  // ⚠ 주의: HF_0071(포항)만 실제 API 응답으로 검증 완료. 나머지 코드/좌표는
+  //   아직 실측 검증 전이므로 "추정치"로 취급하고, 사용 시 반드시 화면에
+  //   관측소명·거리를 함께 표시해 현장에서 신뢰도를 직접 판단할 수 있게 한다.
+  // ==========================================================================
+  // ==========================================================================
+  // 전국 HF-Radar 관측소 좌표 사전
+  // ✅ 코드 목록은 국립해양조사원 공식 오픈API 활용가이드 PDF로 검증 완료 (2025-03-14 배포판).
+  //   단, 좌표(lat/lon)는 정확한 관측소 설치 위치가 아니라 근사치이므로
+  //   거리는 참고용으로만 사용한다.
+  // ==========================================================================
+  const HF_STATIONS = [
+    { code: 'HF_0069', name: '인천항', lat: 37.4, lon: 126.6, verified: true },
+    { code: 'HF_0070', name: '태안대산', lat: 36.9, lon: 126.1, verified: true },
+    { code: 'HF_0076', name: '군산항', lat: 36.0, lon: 126.5, verified: true },
+    { code: 'HF_0074', name: '목포항외측', lat: 34.7, lon: 126.1, verified: true },
+    { code: 'HF_0075', name: '목포항내측', lat: 34.8, lon: 126.3, verified: true },
+    { code: 'HF_0039', name: '여수해만', lat: 34.7, lon: 127.8, verified: true },
+    { code: 'HF_0064', name: '광양항', lat: 34.9, lon: 127.7, verified: true },
+    { code: 'HF_0065', name: '여수광양항', lat: 34.8, lon: 127.8, verified: true },
+    { code: 'HF_0040', name: '부산항신항', lat: 35.0, lon: 128.8, verified: true },
+    { code: 'HF_0041', name: '대한해협', lat: 35.1, lon: 129.2, verified: true },
+    { code: 'HF_0063', name: '울산항', lat: 35.4, lon: 129.4, verified: true },
+    { code: 'HF_0073', name: '동해남부', lat: 35.7, lon: 129.5, verified: true },
+    { code: 'HF_0071', name: '포항항', lat: 36.0, lon: 129.4, verified: true }
+  ];
+
+  // 사고 위치와 가장 가까운 HF 관측소 탐색 + 실제 거리(km)까지 함께 반환
+  function findNearestHFStation(targetLat, targetLon) {
+    let nearest = HF_STATIONS[0], minDist = Infinity;
+    HF_STATIONS.forEach(station => {
+      const d = Math.pow(station.lat - targetLat, 2) + Math.pow(station.lon - targetLon, 2);
+      if (d < minDist) { minDist = d; nearest = station; }
+    });
+    // 위경도 1도 ≒ 111km 근사로 대략적인 직선거리(km) 계산 (정밀 대권거리 아님, 참고용)
+    const distKm = Math.sqrt(minDist) * 111;
+    return { ...nearest, distKm };
+  }
+
+  // 위경도 기반 기상청 특보구역(stnId) 대략 매핑
+  // ⚠ 주의: 138(대구/경북)만 실제 검증됨(포항). 나머지는 대략적인 위경도 구간 추정치이며
+  //   실제 특보구역 경계와 정확히 일치하지 않을 수 있음 - 검증 전까지 참고용으로만 사용.
+  function getKmaStnId(lat, lon) {
+    if (lat >= 37.0 && lon <= 127.5) return '109'; // 서울/인천/경기 (추정)
+    if (lat >= 37.0 && lon > 127.5) return '105';  // 강원 (추정)
+    if (lat < 37.0 && lat >= 35.5 && lon <= 127.0) return '133'; // 대전/충남 (추정)
+    if (lat < 35.5 && lon <= 127.5) return '156';  // 광주/전남 (추정)
+    if (lat < 35.5 && lon > 128.0) return '159';   // 부산/경남 (추정)
+    if (lat < 34.0) return '184';                  // 제주 (추정)
+    return '138'; // 대구/경북 (검증됨 - 포항)
+  }
+
   window.onload = function () {
     const today = new Date();
     document.getElementById('dateInput').value = today.toISOString().split('T')[0];
@@ -471,7 +524,7 @@
     }
 
     try {
-      const fogRes = await fetch(`/.netlify/functions/weather?mode=seafog&obsCode=DT_0091&reqDate=${reqDate}`);
+      const fogRes = await fetch(`/.netlify/functions/weather?mode=seafog&obsCode=SF_0011&reqDate=${reqDate}`);
       if (fogRes.ok) {
         const fData = await fogRes.json();
         const fItems = fData?.body?.items?.item || fData?.response?.body?.items?.item;
@@ -558,8 +611,11 @@
 
   async function fetchAlert() {
     const box = document.getElementById('marineAlertBox');
+    const lat = dmsToDecimal(parseFloat(document.getElementById('latD').value), parseFloat(document.getElementById('latM').value), parseFloat(document.getElementById('latS').value));
+    const lon = dmsToDecimal(parseFloat(document.getElementById('lonD').value), parseFloat(document.getElementById('lonM').value), parseFloat(document.getElementById('lonS').value));
+    const stnId = (!isNaN(lat) && !isNaN(lon)) ? getKmaStnId(lat, lon) : '138';
     try {
-      const res = await fetch('/.netlify/functions/weather?mode=alert&stnId=138');
+      const res = await fetch(`/.netlify/functions/weather?mode=alert&stnId=${stnId}`);
       const data = await res.json();
       const items = data?.response?.body?.items?.item || data?.body?.items?.item;
       if (!items || items.length === 0) return;
@@ -898,12 +954,15 @@
   // ※ 조류 예측 계산 자체에는 반영하지 않고, 실측값을 별도 참고정보로 제공합니다.
   // ==========================================================================
   async function fetchAndRenderHFCurrent() {
+    const lat = dmsToDecimal(parseFloat(document.getElementById('latD').value), parseFloat(document.getElementById('latM').value), parseFloat(document.getElementById('latS').value));
+    const lon = dmsToDecimal(parseFloat(document.getElementById('lonD').value), parseFloat(document.getElementById('lonM').value), parseFloat(document.getElementById('lonS').value));
+    const station = findNearestHFStation(lat, lon);
+
     try {
-      const res = await fetch(`/.netlify/functions/weather?mode=hfcurrent&obsCode=HF_0071`);
+      const res = await fetch(`/.netlify/functions/weather?mode=hfcurrent&obsCode=${station.code}`);
       const data = await res.json();
       const items = data?.response?.body?.items?.item || data?.body?.items?.item;
 
-      // 이전 브리핑이 남아있으면 중복 삽입 방지를 위해 제거
       const existing = document.getElementById('hfBriefingBox');
       if (existing) existing.remove();
 
@@ -918,12 +977,20 @@
         const dist30m = Math.round(speedMS * 1800);
         const dist1h = Math.round(speedMS * 3600);
         const compassDir = bearingToCompass(crdirDeg);
+        const distWarning = station.distKm > 50
+          ? `<div style="color:var(--amber);font-size:11px;margin-top:4px;">⚠ 관측소가 사고 지점에서 ${Math.round(station.distKm)}km 떨어져 있어 신뢰도가 낮을 수 있습니다.</div>`
+          : '';
+        const verifiedTag = station.verified ? '' : ' (미검증 관측소)';
 
         const hfBriefingHTML = `
           <div id="hfBriefingBox" style="background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.3); border-radius: 12px; padding: 16px; margin-top: 14px;">
-            <div style="font-size: 13.5px; font-weight: 800; color: var(--cyan); margin-bottom: 10px;">
+            <div style="font-size: 13.5px; font-weight: 800; color: var(--cyan); margin-bottom: 4px;">
               📡 HF-Radar 표층 해수유동 실측 브리핑 (참고정보)
             </div>
+            <div style="font-size: 11px; color: var(--text-lo); margin-bottom: 8px;">
+              연동 관측소: ${station.name} (${station.code})${verifiedTag} · 사고지점에서 약 ${Math.round(station.distKm)}km
+            </div>
+            ${distWarning}
             <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; color: var(--text-hi); line-height: 1.8;">
               <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 4px;">
                 <span style="color: var(--text-lo);">현재 유속 / 유향</span>
@@ -964,21 +1031,53 @@
     const minX = (lon - 0.05).toFixed(5); const maxX = (lon + 0.05).toFixed(5); const minY = (lat - 0.05).toFixed(5); const maxY = (lat + 0.05).toFixed(5);
 
     let speed = 5.0, dir = 90, usedWind = false, usedFallback = false, waveHeightM = null, windSpeedMS = null, windDirFrom = null;
+    let currentSource = 'KHOA 조류예측(기본값)', usedHf = false;
 
+    // ===== ① 1순위: HF 레이더 실측 표층해류 (사고 지점에서 가장 가까운 격자점) =====
+    // HF 실측값은 조석 예측치와 달리 그날의 바람에 의한 표층 흐름까지 이미 반영된 "진짜 관측값"이므로
+    // 확보 가능하면 이를 우선 사용하고, 순수 바람이 물체를 추가로 미는 힘(리웨이)만 별도로 더한다.
     try {
-      const res = await fetch(`https://khoa.go.kr/oceandata/api/tidalCurrentArea/search.do?ServiceKey=${SERVICE_KEY}&Date=${dateStr}&Hour=${hour}&Minute=${minute}&MinX=${minX}&MaxX=${maxX}&MinY=${minY}&MaxY=${maxY}&ResultType=json`);
-      const d = await res.json(); const points = d.result.data;
-      if (points && points.length > 0) {
-        let minDist = Infinity, nearest = null;
-        points.forEach(p => {
-          const dist = Math.pow(parseFloat(p.pre_lat) - lat, 2) + Math.pow(parseFloat(p.pre_lon) - lon, 2);
-          if (dist < minDist) { minDist = dist; nearest = p; }
+      const hfStation = findNearestHFStation(lat, lon);
+      const hfRes = await fetch(`/.netlify/functions/weather?mode=hfcurrent&obsCode=${hfStation.code}`);
+      const hfData = await hfRes.json();
+      const hfItems = hfData?.body?.items?.item || hfData?.response?.body?.items?.item;
+      if (hfItems && hfItems.length > 0 && hfStation.distKm <= 50) {
+        let minDist = Infinity, nearestHf = null;
+        hfItems.forEach(p => {
+          const plat = parseFloat(p.lat), plon = parseFloat(p.lot);
+          const d = Math.pow(plat - lat, 2) + Math.pow(plon - lon, 2);
+          if (d < minDist) { minDist = d; nearestHf = p; }
         });
-        if (nearest) { speed = parseFloat(nearest.current_speed); dir = parseFloat(nearest.current_dir); setStatus('ok', '✅ 조류 수신 완료'); }
-      } else {
-        usedFallback = true;
+        if (nearestHf && nearestHf.crsp !== undefined && nearestHf.crdir !== undefined && !isNaN(parseFloat(nearestHf.crsp))) {
+          speed = parseFloat(nearestHf.crsp); // cm/s (KHOA 조류값과 동일 단위 -> 기존 계산식 그대로 사용 가능)
+          dir = parseFloat(nearestHf.crdir);
+          usedHf = true;
+          currentSource = `HF 레이더 실측(${hfStation.name}, ${Math.round(hfStation.distKm)}km${hfStation.verified ? '' : ', 미검증'})`;
+          setStatus('ok', '✅ HF 레이더 실측 해류 사용');
+        }
       }
-    } catch (err) { usedFallback = true; setStatus('warn', '⚠️ 기본값 연산 수행'); }
+      // hfStation.distKm > 50km 이면 관측소가 너무 멀어 신뢰도가 낮으므로 KHOA 예측으로 폴백
+    } catch (err) {
+      // HF 실패 시 조용히 아래 KHOA 예측값으로 폴백
+    }
+
+    // ===== ② 2순위(폴백): KHOA 조류 예측 격자 (HF 실측 확보 실패 시에만 사용) =====
+    if (!usedHf) {
+      try {
+        const res = await fetch(`https://khoa.go.kr/oceandata/api/tidalCurrentArea/search.do?ServiceKey=${SERVICE_KEY}&Date=${dateStr}&Hour=${hour}&Minute=${minute}&MinX=${minX}&MaxX=${maxX}&MinY=${minY}&MaxY=${maxY}&ResultType=json`);
+        const d = await res.json(); const points = d.result.data;
+        if (points && points.length > 0) {
+          let minDist = Infinity, nearest = null;
+          points.forEach(p => {
+            const dist = Math.pow(parseFloat(p.pre_lat) - lat, 2) + Math.pow(parseFloat(p.pre_lon) - lon, 2);
+            if (dist < minDist) { minDist = dist; nearest = p; }
+          });
+          if (nearest) { speed = parseFloat(nearest.current_speed); dir = parseFloat(nearest.current_dir); currentSource = 'KHOA 조류예측(격자)'; setStatus('ok', '✅ 조류 수신 완료'); }
+        } else {
+          usedFallback = true;
+        }
+      } catch (err) { usedFallback = true; setStatus('warn', '⚠️ 기본값 연산 수행'); }
+    }
 
     showLoading('기상 분석 중...');
     try {
@@ -1111,7 +1210,7 @@
     document.getElementById('statHours').textContent = `${ahead}시간`;
     document.getElementById('statAvgSpeed').textContent = `${combinedKn.toFixed(2)}kn`;
     document.getElementById('statErrorRadius').textContent = `±${finalErrorRadius}m`;
-    document.getElementById('driftSummary').innerHTML = `▶ <b>${combBrng.toFixed(0)}°방향</b>으로 약 <b>${maxDistNm.toFixed(2)}해리</b> 이동 예상<br>▶ 최종 위치: ${formatDMS(finalPoint.lat, finalPoint.lon)} (오차반경 가중 반영됨)`;
+    document.getElementById('driftSummary').innerHTML = `▶ <b>${combBrng.toFixed(0)}°방향</b>으로 약 <b>${maxDistNm.toFixed(2)}해리</b> 이동 예상<br>▶ 최종 위치: ${formatDMS(finalPoint.lat, finalPoint.lon)} (오차반경 가중 반영됨)<br>▶ 조류 데이터 출처: <b>${currentSource}</b>`;
 
     hideLoading();
     animateCardIn(card);
