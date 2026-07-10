@@ -267,6 +267,7 @@
 
   <div id="status" class="warn">⏳ 지도를 클릭하면 좌표가 자동 입력됩니다. 대기 중...</div>
   <div id="map"></div>
+  <button class="run-btn" onclick="resetMap()" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px; margin-top:-4px;">↺ 지도 초기화</button>
 
   <div id="marineCard" class="card">
     <div class="card-title">
@@ -768,6 +769,26 @@
       console.error('복사 실패:', err);
       alert('⚠ 클립보드 복사에 실패했습니다. (브라우저 권한을 확인해주세요)');
     });
+  }
+
+  // ==========================================================================
+  // 지도 초기화: 예측 결과(마커·원·사각형·경로선) 전부 제거하고 기본 화면으로 복귀
+  // ==========================================================================
+  function resetMap() {
+    if (currentPolyline) { currentPolyline.setMap(null); currentPolyline = null; }
+    currentCircles.forEach(c => c.setMap(null)); currentCircles = [];
+    currentMarkers.forEach(m => m.setMap(null)); currentMarkers = [];
+    if (currentRectangle) { currentRectangle.setMap(null); currentRectangle = null; }
+
+    const defaultPos = new kakao.maps.LatLng(36.023, 129.419);
+    clickMarker.setPosition(defaultPos);
+    map.setCenter(defaultPos);
+    map.setLevel(8);
+
+    document.getElementById('aiCard').style.display = 'none';
+    document.getElementById('resultCard').style.display = 'none';
+    document.getElementById('searchCard').style.display = 'none';
+    setStatus('warn', '↺ 지도가 초기화되었습니다. 좌표를 다시 입력하거나 지도를 클릭하세요.');
   }
 
   async function runPrediction() {
