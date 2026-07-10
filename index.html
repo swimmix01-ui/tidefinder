@@ -262,6 +262,7 @@
         수중 실종은 바람 영향이 사실상 없으므로 조류(해류)만 반영합니다.
       </p>
     </div>
+    <button class="run-btn" onclick="useCurrentLocation()" type="button" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px;">📍 현재 위치 사용</button>
     <button class="run-btn" onclick="runPrediction()">▶ 표류 예측구역 계산</button>
   </div>
 
@@ -416,17 +417,83 @@
     return { ...nearest, distKm };
   }
 
-  // 위경도 기반 기상청 특보구역(stnId) 대략 매핑
-  // ⚠ 주의: 138(대구/경북)만 실제 검증됨(포항). 나머지는 대략적인 위경도 구간 추정치이며
-  //   실제 특보구역 경계와 정확히 일치하지 않을 수 있음 - 검증 전까지 참고용으로만 사용.
+  // ==========================================================================
+  // 전국 조위관측소(DT) 좌표 사전 - 수온/기온/기압 전국 확대용
+  // ⚠ 주의: 관측소 코드 자체는 국립해양조사원 공식 PDF로 검증됨. 단 좌표(lat/lon)는
+  //   정확한 설치 위치가 아니라 근사치이므로 "가장 가까운 관측소 탐색" 참고용으로만 사용.
+  // ==========================================================================
+  const DT_STATIONS = [
+    { code: 'DT_0001', name: '인천', lat: 37.45, lon: 126.60 },
+    { code: 'DT_0002', name: '평택', lat: 36.97, lon: 126.82 },
+    { code: 'DT_0003', name: '영광', lat: 35.43, lon: 126.42 },
+    { code: 'DT_0004', name: '제주', lat: 33.53, lon: 126.54 },
+    { code: 'DT_0005', name: '부산', lat: 35.10, lon: 129.04 },
+    { code: 'DT_0006', name: '묵호', lat: 37.55, lon: 129.11 },
+    { code: 'DT_0007', name: '목포', lat: 34.78, lon: 126.38 },
+    { code: 'DT_0008', name: '안산', lat: 37.20, lon: 126.60 },
+    { code: 'DT_0010', name: '서귀포', lat: 33.24, lon: 126.56 },
+    { code: 'DT_0011', name: '후포', lat: 36.68, lon: 129.45 },
+    { code: 'DT_0012', name: '속초', lat: 38.21, lon: 128.59 },
+    { code: 'DT_0013', name: '울릉도', lat: 37.49, lon: 130.91 },
+    { code: 'DT_0014', name: '통영', lat: 34.83, lon: 128.43 },
+    { code: 'DT_0016', name: '여수', lat: 34.75, lon: 127.77 },
+    { code: 'DT_0017', name: '대산', lat: 37.01, lon: 126.35 },
+    { code: 'DT_0018', name: '군산', lat: 35.98, lon: 126.56 },
+    { code: 'DT_0020', name: '울산', lat: 35.50, lon: 129.39 },
+    { code: 'DT_0027', name: '완도', lat: 34.32, lon: 126.75 },
+    { code: 'DT_0028', name: '진도', lat: 34.48, lon: 126.31 },
+    { code: 'DT_0029', name: '거제도', lat: 34.80, lon: 128.70 },
+    { code: 'DT_0035', name: '흑산도', lat: 34.68, lon: 125.44 },
+    { code: 'DT_0050', name: '태안', lat: 36.75, lon: 126.13 },
+    { code: 'DT_0056', name: '부산항신항', lat: 35.08, lon: 128.80 },
+    { code: 'DT_0057', name: '동해항', lat: 37.51, lon: 129.13 },
+    { code: 'DT_0061', name: '삼천포', lat: 34.93, lon: 128.07 },
+    { code: 'DT_0062', name: '마산', lat: 35.20, lon: 128.57 },
+    { code: 'DT_0063', name: '가덕도', lat: 35.03, lon: 128.81 },
+    { code: 'DT_0091', name: '포항', lat: 36.03, lon: 129.38 }
+  ];
+
+  // 전국 해무관측소(SF) 좌표 사전 - 시정 전국 확대용 (좌표는 근사치)
+  const SF_STATIONS = [
+    { code: 'SF_0001', name: '부산항(북항)', lat: 35.10, lon: 129.04 },
+    { code: 'SF_0002', name: '부산항(신항 동측)', lat: 35.08, lon: 128.80 },
+    { code: 'SF_0003', name: '인천항', lat: 37.45, lon: 126.60 },
+    { code: 'SF_0004', name: '평택·당진항', lat: 36.97, lon: 126.82 },
+    { code: 'SF_0005', name: '군산항', lat: 35.98, lon: 126.56 },
+    { code: 'SF_0006', name: '대산항', lat: 37.01, lon: 126.35 },
+    { code: 'SF_0007', name: '목포항', lat: 34.78, lon: 126.38 },
+    { code: 'SF_0008', name: '여수항', lat: 34.75, lon: 127.77 },
+    { code: 'SF_0010', name: '울산항', lat: 35.50, lon: 129.39 },
+    { code: 'SF_0011', name: '포항항', lat: 36.03, lon: 129.38 },
+    { code: 'SF_0012', name: '부산항(신항 서측)', lat: 35.08, lon: 128.78 }
+  ];
+
+  function findNearestStation(stationList, targetLat, targetLon) {
+    let nearest = stationList[0], minDist = Infinity;
+    stationList.forEach(st => {
+      const d = Math.pow(st.lat - targetLat, 2) + Math.pow(st.lon - targetLon, 2);
+      if (d < minDist) { minDist = d; nearest = st; }
+    });
+    const distKm = Math.sqrt(minDist) * 111; // 1도 ≒ 111km 근사
+    return { ...nearest, distKm };
+  }
+
+  // 위경도 기반 기상청 특보구역(stnId) 매핑
+  // ✅ 아래 10개 코드는 WthrWrnInfoService 공식 Open API 활용가이드 부록(지점코드 표)으로 검증 완료.
+  //   (stnId 필드는 최대 5자리라 앞서 시도했던 L1072400/S1131300 같은 특보구역코드는
+  //   이 API에는 애초에 들어갈 수 없는 값이었음 - 별도 신버전 API용으로 추정)
+  //   단, 위경도 경계 구분선 자체는 대략적인 추정치.
   function getKmaStnId(lat, lon) {
-    if (lat >= 37.0 && lon <= 127.5) return '109'; // 서울/인천/경기 (추정)
-    if (lat >= 37.0 && lon > 127.5) return '105';  // 강원 (추정)
-    if (lat < 37.0 && lat >= 35.5 && lon <= 127.0) return '133'; // 대전/충남 (추정)
-    if (lat < 35.5 && lon <= 127.5) return '156';  // 광주/전남 (추정)
-    if (lat < 35.5 && lon > 128.0) return '159';   // 부산/경남 (추정)
-    if (lat < 34.0) return '184';                  // 제주 (추정)
-    return '138'; // 대구/경북 (검증됨 - 포항)
+    if (lat < 34.0) return '184';                                    // 제주
+    if (lat >= 37.0 && lon > 127.5) return '105';                    // 강원(강릉)
+    if (lat >= 37.0) return '109';                                   // 서울/인천/경기
+    if (lat >= 35.5 && lon > 127.5) return '143';                    // 대구/경북 (포항 포함, 검증됨)
+    if (lat >= 36.0 && lon <= 127.5) return '133';                   // 대전/세종/충남
+    if (lat >= 35.7 && lat < 37.0 && lon <= 128.2) return '131';     // 충북(청주)
+    if (lat < 35.7 && lon > 128.0) return '159';                     // 부산/울산/경남
+    if (lat < 36.0 && lon <= 127.5 && lon > 126.7) return '146';     // 전북
+    if (lat < 35.5) return '156';                                    // 광주/전남
+    return '143'; // 기본값: 대구/경북 (포항 포함, 검증됨)
   }
 
   window.onload = function () {
@@ -457,6 +524,31 @@
       setStatus('ok', '✅ 지도 연동 완료');
     });
   };
+
+  // GPS 현재 위치를 좌표 입력란에 자동으로 채워넣기
+  function useCurrentLocation() {
+    if (!navigator.geolocation) { setStatus('warn', '⚠ 이 브라우저는 위치 정보를 지원하지 않습니다.'); return; }
+    setStatus('busy', '⏳ 현재 위치 확인 중...');
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const latDMS = decimalToDMS(pos.coords.latitude);
+        const lonDMS = decimalToDMS(pos.coords.longitude);
+        document.getElementById('latD').value = latDMS.d; document.getElementById('latM').value = latDMS.m; document.getElementById('latS').value = latDMS.s;
+        document.getElementById('lonD').value = lonDMS.d; document.getElementById('lonM').value = lonDMS.m; document.getElementById('lonS').value = lonDMS.s;
+        refreshInputCheckmarks();
+        if (map && clickMarker) {
+          const pos2 = new kakao.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
+          clickMarker.setPosition(pos2);
+          map.setCenter(pos2);
+        }
+        setStatus('ok', `📍 현재 위치 적용 완료 (오차 ±${Math.round(pos.coords.accuracy)}m)`);
+      },
+      (err) => {
+        setStatus('warn', `⚠ 위치 확인 실패: ${err.message}`);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  }
 
   function refreshInputCheckmarks() {
     const latOk = document.getElementById('latD').value !== '' && document.getElementById('latM').value !== '' && document.getElementById('latS').value !== '';
@@ -489,13 +581,18 @@
   }
 
   async function fetchMarineWeather() {
+    const lat = dmsToDecimal(parseFloat(document.getElementById('latD').value), parseFloat(document.getElementById('latM').value), parseFloat(document.getElementById('latS').value));
+    const lon = dmsToDecimal(parseFloat(document.getElementById('lonD').value), parseFloat(document.getElementById('lonM').value), parseFloat(document.getElementById('lonS').value));
+    const dtStation = (!isNaN(lat) && !isNaN(lon)) ? findNearestStation(DT_STATIONS, lat, lon) : DT_STATIONS.find(s => s.code === 'DT_0091');
+    const sfStation = (!isNaN(lat) && !isNaN(lon)) ? findNearestStation(SF_STATIONS, lat, lon) : SF_STATIONS.find(s => s.code === 'SF_0011');
+
     const today = new Date();
     const reqDate = `${today.getFullYear()}${String(today.getMonth() + 1).padStart(2, '0')}${String(today.getDate()).padStart(2, '0')}`;
     try {
       const [waterRes, airRes, pressRes] = await Promise.all([
-        fetch(`/.netlify/functions/weather?mode=watertemp&reqDate=${reqDate}`),
-        fetch(`/.netlify/functions/weather?mode=airtemp&reqDate=${reqDate}`),
-        fetch(`/.netlify/functions/weather?mode=airpress&reqDate=${reqDate}`)
+        fetch(`/.netlify/functions/weather?mode=watertemp&obsCode=${dtStation.code}&reqDate=${reqDate}`),
+        fetch(`/.netlify/functions/weather?mode=airtemp&obsCode=${dtStation.code}&reqDate=${reqDate}`),
+        fetch(`/.netlify/functions/weather?mode=airpress&obsCode=${dtStation.code}&reqDate=${reqDate}`)
       ]);
       const wData = await waterRes.json(); const aData = await airRes.json(); const pData = await pressRes.json();
       const wItems = wData?.body?.items?.item || wData?.response?.body?.items?.item;
@@ -524,16 +621,18 @@
     }
 
     try {
-      const fogRes = await fetch(`/.netlify/functions/weather?mode=seafog&obsCode=SF_0011&reqDate=${reqDate}`);
+      const fogRes = await fetch(`/.netlify/functions/weather?mode=seafog&obsCode=${sfStation.code}&reqDate=${reqDate}`);
       if (fogRes.ok) {
         const fData = await fogRes.json();
         const fItems = fData?.body?.items?.item || fData?.response?.body?.items?.item;
         if (fItems && fItems.length > 0) {
-          const lf = fItems[fItems.length - 1];
-          const v = lf.visb ?? lf.value;
+          // ※ 이 API는 다른 관측 API와 달리 최신순(내림차순) 정렬이므로 첫 번째 항목이 최신값
+          const lf = fItems[0];
+          const v = lf.dtvsbV20kLen ?? lf.dtvsbM20kLen ?? lf.visb ?? lf.value;
           if (v) {
             const m = parseFloat(v);
-            document.getElementById('marineVisibility').textContent = m >= 1000 ? `${(m/1000).toFixed(1)}km` : `${m}m`;
+            const nm = m / 1852; // 미터 -> 해리 (해경 관행 단위)
+            document.getElementById('marineVisibility').textContent = `${nm.toFixed(1)}해리`;
           } else {
             document.getElementById('marineVisibility').textContent = '확인불가';
           }
@@ -613,7 +712,7 @@
     const box = document.getElementById('marineAlertBox');
     const lat = dmsToDecimal(parseFloat(document.getElementById('latD').value), parseFloat(document.getElementById('latM').value), parseFloat(document.getElementById('latS').value));
     const lon = dmsToDecimal(parseFloat(document.getElementById('lonD').value), parseFloat(document.getElementById('lonM').value), parseFloat(document.getElementById('lonS').value));
-    const stnId = (!isNaN(lat) && !isNaN(lon)) ? getKmaStnId(lat, lon) : '138';
+    const stnId = (!isNaN(lat) && !isNaN(lon)) ? getKmaStnId(lat, lon) : '143';
     try {
       const res = await fetch(`/.netlify/functions/weather?mode=alert&stnId=${stnId}`);
       const data = await res.json();
@@ -670,8 +769,27 @@
       windDirFrom: items.find(i => i.category === 'VEC') ? parseFloat(items.find(i => i.category === 'VEC').fcstValue) : null,
       windSpeedMS: items.find(i => i.category === 'WSD') ? parseFloat(items.find(i => i.category === 'WSD').fcstValue) : null,
       waveHeightM: items.find(i => i.category === 'WAV') ? parseFloat(items.find(i => i.category === 'WAV').fcstValue) : null,
+      items, // 시간별(fcstDate/fcstTime) 예보 전체 - 시간대별 벡터 변동 계산에 재사용 (추가 API 호출 없음)
       nx, ny, base_date, base_time
     };
+  }
+
+  // 예보 항목 하나의 fcstDate+fcstTime을 실제 Date 객체로 변환
+  function parseFcstDateTime(item) {
+    const d = item.fcstDate, t = item.fcstTime;
+    return new Date(`${d.slice(0,4)}-${d.slice(4,6)}-${d.slice(6,8)}T${t.slice(0,2)}:${t.slice(2,4)}:00`);
+  }
+
+  // 특정 시각에 가장 가까운 예보값을 카테고리별로 조회 (VEC/WSD/WAV 등) - 추가 API 호출 없이 기존 응답 재사용
+  function getForecastValueAtTime(items, category, targetDate) {
+    const filtered = items.filter(i => i.category === category);
+    if (filtered.length === 0) return null;
+    let best = filtered[0], bestDiff = Infinity;
+    filtered.forEach(i => {
+      const diff = Math.abs(parseFcstDateTime(i) - targetDate);
+      if (diff < bestDiff) { bestDiff = diff; best = i; }
+    });
+    return parseFloat(best.fcstValue);
   }
 
   function animateCardIn(el) {
@@ -1023,6 +1141,11 @@
     showLoading('조류 분석 중...');
     setStatus('busy', '⏳ 조류 연산 수행 중...');
 
+    // 사고 지점 기준으로 해상 상태 카드(수온/기온/기압/시정/특보)를 다시 조회하여
+    // 페이지 로드 시 기본값(포항)이 아닌 실제 사고 지점의 가장 가까운 관측소 데이터로 갱신
+    fetchMarineWeather();
+    fetchAlert();
+
     const lat = dmsToDecimal(parseFloat(document.getElementById('latD').value), parseFloat(document.getElementById('latM').value), parseFloat(document.getElementById('latS').value));
     const lon = dmsToDecimal(parseFloat(document.getElementById('lonD').value), parseFloat(document.getElementById('lonM').value), parseFloat(document.getElementById('lonS').value));
     const dateStr = document.getElementById('dateInput').value.replace(/-/g, '');
@@ -1030,7 +1153,7 @@
     const ahead = parseInt(document.getElementById('hoursAhead').value);
     const minX = (lon - 0.05).toFixed(5); const maxX = (lon + 0.05).toFixed(5); const minY = (lat - 0.05).toFixed(5); const maxY = (lat + 0.05).toFixed(5);
 
-    let speed = 5.0, dir = 90, usedWind = false, usedFallback = false, waveHeightM = null, windSpeedMS = null, windDirFrom = null;
+    let speed = 5.0, dir = 90, usedWind = false, usedFallback = false, waveHeightM = null, windSpeedMS = null, windDirFrom = null, fcstItemsForHourly = null;
     let currentSource = 'KHOA 조류예측(기본값)', usedHf = false;
 
     // ===== ① 1순위: HF 레이더 실측 표층해류 (사고 지점에서 가장 가까운 격자점) =====
@@ -1072,7 +1195,12 @@
             const dist = Math.pow(parseFloat(p.pre_lat) - lat, 2) + Math.pow(parseFloat(p.pre_lon) - lon, 2);
             if (dist < minDist) { minDist = dist; nearest = p; }
           });
-          if (nearest) { speed = parseFloat(nearest.current_speed); dir = parseFloat(nearest.current_dir); currentSource = 'KHOA 조류예측(격자)'; setStatus('ok', '✅ 조류 수신 완료'); }
+          if (nearest) {
+            speed = parseFloat(nearest.current_speed); dir = parseFloat(nearest.current_dir);
+            const gridDistKm = Math.sqrt(minDist) * 111; // 1도 ≒ 111km 근사
+            currentSource = `KHOA 조류예측(격자, 최근접점 ${gridDistKm.toFixed(1)}km)`;
+            setStatus('ok', '✅ 조류 수신 완료');
+          }
         } else {
           usedFallback = true;
         }
@@ -1081,7 +1209,7 @@
 
     showLoading('기상 분석 중...');
     try {
-      const w = await fetchWindData(lat, lon); windSpeedMS = w.windSpeedMS; windDirFrom = w.windDirFrom; waveHeightM = w.waveHeightM;
+      const w = await fetchWindData(lat, lon); windSpeedMS = w.windSpeedMS; windDirFrom = w.windDirFrom; waveHeightM = w.waveHeightM; fcstItemsForHourly = w.items;
       if (windSpeedMS !== null && windDirFrom !== null) usedWind = true;
     } catch (e) {}
 
@@ -1107,8 +1235,49 @@
       windContribPct = Math.round((projWind / combSpeed) * 100);
     }
 
+    // ===== ⑤ 시간별 벡터 변동 반영: 매 시간 실제 예보(풍향/풍속)를 반영해 궤적을 꺾어 그림 =====
+    // 조류는 시간별 예보가 없어 입수 시점 값을 유지하되(기존과 동일), 바람은 이미 확보한
+    // 예보 응답(fcstItemsForHourly) 안의 여러 시간대 값을 그대로 재사용하여 추가 API 호출 없이 반영.
+    const dateInputVal = document.getElementById('dateInput').value;
+    const startDateTime = new Date(`${dateInputVal}T${hour}:${minute}:00`);
+    const leewayCoefVal = parseFloat(document.getElementById('leewayCoef').value);
+
     const cLine = [{ lat, lon }];
-    for (let t = 1; t <= ahead; t++) { cLine.push(destinationPoint(lat, lon, combBrng, combSpeed * t)); }
+    let curLat = lat, curLon = lon;
+    for (let t = 1; t <= ahead; t++) {
+      let hourBrng = combBrng, hourSpeed = combSpeed; // 기본값: 예보 시간대 매칭 실패 시 입수시점 값 유지
+      if (usedWind && fcstItemsForHourly) {
+        const targetTime = new Date(startDateTime.getTime() + t * 3600000);
+        const wsdT = getForecastValueAtTime(fcstItemsForHourly, 'WSD', targetTime);
+        const vecT = getForecastValueAtTime(fcstItemsForHourly, 'VEC', targetTime);
+        if (wsdT !== null && vecT !== null) {
+          const windageDispT = wsdT * 3600 * leewayCoefVal;
+          const windXYt = bearingToXY((vecT + 180) % 360, windageDispT);
+          const combT = xyToBearingMag(curXY.x + windXYt.x, curXY.y + windXYt.y);
+          hourBrng = combT.bearing; hourSpeed = combT.magnitude;
+        }
+      }
+      const next = destinationPoint(curLat, curLon, hourBrng, hourSpeed);
+      curLat = next.lat; curLon = next.lon;
+      cLine.push({ lat: curLat, lon: curLon });
+    }
+
+    // 실제 시간별 경로(꺾인 궤적) 기준으로 최종 통계 재계산: 시작점->최종점 순이동방향/거리/평균속도
+    function bearingBetween(lat1, lon1, lat2, lon2) {
+      const φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180, Δλ = (lon2 - lon1) * Math.PI / 180;
+      const y = Math.sin(Δλ) * Math.cos(φ2);
+      const x = Math.cos(φ1) * Math.sin(φ2) - Math.sin(φ1) * Math.cos(φ2) * Math.cos(Δλ);
+      return (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+    }
+    function distanceBetween(lat1, lon1, lat2, lon2) {
+      const R = 6371000, φ1 = lat1 * Math.PI / 180, φ2 = lat2 * Math.PI / 180;
+      const Δφ = (lat2 - lat1) * Math.PI / 180, Δλ = (lon2 - lon1) * Math.PI / 180;
+      const a = Math.sin(Δφ / 2) ** 2 + Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+    const netDistM = distanceBetween(lat, lon, curLat, curLon);
+    combBrng = bearingBetween(lat, lon, curLat, curLon); // 순이동방향(꺾인 경로 반영)으로 갱신
+    combSpeed = netDistM / ahead; // 평균 시간당 이동거리(m/h)로 갱신
 
     if (currentPolyline) currentPolyline.setMap(null);
     currentCircles.forEach(c => c.setMap(null)); currentCircles = [];
