@@ -1,81 +1,86 @@
-  async function fetchMarineWeather() {
-    const today = new Date();
-    const y = today.getFullYear();
-    const m = String(today.getMonth() + 1).padStart(2, '0');
-    const d = String(today.getDate()).padStart(2, '0');
-    const reqDate = `${y}${m}${d}`;
-
-    try {
-      const [waterRes, airRes, pressRes, fogRes] = await Promise.all([
-        fetch(`/.netlify/functions/weather?mode=watertemp&reqDate=${reqDate}`),
-        fetch(`/.netlify/functions/weather?mode=airtemp&reqDate=${reqDate}`),
-        fetch(`/.netlify/functions/weather?mode=airpress&reqDate=${reqDate}`),
-        fetch(`/.netlify/functions/weather?mode=seafog&obsCode=DT_0091&reqDate=${reqDate}`) // ◀ 포항 관측소 고정
-      ]);
-
-      const waterData = await waterRes.json();
-      const airData = await airRes.json();
-      const pressData = await pressRes.json();
-      
-      // 시정 데이터는 에러가 나거나 비어 있어도 전체 앱이 멈추지 않도록 안전하게 처리
-      let fogData = null;
-      try {
-        fogData = await fogRes.json();
-      } catch(e) {
-        console.warn("시정 데이터 파싱 실패 (정비 중 또는 빈 데이터):", e);
-      }
-
-      const waterItems = waterData?.body?.items?.item || waterData?.response?.body?.items?.item;
-      const airItems = airData?.body?.items?.item || airData?.response?.body?.items?.item;
-      const pressItems = pressData?.body?.items?.item || pressData?.response?.body?.items?.item;
-      const fogItems = fogData?.body?.items?.item || fogData?.response?.body?.items?.item;
-
-      // 1) 수온
-      if (waterItems && waterItems.length > 0) {
-        const latestWater = waterItems[waterItems.length - 1];
-        document.getElementById('marineWaterTemp').textContent = `${latestWater.wtem ?? latestWater.value ?? '-'}°C`;
-        document.getElementById('marineObsTime').textContent = latestWater.obsrvnDt ?? today.toLocaleTimeString();
-      }
-
-      // 2) 기온
-      if (airItems && airItems.length > 0) {
-        const latestAir = airItems[airItems.length - 1];
-        const airVal = latestAir.artmp ?? latestAir.atemp ?? latestAir.temp ?? latestAir.value;
-        document.getElementById('marineAirTemp').textContent = (airVal !== undefined) ? `${airVal}°C` : '확인필요';
-      }
-      
-      // 3) 기압
-      if (pressItems && pressItems.length > 0) {
-        const latestPress = pressItems[pressItems.length - 1];
-        const pressVal = latestPress.atmpr ?? latestPress.press ?? latestPress.airPress ?? latestPress.value;
-        document.getElementById('marineAirPress').textContent = (pressVal !== undefined) ? `${pressVal}hPa` : '확인필요';
-      }
-
-      // 4) 시정 (해무) 안전 파싱 및 강제 출력 로직
-      // 국립해양조사원 장비 특성상 안개가 없고 맑으면 데이터 배열이 아예 비어서 옵니다.
-      if (fogItems && fogItems.length > 0) {
-        const latestFog = fogItems[fogItems.length - 1];
-        // 해양조사원 표준 실측 필드명 후보군 전수 검사 (visb, value, vis)
-        const visbVal = latestFog.visb ?? latestFog.value ?? latestFog.vis; 
-        
-        if (visbVal !== undefined && visbVal !== null && visbVal !== "") {
-          const meters = parseFloat(visbVal);
-          // m 단위를 실무에서 보기 편한 km 단위로 치환
-          const displayVisb = meters >= 1000 ? `${(meters / 1000).toFixed(1)}km` : `${meters}m`;
-          document.getElementById('marineVisibility').textContent = displayVisb;
-        } else {
-          document.getElementById('marineVisibility').textContent = '양호 (10km+)';
-        }
-      } else {
-        // 데이터가 비어있다는 것은 안개가 전혀 없는 최상의 가시거리 상태를 의미하는 경우가 대부분입니다.
-        document.getElementById('marineVisibility').textContent = '양호 (10km+)';
-      }
-
-    } catch (err) {
-      console.error('해양 날씨 연동 에러:', err);
-      // 시정 칸이 빈 채로 멈추지 않도록 에러 발생 시 최하단 방어선 구축
-      if(!document.getElementById('marineVisibility').textContent || document.getElementById('marineVisibility').textContent === '-') {
-        document.getElementById('marineVisibility').textContent = '확인필요';
-      }
-    }
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>타이드파인더(TideFinder) - 해양 실종자 표류예측 시스템</title>
+<style>
+  :root {
+    --bg-deep: #081826;
+    --bg-mid: #0E2A44;
+    --card: #123A5E;
+    --card-soft: #163F63;
+    --border: rgba(255,255,255,0.09);
+    --text-hi: #EAF4FF;
+    --text-lo: #8FB3D9;
+    --cyan: #22D3EE;
+    --cyan-dim: #0E7C93;
+    --red: #FF5C5C;
+    --green: #34D399;
+    --amber: #FBBF24;
   }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', -apple-system, sans-serif;
+    margin: 0; padding: 0;
+    background: linear-gradient(180deg, var(--bg-deep) 0%, var(--bg-mid) 340px, #0A2138 100%);
+    color: var(--text-hi);
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  header {
+    padding: 22px 20px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .logo-mark {
+    width: 42px; height: 42px; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 12px;
+    background: radial-gradient(circle at 30% 30%, #1B4E77, #0A2138);
+    box-shadow: 0 0 0 1px rgba(34,211,238,0.35), 0 4px 14px rgba(0,0,0,0.4);
+  }
+  header h1 {
+    margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.02em;
+    color: var(--text-hi);
+  }
+  header .tagline {
+    margin: 2px 0 0; font-size: 12px; color: var(--text-lo); letter-spacing: 0.02em;
+  }
+
+  main { padding: 16px; max-width: 720px; margin: 0 auto; }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    padding: 18px;
+    margin-bottom: 14px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+  }
+  .card-title {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 13px; font-weight: 700; color: var(--cyan);
+    letter-spacing: 0.03em; text-transform: uppercase;
+    margin-bottom: 14px;
+  }
+  .card-title .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--cyan);
+    box-shadow: 0 0 8px var(--cyan);
+  }
+
+  .field { margin-bottom: 14px; }
+  .field:last-child { margin-bottom: 0; }
+  .field-label {
+    font-size: 13px; font-weight: 600; color: var(--text-lo);
+    margin-bottom: 7px; display: block;
+  }
+  .dms-row { display: flex; gap: 6px; align-items: center; }
+  .dms-row input { flex: 1; min-width: 0; }
+  .unit-tag { font-size: 12px; color: var(--text-lo); flex-shrink: 0; width: 12px; text-align: center; }
+  input[type=number], input[type=date],
