@@ -795,6 +795,36 @@
     };
   }
 
+  // ==========================================================================
+  // 특정 미래 시각의 KHOA 조류예측(격자)을 재조회 - 밀물/썰물 반전 반영용
+  // ※ 한국 연안 조류는 반일주조(약 6시간 주기로 유향이 반대로 바뀜)가 지배적이라,
+  //   6~12시간짜리 예측에 사고접수 시점의 조류값 하나만 고정해서 쓰면 도중에
+  //   방향이 역전되는 걸 놓칠 수 있다. 바람은 이미 시간대별로 재조회하고 있으므로
+  //   조류도 동일하게 시간마다 재조회한다. (HF 레이더 실측값은 "현재 관측된 값"일
+  //   뿐 미래 예보가 아니므로 이 재조회 대상이 아니며, 최선의 근사로 그대로 유지한다.)
+  // ==========================================================================
+  async function fetchKhoaCurrentAt(targetDate, latC, lonC) {
+    const ds = `${targetDate.getFullYear()}${String(targetDate.getMonth() + 1).padStart(2, '0')}${String(targetDate.getDate()).padStart(2, '0')}`;
+    const hh = String(targetDate.getHours()).padStart(2, '0');
+    const mi = String(targetDate.getMinutes()).padStart(2, '0');
+    const minXc = (lonC - 0.05).toFixed(5), maxXc = (lonC + 0.05).toFixed(5);
+    const minYc = (latC - 0.05).toFixed(5), maxYc = (latC + 0.05).toFixed(5);
+    try {
+      const res = await fetch(`https://khoa.go.kr/oceandata/api/tidalCurrentArea/search.do?ServiceKey=${SERVICE_KEY}&Date=${ds}&Hour=${hh}&Minute=${mi}&MinX=${minXc}&MaxX=${maxXc}&MinY=${minYc}&MaxY=${maxYc}&ResultType=json`);
+      const d = await res.json(); const points = d.result.data;
+      if (!points || points.length === 0) return null;
+      let minDist = Infinity, nearest = null;
+      points.forEach(p => {
+        const dist = Math.pow(parseFloat(p.pre_lat) - latC, 2) + Math.pow(parseFloat(p.pre_lon) - lonC, 2);
+        if (dist < minDist) { minDist = dist; nearest = p; }
+      });
+      if (!nearest) return null;
+      return { speed: parseFloat(nearest.current_speed), dir: parseFloat(nearest.current_dir) };
+    } catch (err) {
+      return null; // 조회 실패 시 호출부에서 직전 시간대 값으로 대체
+    }
+  }
+
   // 예보 항목 하나의 fcstDate+fcstTime을 실제 Date 객체로 변환
   function parseFcstDateTime(item) {
     const d = item.fcstDate, t = item.fcstTime;
@@ -1199,6 +1229,8 @@
     const hour = document.getElementById('hourInput').value.padStart(2, '0'); const minute = document.getElementById('minuteInput').value.padStart(2, '0');
     const ahead = parseInt(document.getElementById('hoursAhead').value);
     const minX = (lon - 0.05).toFixed(5); const maxX = (lon + 0.05).toFixed(5); const minY = (lat - 0.05).toFixed(5); const maxY = (lat + 0.05).toFixed(5);
+    const dateInputVal = document.getElementById('dateInput').value;
+    const startDateTime = new Date(`${dateInputVal}T${hour}:${minute}:00`);
 
     let speed = 5.0, dir = 90, usedWind = false, usedFallback = false, waveHeightM = null, windSpeedMS = null, windDirFrom = null, fcstItemsForHourly = null;
     let currentSource = 'KHOA 조류예측(기본값)', usedHf = false;
@@ -1282,29 +1314,46 @@
       windContribPct = Math.round((projWind / combSpeed) * 100);
     }
 
-    // ===== ⑤ 시간별 벡터 변동 반영: 매 시간 실제 예보(풍향/풍속)를 반영해 궤적을 꺾어 그림 =====
-    // 조류는 시간별 예보가 없어 입수 시점 값을 유지하되(기존과 동일), 바람은 이미 확보한
-    // 예보 응답(fcstItemsForHourly) 안의 여러 시간대 값을 그대로 재사용하여 추가 API 호출 없이 반영.
-    const dateInputVal = document.getElementById('dateInput').value;
-    const startDateTime = new Date(`${dateInputVal}T${hour}:${minute}:00`);
+    // ===== ⑤ 시간별 벡터 변동 반영: 매 시간 실제 조류·바람 값을 반영해 궤적을 꺾어 그림 =====
+    // 바람은 기존과 동일하게 이미 확보한 예보 응답(fcstItemsForHourly)을 재사용한다.
+    // 조류는 KHOA 폴백 경로일 때만 시간마다 재조회한다(한국 연안 조류는 반일주조로
+    // 약 6시간마다 방향이 반전되므로, 사고접수 시점 값 하나만 쓰면 6시간 이상 예측 시
+    // 방향이 크게 틀릴 수 있다). HF 레이더 실측값은 "현재 관측치"일 뿐 미래 예보가
+    // 아니므로 재조회 대상이 아니며, 접수 시점 값을 그대로 지속 사용(최선의 근사)한다.
     const leewayCoefVal = parseFloat(document.getElementById('leewayCoef').value);
+
+    let hourlyCurrentXY = null;
+    if (!usedHf) {
+      showLoading('조류 시간대별 재조회 중...');
+      hourlyCurrentXY = [curXY];
+      for (let t = 1; t <= ahead; t++) {
+        const targetTime = new Date(startDateTime.getTime() + t * 3600000);
+        const c = await fetchKhoaCurrentAt(targetTime, lat, lon);
+        if (c && !isNaN(c.speed) && !isNaN(c.dir)) {
+          hourlyCurrentXY.push(bearingToXY(c.dir, c.speed * 0.01 * 3600));
+        } else {
+          hourlyCurrentXY.push(hourlyCurrentXY[hourlyCurrentXY.length - 1]); // 재조회 실패 시 직전 시간대 값 유지
+        }
+      }
+      currentSource += ' · 시간대별 재조회(밀물/썰물 반영)';
+      showLoading('표류 계산 중...');
+    }
 
     const cLine = [{ lat, lon }];
     let curLat = lat, curLon = lon;
     for (let t = 1; t <= ahead; t++) {
-      let hourBrng = combBrng, hourSpeed = combSpeed; // 기본값: 예보 시간대 매칭 실패 시 입수시점 값 유지
+      const currentVecT = hourlyCurrentXY ? hourlyCurrentXY[t] : curXY; // HF 실측 경로는 접수 시점 값 지속 사용
+      let windVecT = wXY;
       if (usedWind && fcstItemsForHourly) {
         const targetTime = new Date(startDateTime.getTime() + t * 3600000);
         const wsdT = getForecastValueAtTime(fcstItemsForHourly, 'WSD', targetTime);
         const vecT = getForecastValueAtTime(fcstItemsForHourly, 'VEC', targetTime);
         if (wsdT !== null && vecT !== null) {
-          const windageDispT = wsdT * 3600 * leewayCoefVal;
-          const windXYt = bearingToXY((vecT + 180) % 360, windageDispT);
-          const combT = xyToBearingMag(curXY.x + windXYt.x, curXY.y + windXYt.y);
-          hourBrng = combT.bearing; hourSpeed = combT.magnitude;
+          windVecT = bearingToXY((vecT + 180) % 360, wsdT * 3600 * leewayCoefVal);
         }
       }
-      const next = destinationPoint(curLat, curLon, hourBrng, hourSpeed);
+      const combT = xyToBearingMag(currentVecT.x + windVecT.x, currentVecT.y + windVecT.y);
+      const next = destinationPoint(curLat, curLon, combT.bearing, combT.magnitude);
       curLat = next.lat; curLon = next.lon;
       cLine.push({ lat: curLat, lon: curLon });
       // 해안 도달 자동판정은 제거됨 - 항상 ahead시간 전체를 그린다.
