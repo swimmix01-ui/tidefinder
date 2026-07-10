@@ -15,16 +15,15 @@ exports.handler = async function (event) {
   const SERVICE_KEY = encodeURIComponent(decodeURIComponent(RAW_KEY));
 
   const params = event.queryStringParameters || {};
-  const mode = params.mode || 'fcst'; 
+  const mode = params.mode || 'fcst';
 
   const corsHeaders = {
     'Content-Type': 'application/json;charset=UTF-8',
     'Access-Control-Allow-Origin': '*'
   };
 
-  // 406 에러를 막기 위해 불필요한 헤더를 정리하고 가장 표준적인 형태로 세팅
   const fetchHeaders = {
-    'Accept': 'application/json', 
+    'Accept': 'application/json',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
     'Content-Type': 'application/json'
   };
@@ -62,6 +61,13 @@ exports.handler = async function (event) {
       if (!reqDate) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'reqDate 필요' }) };
       url = `https://apis.data.go.kr/1192136/surveyAirPress/GetSurveyAirPressApiService?serviceKey=${SERVICE_KEY}&type=json&obsCode=${obsCode}&reqDate=${reqDate}&min=60&pageNo=1&numOfRows=10`;
     }
+    // 시정(해무관측소) - obsCode 예: SF_0003 (포항 근처 코드는 별도 확인 필요, 기본값은 예시코드)
+    else if (mode === 'seafog') {
+      const obsCode = params.obsCode || 'SF_0003';
+      const reqDate = params.reqDate;
+      if (!reqDate) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'reqDate 필요' }) };
+      url = `https://apis.data.go.kr/1192136/surveySeafog/GetSurveySeafogApiService?serviceKey=${SERVICE_KEY}&type=json&obsCode=${obsCode}&reqDate=${reqDate}&pageNo=1&numOfRows=10`;
+    }
     else if (mode === 'scuba') {
       const placeCode = params.placeCode || 'SS1';
       const reqDate = params.reqDate;
@@ -80,7 +86,6 @@ exports.handler = async function (event) {
     const res = await nativeHttpsFetch(url, fetchHeaders);
     const text = await res.text();
 
-    // 공공데이터 서버가 200이 아닌 에러(406 등)를 보냈을 때 프런트엔드가 터지지 않도록 예외 처리
     if (res.status !== 200) {
       return {
         statusCode: res.status,
@@ -88,19 +93,18 @@ exports.handler = async function (event) {
         body: JSON.stringify({ error: `공공데이터 서버 에러 (HTTP ${res.status})`, details: text.substring(0, 200) })
       };
     }
-    
-    return { 
-      statusCode: 200, 
-      headers: corsHeaders, 
-      body: text 
+
+    return {
+      statusCode: 200,
+      headers: corsHeaders,
+      body: text
     };
 
   } catch (err) {
-    return { 
-      statusCode: 500, 
-      headers: corsHeaders, 
-      body: JSON.stringify({ error: err.message }) 
+    return {
+      statusCode: 500,
+      headers: corsHeaders,
+      body: JSON.stringify({ error: err.message })
     };
   }
 };
-
