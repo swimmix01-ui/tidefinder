@@ -625,7 +625,7 @@
   }
 
   function renderAIAnalysis(params) {
-    const { currentDispPerHourM, windageDispPerHourM, waveHeightM, usedWind, usedFallback, combinedBearing, windSpeedMS, maxDistNm, leewayCoef } = params;
+    const { currentDispPerHourM, waveHeightM, usedWind, usedFallback, combinedBearing, windSpeedMS, maxDistNm, leewayCoef, currentContribPct, windContribPct } = params;
     const underwaterMode = leewayCoef === 0; // 수중 실종: 바람 영향 없음, 조류만 반영
 
     let confidence = 95;
@@ -635,10 +635,9 @@
     confidence = Math.max(40, Math.min(98, confidence));
     document.getElementById('aiConfidence').textContent = `${confidence}%`;
 
-    const windageM = windageDispPerHourM || 0;
-    const totalMag = currentDispPerHourM + windageM;
-    const currentPct = totalMag > 0 ? Math.round((currentDispPerHourM / totalMag) * 100) : 100;
-    const windPct = underwaterMode ? 0 : (totalMag > 0 ? Math.round((windageM / totalMag) * 100) : 0);
+    // 벡터 투영(내적) 기반 정확한 기여도 (음수/100 초과 가능 -> 표시는 0~100으로 클램프, 값 자체는 그대로 안내)
+    const currentPct = underwaterMode ? 100 : Math.max(0, Math.min(100, currentContribPct));
+    const windPct = underwaterMode ? 0 : Math.max(0, Math.min(100, windContribPct));
     const windSpeedPct = underwaterMode ? 0 : (windSpeedMS !== null ? Math.min(100, Math.round((windSpeedMS / 15) * 100)) : 0);
     const wavePct = waveHeightM !== null ? Math.min(100, Math.round((waveHeightM / 3) * 100)) : 0;
 
@@ -658,7 +657,7 @@
       explain = `수중 실종 모드로 계산되었습니다. 수중에서는 바람의 직접적인 영향이 거의 없어 조류(해류)만 반영하여 이동 경로를 산출했습니다. `;
     } else {
       const dominant = currentPct >= windPct ? '조류' : '바람(풍압)';
-      explain = `현재 ${dominant}의 영향이 가장 크게 작용하고 있습니다. `;
+      explain = `현재 ${dominant}의 영향이 최종 이동방향에 가장 크게 기여하고 있습니다(조류 ${currentPct}% / 바람 ${windPct}%, 최종 이동방향 기준 벡터 분해). `;
       explain += usedWind
         ? `풍향은 ${compassName} 방향 이동을 ${windPct >= 40 ? '크게' : '추가적으로'} 증가시키는 요소입니다. `
         : `바람 데이터가 확보되지 않아 조류 값만으로 계산되었습니다. `;
@@ -833,11 +832,23 @@
     showLoading('표류 계산 중...');
 
     const curDisp = speed * 0.01 * 3600; const curXY = bearingToXY(dir, curDisp);
-    let combBrng = dir, combSpeed = curDisp, windageDisp = 0;
+    let combBrng = dir, combSpeed = curDisp, windageDisp = 0, wXY = { x: 0, y: 0 };
     if (usedWind) {
       windageDisp = windSpeedMS * 3600 * parseFloat(document.getElementById('leewayCoef').value);
-      const wXY = bearingToXY((windDirFrom + 180) % 360, windageDisp);
+      wXY = bearingToXY((windDirFrom + 180) % 360, windageDisp);
       const comb = xyToBearingMag(curXY.x + wXY.x, curXY.y + wXY.y); combBrng = comb.bearing; combSpeed = comb.magnitude;
+    }
+
+    // ===== 벡터 투영(내적) 기반 정확한 기여도 계산 =====
+    // 각 벡터(조류/바람)를 최종 합성벡터 방향에 투영하면, 두 투영값의 합이 정확히 최종 이동거리와 일치한다.
+    // (단순 크기 비교와 달리, 방향이 서로 어긋나 상쇄되는 경우까지 정확히 반영됨)
+    const combX = curXY.x + wXY.x, combY = curXY.y + wXY.y;
+    let currentContribPct = 100, windContribPct = 0;
+    if (combSpeed > 0) {
+      const projCurrent = (curXY.x * combX + curXY.y * combY) / combSpeed;
+      const projWind = (wXY.x * combX + wXY.y * combY) / combSpeed;
+      currentContribPct = Math.round((projCurrent / combSpeed) * 100);
+      windContribPct = Math.round((projWind / combSpeed) * 100);
     }
 
     const cLine = [{ lat, lon }];
@@ -951,7 +962,8 @@
     renderAIAnalysis({
       currentDispPerHourM: curDisp, windageDispPerHourM: windageDisp, waveHeightM,
       usedWind, usedFallback, combinedBearing: combBrng, windSpeedMS, maxDistNm,
-      leewayCoef: parseFloat(document.getElementById('leewayCoef').value)
+      leewayCoef: parseFloat(document.getElementById('leewayCoef').value),
+      currentContribPct, windContribPct
     });
 
     renderSearchRecommendation({
