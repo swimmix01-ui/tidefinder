@@ -1412,7 +1412,7 @@
     document.getElementById('statHours').textContent = `${ahead}시간`;
     document.getElementById('statAvgSpeed').textContent = `${combinedKn.toFixed(2)}kn`;
     document.getElementById('statErrorRadius').textContent = `±${finalErrorRadius}m`;
-    document.getElementById('driftSummary').innerHTML = `▶ <b>${combBrng.toFixed(0)}°방향</b>으로 약 <b>${maxDistNm.toFixed(2)}해리</b> 이동 예상<br>▶ 최종 위치: ${formatDMS(finalPoint.lat, finalPoint.lon)} (오차반경 가중 반영됨)<br>▶ 조류 데이터 출처: <b>${currentSource}</b><br>▶ <span style="color:var(--amber);">⚠ 해안 도달 자동판정 기능은 오탐 이력으로 비활성화되어 있습니다. 최종 지점이 해안·방파제에 가까워 보이면 반드시 지도를 육안으로 확인하세요.</span>`;
+    document.getElementById('driftSummary').innerHTML = `▶ <b>${combBrng.toFixed(0)}°방향</b>으로 약 <b>${maxDistNm.toFixed(2)}해리</b> 이동 예상<br>▶ 최종 위치: ${formatDMS(finalPoint.lat, finalPoint.lon)} (오차반경 가중 반영됨)<br>▶ 조류 데이터 출처: <b>${currentSource}</b><br>▶ <span style="color:var(--amber);">⚠ 최종 지점이 해안·방파제 등 구조물에 가까워 보이면 지도에서 위치를 직접 확인하시기 바랍니다.</span>`;
 
     hideLoading();
     animateCardIn(card);
