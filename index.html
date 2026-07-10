@@ -249,17 +249,20 @@
         <svg class="icon-svg check-icon filled" id="checkLeeway" viewBox="0 0 24 24" fill="none"><path d="M4 12.5 9.5 18 20 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </label>
       <select id="leewayCoef">
-        <option value="0.027" selected>일반 실종자 (구명복/구명조끼) — 2.7%</option>
-        <option value="0.0226">구명조끼 미착용 실종자 — 2.26%</option>
-        <option value="0.027">스쿠버다이버 (수면 표류, 근사치) — 2.7%</option>
+        <option value="0.027" data-cwangle="17.4" selected>일반 실종자 (구명복/구명조끼) — 2.7%</option>
+        <option value="0.0226" data-cwangle="29.4">구명조끼 미착용 실종자 — 2.26%</option>
+        <option value="0.027" data-cwangle="26.2">스쿠버다이버 (수면 표류, 근사치) — 2.7%</option>
         <option value="0">스쿠버다이버 (수중 실종, 조류만 적용) — 0%</option>
         <option value="0.04">소형 고무보트 — 4%</option>
       </select>
       <p style="font-size:11px;color:var(--text-lo);margin:6px 0 0;line-height:1.5;">
-        출처: Su·Robe·Finlayson(1998) 생존정장 실측(2.7%) / Allen·Roth·Maisondieu·Breivik·Forest(2010, MET Report No.17)
+        다운윈드(직진방향) 계수 출처: Su·Robe·Finlayson(1998) 생존정장 실측(2.7%) / Allen·Roth·Maisondieu·Breivik·Forest(2010, MET Report No.17)
         노르웨이 실측 "PIW deceased position"(구명조끼 미착용, 다운윈드 성분 2.26%).
         스쿠버다이버(수면 표류)는 별도 실측자료가 없어 일반 실종자 계수를 근사치로 사용합니다.
-        수중 실종은 바람 영향이 사실상 없으므로 조류(해류)만 반영합니다.
+        수중 실종은 바람 영향이 사실상 없으므로 조류(해류)만 반영합니다.<br>
+        좌우발산각(오차반경 확장에 사용) 출처: Allen &amp; Plourde(1999, CG-D-08-99) 실측 DWL/CWL 계수, OpenDrift OBJECTPROP.DAT(Art Allen 2010-11-15 SAROPS 목록 기반) 재계산 —
+        일반 실종자=PIW-2(구명조끼·의식있음) 17.4°, 구명조끼 미착용=PIW-1(상태미상 평균) 29.4°, 스쿠버다이버=PIW-5(스쿠버슈트) 26.2°.
+        소형 고무보트는 매칭되는 실측 카테고리가 없어 SAR 실무 관행값(20°)을 근사치로 사용합니다.
       </p>
     </div>
     <button class="run-btn" onclick="useCurrentLocation()" type="button" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px;">📍 현재 위치 사용</button>
@@ -345,7 +348,8 @@
     <div class="footnote" style="text-align:left;background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.25);border-radius:10px;padding:10px 12px;margin-top:10px;color:var(--amber);">
       ⚠ 본 예측은 광역 조류 격자 데이터 기반으로, 갯바위·방파제 등 연안 인접 해역의 국지적 와류·이안류는 반영되지 않습니다.
       현지 어민·주민의 물길 정보를 함께 참고하시기 바랍니다.<br>
-      ⚠ 동해는 계절 및 기상 조건에 따라 외해성 해류(동한난류 등)의 영향으로 유속이 급격히 강해질 수 있어 실제 이동이 예측치보다 빠를 수 있습니다.
+      ⚠ 동해는 계절 및 기상 조건에 따라 외해성 해류(동한난류 등)의 영향으로 유속이 급격히 강해질 수 있어 실제 이동이 예측치보다 빠를 수 있습니다.<br>
+      ⚠ 오차반경에는 바람에 의한 풍압 좌우발산(crosswind leeway) 여유폭이 표류물 종류별 실측/근사 발산각으로 포함되어 있으나, 좌우 어느 쪽으로 갈릴지는 예측하지 않고 원형으로 넓혀 반영한 것이므로 방향성 판단에는 사용하지 마시기 바랍니다.
     </div>
     <button class="run-btn" onclick="copyOperationReport()" style="background: linear-gradient(135deg, var(--green), #059669); color: #06131F; margin-top: 12px; box-shadow: 0 4px 14px rgba(52,211,153,0.25);">
       📋 상황 보고서 양식 복사
@@ -385,18 +389,25 @@
   const HF_COVERAGE_LIMIT_KM = 50;
 
   // ==========================================================================
-  // 풍압 좌우발산(Crosswind Leeway) 관련 상수
+  // 풍압 좌우발산(Crosswind Leeway) 관련
   // ※ Allen(2005)/Allen·Plourde(1999)의 리웨이 모델은 바람에 의한 표류를 다운윈드(DWL)
   //   성분뿐 아니라 좌우로 갈라지는 크로스윈드(CWL) 성분으로도 분해한다. 문헌에 따르면
   //   이 좌우발산은 애초에 방향이 정해져 있지 않고(좌/우 확률이 거의 반반) 시간이 지나면
   //   방향이 뒤바뀌는 "지빙(jibing)" 현상까지 있어, 편도 방향으로 경로를 구부리는 건
   //   과학적으로 부정확하다. 대신 오차반경(탐색구역)을 넓히는 불확실성 요소로 반영한다.
-  //   아래 20°는 이 앱에 이미 쓰인 다운윈드 계수(Su·Robe·Finlayson 1998, Allen 외
-  //   2010 MET Report No.17)처럼 표류물별로 정밀 검증된 수치가 아니라, SAR 실무에서
-  //   흔히 쓰이는 관행적 근사치임을 명시한다.
+  //   각 표류물별 각도는 select 옵션의 data-cwangle 속성에 저장되어 있으며,
+  //   Allen & Plourde(1999, CG-D-08-99) 실측 DWL/CWL 계수(OpenDrift OBJECTPROP.DAT,
+  //   Art Allen 2010-11-15 SAROPS 목록 기반)에서 atan(CWL/DWL)로 역산한 값이다.
+  //   해당 카테고리가 없는 표류물(소형 고무보트 등)은 SAR 실무 관행값 20°를 근사치로 사용.
   // ==========================================================================
-  const CROSSWIND_DIVERGENCE_DEG = 20; // 근사치 (표류물별 정밀 검증 수치 아님)
-  const CROSSWIND_DIVERGENCE_TAN = Math.tan(CROSSWIND_DIVERGENCE_DEG * Math.PI / 180);
+  const CROSSWIND_DIVERGENCE_FALLBACK_DEG = 20; // 근사치 (실측 카테고리 매칭 없을 때만 사용)
+
+  function getCrosswindDivergenceTan() {
+    const sel = document.getElementById('leewayCoef');
+    const opt = sel.options[sel.selectedIndex];
+    const angleDeg = opt && opt.dataset.cwangle ? parseFloat(opt.dataset.cwangle) : CROSSWIND_DIVERGENCE_FALLBACK_DEG;
+    return Math.tan(angleDeg * Math.PI / 180);
+  }
 
   // ==========================================================================
   // 전국 HF-Radar 관측소 좌표 사전
@@ -1414,12 +1425,13 @@
     });
 
     const wFactor = waveHeightM ? (waveHeightM * 0.02) : 0;
+    const crosswindDivergenceTan = getCrosswindDivergenceTan(); // 선택된 표류물의 실측/근사 좌우발산각 기반
     let finalErrorRadius = 0;
     cLine.slice(1).forEach((p, idx) => {
       const hourNum = idx + 1;
       // 풍압 좌우발산 폭: 그 시각까지 누적된 풍압(윈드에이지) 이동거리에 비례해 증가.
       // 방향을 예단하지 않고 원형 반경을 넓혀 좌/우 어느 쪽으로 갈렸어도 커버하도록 함.
-      const crosswindAdd = cumWindageByHour[hourNum] * CROSSWIND_DIVERGENCE_TAN;
+      const crosswindAdd = cumWindageByHour[hourNum] * crosswindDivergenceTan;
       const r = 50 + (0.15 + wFactor) * (combSpeed * hourNum) + crosswindAdd;
       const isFinal = hourNum === actualHours;
       if (isFinal) finalErrorRadius = Math.round(r);
