@@ -880,7 +880,7 @@
     const neLatLng = new kakao.maps.LatLng(finalPoint.lat + latOffset, finalPoint.lon + lonOffset);
     if (currentRectangle) { currentRectangle.setMap(null); }
     currentRectangle = new kakao.maps.Rectangle({
-      bounds: new kakao.maps.Bounds(swLatLng, neLatLng),
+      bounds: new kakao.maps.LatLngBounds(swLatLng, neLatLng),
       strokeWeight: 2, strokeColor: '#22D3EE', strokeOpacity: 0.6, strokeStyle: 'solid',
       fillColor: '#22D3EE', fillOpacity: 0.03
     });
