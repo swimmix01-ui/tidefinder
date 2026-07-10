@@ -385,6 +385,20 @@
   const HF_COVERAGE_LIMIT_KM = 50;
 
   // ==========================================================================
+  // 풍압 좌우발산(Crosswind Leeway) 관련 상수
+  // ※ Allen(2005)/Allen·Plourde(1999)의 리웨이 모델은 바람에 의한 표류를 다운윈드(DWL)
+  //   성분뿐 아니라 좌우로 갈라지는 크로스윈드(CWL) 성분으로도 분해한다. 문헌에 따르면
+  //   이 좌우발산은 애초에 방향이 정해져 있지 않고(좌/우 확률이 거의 반반) 시간이 지나면
+  //   방향이 뒤바뀌는 "지빙(jibing)" 현상까지 있어, 편도 방향으로 경로를 구부리는 건
+  //   과학적으로 부정확하다. 대신 오차반경(탐색구역)을 넓히는 불확실성 요소로 반영한다.
+  //   아래 20°는 이 앱에 이미 쓰인 다운윈드 계수(Su·Robe·Finlayson 1998, Allen 외
+  //   2010 MET Report No.17)처럼 표류물별로 정밀 검증된 수치가 아니라, SAR 실무에서
+  //   흔히 쓰이는 관행적 근사치임을 명시한다.
+  // ==========================================================================
+  const CROSSWIND_DIVERGENCE_DEG = 20; // 근사치 (표류물별 정밀 검증 수치 아님)
+  const CROSSWIND_DIVERGENCE_TAN = Math.tan(CROSSWIND_DIVERGENCE_DEG * Math.PI / 180);
+
+  // ==========================================================================
   // 전국 HF-Radar 관측소 좌표 사전
   // ✅ 코드 목록은 국립해양조사원 공식 오픈API 활용가이드 PDF(NIA/해양수산부 발간,
   //   "1.1.2. 해수유동 관측소 실측 유향·유속 코드 정보")로 전수 대조 검증 완료.
@@ -1341,17 +1355,23 @@
 
     const cLine = [{ lat, lon }];
     let curLat = lat, curLon = lon;
+    let cumWindageDisp = 0;
+    const cumWindageByHour = [0]; // 시간별 누적 풍압 이동거리(m) - 오차반경의 좌우발산 폭 계산에 사용
     for (let t = 1; t <= ahead; t++) {
       const currentVecT = hourlyCurrentXY ? hourlyCurrentXY[t] : curXY; // HF 실측 경로는 접수 시점 값 지속 사용
       let windVecT = wXY;
+      let windageMagT = windageDisp; // 기본값: 예보 시간대 매칭 실패 시 입수시점 값 유지
       if (usedWind && fcstItemsForHourly) {
         const targetTime = new Date(startDateTime.getTime() + t * 3600000);
         const wsdT = getForecastValueAtTime(fcstItemsForHourly, 'WSD', targetTime);
         const vecT = getForecastValueAtTime(fcstItemsForHourly, 'VEC', targetTime);
         if (wsdT !== null && vecT !== null) {
-          windVecT = bearingToXY((vecT + 180) % 360, wsdT * 3600 * leewayCoefVal);
+          windageMagT = wsdT * 3600 * leewayCoefVal;
+          windVecT = bearingToXY((vecT + 180) % 360, windageMagT);
         }
       }
+      cumWindageDisp += windageMagT;
+      cumWindageByHour.push(cumWindageDisp);
       const combT = xyToBearingMag(currentVecT.x + windVecT.x, currentVecT.y + windVecT.y);
       const next = destinationPoint(curLat, curLon, combT.bearing, combT.magnitude);
       curLat = next.lat; curLon = next.lon;
@@ -1397,7 +1417,10 @@
     let finalErrorRadius = 0;
     cLine.slice(1).forEach((p, idx) => {
       const hourNum = idx + 1;
-      const r = 50 + (0.15 + wFactor) * (combSpeed * hourNum);
+      // 풍압 좌우발산 폭: 그 시각까지 누적된 풍압(윈드에이지) 이동거리에 비례해 증가.
+      // 방향을 예단하지 않고 원형 반경을 넓혀 좌/우 어느 쪽으로 갈렸어도 커버하도록 함.
+      const crosswindAdd = cumWindageByHour[hourNum] * CROSSWIND_DIVERGENCE_TAN;
+      const r = 50 + (0.15 + wFactor) * (combSpeed * hourNum) + crosswindAdd;
       const isFinal = hourNum === actualHours;
       if (isFinal) finalErrorRadius = Math.round(r);
 
