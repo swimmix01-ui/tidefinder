@@ -378,16 +378,19 @@
   let lastHfSpeedCms = null, lastHfDirDeg = null, lastWaterTempC = null;
 
   // ==========================================================================
-  // 전국 HF-Radar 관측소 좌표 사전
-  // ⚠ 주의: HF_0071(포항)만 실제 API 응답으로 검증 완료. 나머지 코드/좌표는
-  //   아직 실측 검증 전이므로 "추정치"로 취급하고, 사용 시 반드시 화면에
-  //   관측소명·거리를 함께 표시해 현장에서 신뢰도를 직접 판단할 수 있게 한다.
+  // HF레이더 관측소 커버리지 반경(km). 이 거리를 넘으면 실측값을 신뢰하지 않고
+  // "커버리지 밖" 안내로 대체한다. runPrediction()의 폴백 기준(50km)과 동일하게
+  // 통일해 두 군데 값이 어긋나지 않도록 상수 하나로 관리한다.
   // ==========================================================================
+  const HF_COVERAGE_LIMIT_KM = 50;
+
   // ==========================================================================
   // 전국 HF-Radar 관측소 좌표 사전
-  // ✅ 코드 목록은 국립해양조사원 공식 오픈API 활용가이드 PDF로 검증 완료 (2025-03-14 배포판).
-  //   단, 좌표(lat/lon)는 정확한 관측소 설치 위치가 아니라 근사치이므로
-  //   거리는 참고용으로만 사용한다.
+  // ✅ 코드 목록은 국립해양조사원 공식 오픈API 활용가이드 PDF(NIA/해양수산부 발간,
+  //   "1.1.2. 해수유동 관측소 실측 유향·유속 코드 정보")로 전수 대조 검증 완료.
+  //   총 13개소이며, 이 외 코드는 존재하지 않는다. 강원 동해안(강릉·속초·동해시·삼척)은
+  //   현재 국가 HF레이더 관측망 자체가 커버하지 않는 구간이므로 추가 불가.
+  //   좌표(lat/lon)는 관측소 설치 정밀좌표가 아니라 근사치이므로 거리는 참고용으로만 사용.
   // ==========================================================================
   const HF_STATIONS = [
     { code: 'HF_0069', name: '인천항', lat: 37.4, lon: 126.6, verified: true },
@@ -1072,19 +1075,39 @@
   // ==========================================================================
   // HF 레이더 실측 데이터 기반 현장 브리핑 카드 (표류 예측 결과 아래에 삽입)
   // ※ 조류 예측 계산 자체에는 반영하지 않고, 실측값을 별도 참고정보로 제공합니다.
+  // ※ 사고지점이 가장 가까운 HF 관측소로부터 HF_COVERAGE_LIMIT_KM(50km)을 초과하면
+  //   국가 관측망이 커버하지 않는 구간이므로, 오인 방지를 위해 실측 숫자 대신
+  //   "커버리지 밖" 안내만 표시한다. (예: 강원 동해안 - 최북단 관측소가 포항 36.0°N)
   // ==========================================================================
   async function fetchAndRenderHFCurrent() {
     const lat = dmsToDecimal(parseFloat(document.getElementById('latD').value), parseFloat(document.getElementById('latM').value), parseFloat(document.getElementById('latS').value));
     const lon = dmsToDecimal(parseFloat(document.getElementById('lonD').value), parseFloat(document.getElementById('lonM').value), parseFloat(document.getElementById('lonS').value));
     const station = findNearestHFStation(lat, lon);
 
+    const existing = document.getElementById('hfBriefingBox');
+    if (existing) existing.remove();
+
+    // ===== 커버리지 밖: 실측값 대신 명확한 안내만 표시 (오인 방지) =====
+    if (station.distKm > HF_COVERAGE_LIMIT_KM) {
+      const outOfCoverageHTML = `
+        <div id="hfBriefingBox" style="background: rgba(251,191,36,0.08); border: 1px solid rgba(251,191,36,0.3); border-radius: 12px; padding: 16px; margin-top: 14px;">
+          <div style="font-size: 13.5px; font-weight: 800; color: var(--amber); margin-bottom: 4px;">
+            📡 HF-Radar 실측 커버리지 밖
+          </div>
+          <div style="font-size: 12.5px; color: var(--text-hi); line-height: 1.6;">
+            가장 가까운 관측소는 <b>${station.name}(${station.code})</b>이나 사고지점에서 약 <b>${Math.round(station.distKm)}km</b> 떨어져 있어 실측값으로 사용할 수 없습니다.<br>
+            이 해역은 현재 국립해양조사원 HF레이더 실측망이 닿지 않는 구간이며, 위 예측 결과는 <b>KHOA 조류예측(격자) 데이터</b>만을 기반으로 산출되었습니다.
+          </div>
+        </div>
+      `;
+      document.getElementById('driftSummary').insertAdjacentHTML('afterend', outOfCoverageHTML);
+      return;
+    }
+
     try {
       const res = await fetch(`/.netlify/functions/weather?mode=hfcurrent&obsCode=${station.code}`);
       const data = await res.json();
       const items = data?.response?.body?.items?.item || data?.body?.items?.item;
-
-      const existing = document.getElementById('hfBriefingBox');
-      if (existing) existing.remove();
 
       if (items && items.length > 0) {
         const latest = items[0];
@@ -1097,10 +1120,6 @@
         const dist30m = Math.round(speedMS * 1800);
         const dist1h = Math.round(speedMS * 3600);
         const compassDir = bearingToCompass(crdirDeg);
-        const distWarning = station.distKm > 50
-          ? `<div style="color:var(--amber);font-size:11px;margin-top:4px;">⚠ 관측소가 사고 지점에서 ${Math.round(station.distKm)}km 떨어져 있어 신뢰도가 낮을 수 있습니다.</div>`
-          : '';
-        const verifiedTag = station.verified ? '' : ' (미검증 관측소)';
 
         const hfBriefingHTML = `
           <div id="hfBriefingBox" style="background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.3); border-radius: 12px; padding: 16px; margin-top: 14px;">
@@ -1108,9 +1127,8 @@
               📡 HF-Radar 표층 해수유동 실측 브리핑 (참고정보)
             </div>
             <div style="font-size: 11px; color: var(--text-lo); margin-bottom: 8px;">
-              연동 관측소: ${station.name} (${station.code})${verifiedTag} · 사고지점에서 약 ${Math.round(station.distKm)}km
+              연동 관측소: ${station.name} (${station.code}) · 사고지점에서 약 ${Math.round(station.distKm)}km
             </div>
-            ${distWarning}
             <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; color: var(--text-hi); line-height: 1.8;">
               <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 4px;">
                 <span style="color: var(--text-lo);">현재 유속 / 유향</span>
@@ -1181,7 +1199,7 @@
       const hfRes = await fetch(`/.netlify/functions/weather?mode=hfcurrent&obsCode=${hfStation.code}`);
       const hfData = await hfRes.json();
       const hfItems = hfData?.body?.items?.item || hfData?.response?.body?.items?.item;
-      if (hfItems && hfItems.length > 0 && hfStation.distKm <= 50) {
+      if (hfItems && hfItems.length > 0 && hfStation.distKm <= HF_COVERAGE_LIMIT_KM) {
         let minDist = Infinity, nearestHf = null;
         hfItems.forEach(p => {
           const plat = parseFloat(p.lat), plon = parseFloat(p.lot);
@@ -1192,11 +1210,11 @@
           speed = parseFloat(nearestHf.crsp); // cm/s (KHOA 조류값과 동일 단위 -> 기존 계산식 그대로 사용 가능)
           dir = parseFloat(nearestHf.crdir);
           usedHf = true;
-          currentSource = `HF 레이더 실측(${hfStation.name}, ${Math.round(hfStation.distKm)}km${hfStation.verified ? '' : ', 미검증'})`;
+          currentSource = `HF 레이더 실측(${hfStation.name}, ${Math.round(hfStation.distKm)}km)`;
           setStatus('ok', '✅ HF 레이더 실측 해류 사용');
         }
       }
-      // hfStation.distKm > 50km 이면 관측소가 너무 멀어 신뢰도가 낮으므로 KHOA 예측으로 폴백
+      // hfStation.distKm > HF_COVERAGE_LIMIT_KM 이면 관측소가 너무 멀어 신뢰도가 낮으므로 KHOA 예측으로 폴백
     } catch (err) {
       // HF 실패 시 조용히 아래 KHOA 예측값으로 폴백
     }
@@ -1418,7 +1436,7 @@
       startLat: lat, startLon: lon, combinedBearing: combBrng, finalErrorRadius, finalPoint
     });
 
-    // HF 레이더 실측 브리핑 카드 삽입 (참고정보, 예측 계산에는 미반영)
+    // HF 레이더 실측 브리핑 카드 삽입 (커버리지 내면 실측값, 밖이면 안내문구로 자동 분기)
     fetchAndRenderHFCurrent();
   }
 </script>
