@@ -68,6 +68,11 @@ exports.handler = async function (event) {
       if (!reqDate) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'reqDate 필요' }) };
       url = `https://apis.data.go.kr/1192136/surveySeafog/GetSurveySeafogApiService?serviceKey=${SERVICE_KEY}&type=json&obsCode=${obsCode}&reqDate=${reqDate}&pageNo=1&numOfRows=100`;
     }
+    // HF 레이더 표층 해수유동(실측 유향·유속) 관측 API
+    else if (mode === 'hfcurrent') {
+      const obsCode = params.obsCode || 'HF_0071'; // 포항항 기본값 (실제 관측소 위치 확인 필요)
+      url = `https://apis.data.go.kr/1192136/hfCurrent/GetHFCurrentApiService?serviceKey=${SERVICE_KEY}&type=json&obsCode=${obsCode}&pageNo=1&numOfRows=10&include=lot,lat,obsrvnDt,crdir,crsp`;
+    }
     else if (mode === 'scuba') {
       const placeCode = params.placeCode || 'SS1';
       const reqDate = params.reqDate;
