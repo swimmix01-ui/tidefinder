@@ -188,7 +188,7 @@
       <p class="tagline2">실시간 조류·기상 데이터 기반 표류예측</p>
     </div>
   </div>
-  <button class="refresh-btn" id="headerRefreshBtn" onclick="refreshMarineData()" type="button" aria-label="해상 데이터 새로고침">
+  <button class="refresh-btn" id="headerRefreshBtn" onclick="this.classList.add('spinning'); refreshMarineData();" type="button" aria-label="해상 데이터 새로고침">
     <svg viewBox="0 0 24 24" fill="none"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </button>
 </header>
@@ -536,6 +536,32 @@
     if (lat < 36.0 && lon <= 127.5 && lon > 126.7) return '146';     // 전북
     if (lat < 35.5) return '156';                                    // 광주/전남
     return '143'; // 기본값: 대구/경북 (포항 포함, 검증됨)
+  }
+
+  // ==========================================================================
+  // 헤더 새로고침 버튼: 현재 해상 상태(수온/기온/기압/파고/풍향풍속/시정/특보/HF실측)를
+  // 페이지 재로딩 없이 다시 조회한다. 입력해둔 좌표·시간 등은 그대로 유지됨.
+  // ※ btn 관련 조작까지 전부 try 안에 넣어서, 어떤 이유로든 에러가 나도
+  //   조용히 죽지 않고 최소한 상태 배너에 실패 메시지가 뜨도록 방어적으로 작성.
+  // ==========================================================================
+  async function refreshMarineData() {
+    const btn = document.getElementById('headerRefreshBtn');
+    try {
+      if (btn) { btn.classList.add('spinning'); btn.disabled = true; }
+      setStatus('busy', '⏳ 해상 데이터 새로고침 중...');
+      await Promise.all([
+        fetchMarineWeather(),
+        fetchWaveHeight(),
+        fetchAlert(),
+        fetchHfCurrent()
+      ]);
+      setStatus('ok', '✅ 해상 데이터 갱신 완료');
+    } catch (err) {
+      console.error('refreshMarineData 실패:', err);
+      setStatus('warn', '⚠ 일부 데이터 갱신에 실패했습니다.');
+    } finally {
+      setTimeout(() => { if (btn) { btn.classList.remove('spinning'); btn.disabled = false; } }, 700);
+    }
   }
 
   window.onload = function () {
