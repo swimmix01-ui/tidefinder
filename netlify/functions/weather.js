@@ -11,7 +11,10 @@ function nativeHttpsFetch(url, headers) {
 }
 
 exports.handler = async function (event) {
-  const RAW_KEY = 'f26bd692b54db41eb90a99bed02f398b4a75fe6cab7c65dd03ebc8965f98b041';
+  // 보안 개선: Netlify 환경변수(SERVICE_KEY)를 우선 사용하고, 아직 설정 전이면 기존 값으로 폴백.
+  // Netlify 대시보드 > Site configuration > Environment variables 에서 SERVICE_KEY를 등록하면
+  // 이 하드코딩된 값은 더 이상 쓰이지 않게 되어 GitHub에 키가 노출되는 문제가 해결됩니다.
+  const RAW_KEY = process.env.SERVICE_KEY || 'f26bd692b54db41eb90a99bed02f398b4a75fe6cab7c65dd03ebc8965f98b041';
   const SERVICE_KEY = encodeURIComponent(decodeURIComponent(RAW_KEY));
 
   const params = event.queryStringParameters || {};
