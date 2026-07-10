@@ -255,15 +255,18 @@
         <option value="0">스쿠버다이버 (수중 실종, 조류만 적용) — 0%</option>
         <option value="0.04">소형 고무보트 — 4%</option>
       </select>
-      <p style="font-size:11px;color:var(--text-lo);margin:6px 0 0;line-height:1.5;">
-        다운윈드(직진방향) 계수 출처: Su·Robe·Finlayson(1998) 생존정장 실측(2.7%) / Allen·Roth·Maisondieu·Breivik·Forest(2010, MET Report No.17)
-        노르웨이 실측 "PIW deceased position"(구명조끼 미착용, 다운윈드 성분 2.26%).
-        스쿠버다이버(수면 표류)는 별도 실측자료가 없어 일반 실종자 계수를 근사치로 사용합니다.
-        수중 실종은 바람 영향이 사실상 없으므로 조류(해류)만 반영합니다.<br>
-        좌우발산각(오차반경 확장에 사용) 출처: Allen &amp; Plourde(1999, CG-D-08-99) 실측 DWL/CWL 계수, OpenDrift OBJECTPROP.DAT(Art Allen 2010-11-15 SAROPS 목록 기반) 재계산 —
-        일반 실종자=PIW-2(구명조끼·의식있음) 17.4°, 구명조끼 미착용=PIW-1(상태미상 평균) 29.4°.
-        스쿠버다이버·소형 고무보트는 매칭되는 실측 카테고리를 확정하지 못해 SAR 실무 관행값(20°)을 근사치로 사용합니다.
-      </p>
+      <div style="font-size:11px;color:var(--text-lo);margin:8px 0 0;line-height:1.7;">
+        <p style="margin:0 0 10px;"><b style="color:var(--text-hi);">다운윈드(직진방향) 계수 출처</b><br>
+        • Su·Robe·Finlayson(1998) 생존정장 실측 — 2.7%<br>
+        • Allen·Roth·Maisondieu·Breivik·Forest(2010, MET Report No.17) 노르웨이 실측 "PIW deceased position"(구명조끼 미착용) — 2.26%<br>
+        • 스쿠버다이버(수면 표류)는 별도 실측자료가 없어 일반 실종자 계수를 근사치로 사용<br>
+        • 수중 실종은 바람 영향이 사실상 없으므로 조류(해류)만 반영</p>
+        <p style="margin:0;"><b style="color:var(--text-hi);">좌우발산각 출처</b> (오차반경 확장에 사용)<br>
+        • Allen &amp; Plourde(1999, CG-D-08-99) 실측 DWL/CWL 계수, OpenDrift OBJECTPROP.DAT(Art Allen 2010-11-15 SAROPS 목록 기반) 재계산<br>
+        • 일반 실종자 = PIW-2(구명조끼·의식있음) 17.4°<br>
+        • 구명조끼 미착용 = PIW-1(상태미상 평균) 29.4°<br>
+        • 스쿠버다이버·소형 고무보트는 매칭되는 실측 카테고리를 확정하지 못해 SAR 실무 관행값(20°)을 근사치로 사용</p>
+      </div>
     </div>
     <button class="run-btn" onclick="useCurrentLocation()" type="button" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px;">📍 현재 위치 사용</button>
     <button class="run-btn" onclick="runPrediction()">▶ 표류 예측구역 계산</button>
