@@ -510,6 +510,14 @@
     const mm = String(today.getMonth() + 1).padStart(2, '0');
     const dd = String(today.getDate()).padStart(2, '0');
     document.getElementById('dateInput').value = `${yyyy}-${mm}-${dd}`;
+
+    // 사고 시각 기본값: 앱을 여는 시점의 현재 시각(로컬).
+    // ※ 기존엔 hourInput=14, minuteInput=0으로 하드코딩되어 있었으나,
+    //   실제 사용 흐름상 출동 신고를 받는 시점 = 사고 인지 시각인 경우가 많아
+    //   접속 시각을 기본값으로 채워두는 편이 현장에서 더 실용적이다.
+    //   물론 실제 사고 발생시각을 알게 되면 입력란에서 수정하면 된다.
+    document.getElementById('hourInput').value = today.getHours();
+    document.getElementById('minuteInput').value = today.getMinutes();
     fetchMarineWeather();
     fetchWaveHeight();
     fetchAlert();
