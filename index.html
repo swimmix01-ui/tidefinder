@@ -28,36 +28,13 @@
     min-height: 100vh;
     -webkit-font-smoothing: antialiased;
   }
-  header {
-    padding: 22px 20px 20px;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    border-bottom: 1px solid var(--border);
-  }
-  .logo-mark {
-    width: 42px; height: 42px; flex-shrink: 0;
-    display: flex; align-items: center; justify-content: center;
-    border-radius: 12px;
-    background: radial-gradient(circle at 30% 30%, #1B4E77, #0A2138);
-    box-shadow: 0 0 0 1px rgba(34,211,238,0.35), 0 4px 14px rgba(0,0,0,0.4);
-  }
+  header { padding: 22px 20px 20px; display: flex; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); }
+  .logo-mark { width: 42px; height: 42px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; border-radius: 12px; background: radial-gradient(circle at 30% 30%, #1B4E77, #0A2138); box-shadow: 0 0 0 1px rgba(34,211,238,0.35), 0 4px 14px rgba(0,0,0,0.4); }
   header h1 { margin: 0; font-size: 20px; font-weight: 800; letter-spacing: -0.02em; color: var(--text-hi); }
   header .tagline { margin: 2px 0 0; font-size: 12px; color: var(--text-lo); letter-spacing: 0.02em; }
   main { padding: 16px; max-width: 720px; margin: 0 auto; }
-  .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: 18px;
-    padding: 18px;
-    margin-bottom: 14px;
-    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
-  }
-  .card-title {
-    display: flex; align-items: center; gap: 8px;
-    font-size: 13px; font-weight: 700; color: var(--cyan);
-    letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 14px;
-  }
+  .card { background: var(--card); border: 1px solid var(--border); border-radius: 18px; padding: 18px; margin-bottom: 14px; box-shadow: 0 8px 24px rgba(0,0,0,0.25); }
+  .card-title { display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 700; color: var(--cyan); letter-spacing: 0.03em; text-transform: uppercase; margin-bottom: 14px; }
   .card-title .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 8px var(--cyan); }
   .field { margin-bottom: 14px; }
   .field:last-child { margin-bottom: 0; }
@@ -65,27 +42,15 @@
   .dms-row { display: flex; gap: 6px; align-items: center; }
   .dms-row input { flex: 1; min-width: 0; }
   .unit-tag { font-size: 12px; color: var(--text-lo); flex-shrink: 0; width: 12px; text-align: center; }
-  input[type=number], input[type=date], input[type=text], select {
-    background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--text-hi);
-    padding: 10px 10px; border-radius: 10px; font-size: 15px; width: 100%; outline: none;
-    transition: border-color .15s, box-shadow .15s;
-  }
+  input[type=number], input[type=date], input[type=text], select { background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--text-hi); padding: 10px 10px; border-radius: 10px; font-size: 15px; width: 100%; outline: none; transition: border-color .15s, box-shadow .15s; }
   select option { background: var(--bg-mid); color: var(--text-hi); }
   input:focus, select:focus { border-color: var(--cyan); box-shadow: 0 0 0 3px rgba(34,211,238,0.18); }
   .inline-num { display: flex; align-items: center; gap: 8px; }
   .inline-num input { max-width: 80px; }
   .inline-suffix { font-size: 13px; color: var(--text-lo); }
-  .run-btn {
-    width: 100%; padding: 15px; font-size: 15px; font-weight: 800; letter-spacing: 0.01em; color: #06222E;
-    background: linear-gradient(135deg, var(--cyan), #4EE3FF); border: none; border-radius: 12px; margin-top: 6px;
-    cursor: pointer; box-shadow: 0 6px 20px rgba(34,211,238,0.35); transition: transform .1s;
-  }
+  .run-btn { width: 100%; padding: 15px; font-size: 15px; font-weight: 800; letter-spacing: 0.01em; color: #06222E; background: linear-gradient(135deg, var(--cyan), #4EE3FF); border: none; border-radius: 12px; margin-top: 6px; cursor: pointer; box-shadow: 0 6px 20px rgba(34,211,238,0.35); transition: transform .1s; }
   .run-btn:active { transform: scale(0.98); }
-  #status {
-    display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600;
-    padding: 12px 16px; border-radius: 14px; background: var(--card-soft); border: 1px solid var(--border);
-    color: var(--text-lo); margin-bottom: 14px;
-  }
+  #status { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 600; padding: 12px 16px; border-radius: 14px; background: var(--card-soft); border: 1px solid var(--border); color: var(--text-lo); margin-bottom: 14px; }
   #status.ok { color: var(--green); border-color: rgba(52,211,153,0.35); }
   #status.warn { color: var(--amber); border-color: rgba(251,191,36,0.35); }
   #status.busy { color: var(--cyan); border-color: rgba(34,211,238,0.35); }
@@ -95,17 +60,11 @@
   .stat-box .label { font-size: 11px; color: var(--text-lo); margin-bottom: 4px; }
   .stat-box .value { font-size: 17px; font-weight: 800; color: var(--text-hi); }
   .stat-box .value.accent { color: var(--cyan); }
-  .drift-summary {
-    background: rgba(255,92,92,0.08); border: 1px solid rgba(255,92,92,0.3);
-    border-radius: 12px; padding: 14px; font-size: 13.5px; line-height: 1.7; color: var(--text-hi);
-  }
+  .drift-summary { background: rgba(255,92,92,0.08); border: 1px solid rgba(255,92,92,0.3); border-radius: 12px; padding: 14px; font-size: 13.5px; line-height: 1.7; color: var(--text-hi); }
   .drift-summary b { color: var(--red); }
   details { margin-top: 12px; border-top: 1px solid var(--border); padding-top: 10px; }
   summary { font-size: 12px; color: var(--text-lo); cursor: pointer; font-weight: 600; }
-  #debugBox {
-    font-family: 'SF Mono', Consolas, monospace; font-size: 11px; color: var(--text-lo);
-    white-space: pre-wrap; line-height: 1.6; max-height: 220px; overflow-y: auto; margin-top: 8px;
-  }
+  #debugBox { font-family: 'SF Mono', Consolas, monospace; font-size: 11px; color: var(--text-lo); white-space: pre-wrap; line-height: 1.6; max-height: 220px; overflow-y: auto; margin-top: 8px; }
   footer { text-align: center; font-size: 11px; color: var(--text-lo); padding: 10px 0 30px; opacity: 0.6; }
 </style>
 </head>
@@ -264,6 +223,9 @@
       console.error(err);
     }
 
+    // 시정(seafog) API는 현재 국립해양조사원 측 서비스 장애(403 Forbidden)로 실측값을 받아올 수 없는 상태입니다.
+    // 안전 관련 정보이므로 값을 확보하지 못했을 때 임의의 값("양호" 등)을 표시하지 않고,
+    // 반드시 "확인불가"로 명확히 표기하여 현장에서 오판하지 않도록 합니다.
     try {
       const fogRes = await fetch(`/.netlify/functions/weather?mode=seafog&obsCode=DT_0091&reqDate=${reqDate}`);
       if (fogRes.ok) {
@@ -275,11 +237,17 @@
           if (v) {
             const m = parseFloat(v);
             document.getElementById('marineVisibility').textContent = m >= 1000 ? `${(m/1000).toFixed(1)}km` : `${m}m`;
-          } else { document.getElementById('marineVisibility').textContent = '양호'; }
-        } else { document.getElementById('marineVisibility').textContent = '양호'; }
-      } else { document.getElementById('marineVisibility').textContent = '양호'; }
+          } else {
+            document.getElementById('marineVisibility').textContent = '확인불가';
+          }
+        } else {
+          document.getElementById('marineVisibility').textContent = '확인불가';
+        }
+      } else {
+        document.getElementById('marineVisibility').textContent = '확인불가';
+      }
     } catch (err) {
-      document.getElementById('marineVisibility').textContent = '양호';
+      document.getElementById('marineVisibility').textContent = '확인불가';
     }
   }
 
@@ -397,7 +365,7 @@
 
     const start = new kakao.maps.LatLng(lat, lon);
     const m1 = new kakao.maps.Marker({ position: start }); m1.setMap(map); currentMarkers.push(m1);
-    
+
     currentPolyline = new kakao.maps.Polyline({ path: [start, ...cLine.slice(1).map(p => new kakao.maps.LatLng(p.lat, p.lon))], strokeWeight: 3, strokeColor: '#22D3EE', strokeOpacity: 0.9 });
     currentPolyline.setMap(map);
 
