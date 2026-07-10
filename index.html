@@ -326,6 +326,9 @@
     </div>
 
     <div class="drift-summary" id="driftSummary" style="margin-top:14px;"></div>
+    <button class="run-btn" onclick="copyOperationReport()" style="background: linear-gradient(135deg, var(--green), #059669); color: #06131F; margin-top: 12px; box-shadow: 0 4px 14px rgba(52,211,153,0.25);">
+      📋 상황 보고서 양식 복사
+    </button>
     <details><summary>디버그 정보</summary><div id="debugBox"></div></details>
   </div>
 
@@ -350,7 +353,7 @@
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=7cf14f6520831fe7a42b307b25e72103&libraries=services"></script>
 <script>
   const SERVICE_KEY = 'srQx3b3XW8NV9RpGp9CQ==';
-  let map, clickMarker, currentPolyline, currentCircles = [], currentMarkers = [];
+  let map, clickMarker, currentPolyline, currentCircles = [], currentMarkers = [], currentRectangle;
 
   window.onload = function () {
     const today = new Date();
@@ -671,6 +674,78 @@
     animateCardIn(document.getElementById('searchCard'));
   }
 
+  // ==========================================================================
+  // 원클릭 상황 보고서 클립보드 복사
+  // ※ 보고서에 담기는 값은 모두 화면에 표시된 실제 계산 결과이며,
+  //   근거 없는 전술 수치(임의의 축소율 등)는 포함하지 않습니다.
+  // ==========================================================================
+  function copyOperationReport() {
+    const latD = document.getElementById('latD').value;
+    const latM = document.getElementById('latM').value;
+    const latS = document.getElementById('latS').value;
+    const lonD = document.getElementById('lonD').value;
+    const lonM = document.getElementById('lonM').value;
+    const lonS = document.getElementById('lonS').value;
+
+    const dateInput = document.getElementById('dateInput').value;
+    const hourInput = document.getElementById('hourInput').value;
+
+    const distNM = document.getElementById('statDist').textContent;
+    const duration = document.getElementById('statHours').textContent;
+    const avgSpeed = document.getElementById('statAvgSpeed').textContent;
+    const errorRadius = document.getElementById('statErrorRadius').textContent;
+    const compDir = document.getElementById('statDir').textContent;
+
+    const waterTemp = document.getElementById('marineWaterTemp').textContent;
+    const airTemp = document.getElementById('marineAirTemp').textContent;
+    const waveHeight = document.getElementById('marineWaveHeight').textContent;
+    const wind = document.getElementById('marineWind').textContent;
+    const visibility = document.getElementById('marineVisibility').textContent;
+
+    const searchStart = document.getElementById('searchStart').textContent;
+    const searchDir = document.getElementById('searchDir').textContent;
+    const searchR1 = document.getElementById('searchR1').textContent;
+    const searchR2 = document.getElementById('searchR2').textContent;
+    const searchEnd = document.getElementById('searchEnd').textContent;
+
+    const riskLabel = document.getElementById('riskBadge').textContent;
+
+    const reportText = `[TideFinder 해양 표류 예측 상황 보고]
+=========================================
+1. 사고 조난 정보
+ - 기준 일시: ${dateInput} ${hourInput}시
+ - 최초 위치: ${latD}°${latM}′${latS}″N / ${lonD}°${lonM}′${lonS}″E
+
+2. 환경 실측 정보
+ - 수온 / 기온: ${waterTemp} / ${airTemp}
+ - 파고: ${waveHeight}
+ - 풍향/풍속: ${wind}
+ - 시정: ${visibility}
+
+3. 표류 예측 결과 (예측시간 ${duration})
+ - 예상 이동거리: ${distNM}
+ - 예측 이동방향: ${compDir}
+ - 평균 이동속도: ${avgSpeed}
+ - 오차반경: ${errorRadius}
+ - ${riskLabel}
+
+4. 수색 권고
+ - 수색 시작 위치: ${searchStart}
+ - 탐색 방향: ${searchDir}
+ - 1차 탐색 반경: ${searchR1} / 2차 탐색 반경: ${searchR2}
+ - 예상 도달 위치: ${searchEnd}
+=========================================
+※ 본 보고서는 조류(KHOA)·기상(기상청) 공공 API 데이터를 기반으로 자동 산출된
+   수색지원 참고 정보이며, 최종 수색 전술 판단은 현장 지휘관이 결정합니다.`;
+
+    navigator.clipboard.writeText(reportText).then(() => {
+      alert('✅ 상황 보고서가 클립보드에 복사되었습니다.');
+    }).catch(err => {
+      console.error('복사 실패:', err);
+      alert('⚠ 클립보드 복사에 실패했습니다. (브라우저 권한을 확인해주세요)');
+    });
+  }
+
   async function runPrediction() {
     const card = document.getElementById('resultCard');
     document.getElementById('aiCard').style.display = 'none';
@@ -797,6 +872,19 @@
       animateCircleFade(innerCircle, 0.14);
       animateCircleFade(outerCircle, 0.16);
     }, fullPath.length * 140);
+
+    // ===== 해상 수색 격자(Search Grid) 사각형 레이어: 최종 오차반경 원을 감싸는 정사각형 작전구역 =====
+    const latOffset = finalErrorRadius / 111000;
+    const lonOffset = finalErrorRadius / (111000 * Math.cos(finalPoint.lat * Math.PI / 180));
+    const swLatLng = new kakao.maps.LatLng(finalPoint.lat - latOffset, finalPoint.lon - lonOffset);
+    const neLatLng = new kakao.maps.LatLng(finalPoint.lat + latOffset, finalPoint.lon + lonOffset);
+    if (currentRectangle) { currentRectangle.setMap(null); }
+    currentRectangle = new kakao.maps.Rectangle({
+      bounds: new kakao.maps.Bounds(swLatLng, neLatLng),
+      strokeWeight: 2, strokeColor: '#22D3EE', strokeOpacity: 0.6, strokeStyle: 'solid',
+      fillColor: '#22D3EE', fillOpacity: 0.03
+    });
+    currentRectangle.setMap(map);
 
     map.setCenter(start); map.setLevel(9);
 
