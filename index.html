@@ -574,6 +574,7 @@
     fetchHfCurrent();
     loadCoastlineGeoJSON(); // 비차단 - 실패해도 페이지 동작에 영향 없음
     initInputCheckmarks();
+    useCurrentLocation(); // 사고 발생 정보 입력란에 현재 위치를 자동으로 채움 (브라우저 위치정보 권한 필요)
 
     kakao.maps.load(function () {
       const container = document.getElementById('map');
