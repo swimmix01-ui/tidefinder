@@ -576,10 +576,10 @@
     fetchHfCurrent();
     loadCoastlineGeoJSON(); // 비차단 - 실패해도 페이지 동작에 영향 없음
     initInputCheckmarks();
-    // ※ useCurrentLocation()을 여기서 자동 호출해봤으나, iOS Safari는 사용자의 직접적인
-    //   탭(터치) 없이 페이지 로드 시점에 자동으로 호출되는 위치정보 요청을 권한 팝업조차
-    //   띄우지 않고 조용히 무시하는 경우가 있다. 그래서 자동화가 안정적으로 동작하지
-    //   않아 제거하고, 아래 "현재 위치 사용" 버튼(실제 탭 이벤트)으로만 동작하도록 되돌림.
+    // ※ 자동 위치 채움 재시도. 실패 시 사유(권한거부/타임아웃 등)를 구체적으로
+    //   표시하도록 useCurrentLocation()의 에러 처리를 개선해서 재도입한다.
+    //   이래도 안 되면 "현재 위치 사용" 버튼으로 수동 재시도하면 된다.
+    useCurrentLocation();
 
     kakao.maps.load(function () {
       const container = document.getElementById('map');
@@ -620,7 +620,14 @@
         setStatus('ok', `📍 현재 위치 적용 완료 (오차 ±${Math.round(pos.coords.accuracy)}m)`);
       },
       (err) => {
-        setStatus('warn', `⚠ 위치 확인 실패: ${err.message}`);
+        // err.code: 1=PERMISSION_DENIED, 2=POSITION_UNAVAILABLE, 3=TIMEOUT
+        // 사유를 구체적으로 표시해서, 다음에 또 실패해도 원인을 바로 알 수 있게 한다.
+        let reason;
+        if (err.code === 1) reason = '위치 권한이 거부되었습니다 (설정 앱 > Safari > 위치 에서 허용 필요)';
+        else if (err.code === 2) reason = '위치를 확인할 수 없습니다 (GPS 신호 약함 등)';
+        else if (err.code === 3) reason = '위치 확인 시간 초과';
+        else reason = err.message || '알 수 없는 오류';
+        setStatus('warn', `⚠ 위치 확인 실패: ${reason} - 아래 "현재 위치 사용" 버튼으로 다시 시도해주세요`);
       },
       { enableHighAccuracy: true, timeout: 10000 }
     );
