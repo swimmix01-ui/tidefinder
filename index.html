@@ -843,9 +843,25 @@
   function bearingToXY(b, m) { const r = b * Math.PI / 180; return { x: m * Math.sin(r), y: m * Math.cos(r) }; }
   function xyToBearingMag(x, y) { let brg = Math.atan2(x, y) * 180 / Math.PI; if (brg < 0) brg += 360; return { bearing: brg, magnitude: Math.sqrt(x * x + y * y) }; }
 
+  // ==========================================================================
+  // 타임아웃이 있는 fetch. 외부 공공 API(기상청/KHOA 등) 응답이 느리거나 아예
+  // 안 올 때, await가 무한정 멈추는 걸 막기 위한 안전장치. 지정 시간 안에
+  // 응답이 없으면 AbortController로 요청을 취소하고 에러를 던져, 호출부의
+  // try/catch가 정상적으로 폴백 처리를 이어갈 수 있게 한다.
+  // ==========================================================================
+  async function fetchWithTimeout(url, timeoutMs = 8000, options = {}) {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      return await fetch(url, { ...options, signal: controller.signal });
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async function fetchWindData(lat, lon) {
     const { nx, ny } = latLonToGrid(lat, lon); const { base_date, base_time } = getKmaBaseDateTime();
-    const res = await fetch(`/.netlify/functions/weather?nx=${nx}&ny=${ny}&base_date=${base_date}&base_time=${base_time}`);
+    const res = await fetchWithTimeout(`/.netlify/functions/weather?nx=${nx}&ny=${ny}&base_date=${base_date}&base_time=${base_time}`, 8000);
     const data = await res.json(); const items = data.response.body.items.item;
     return {
       windDirFrom: items.find(i => i.category === 'VEC') ? parseFloat(items.find(i => i.category === 'VEC').fcstValue) : null,
@@ -871,7 +887,7 @@
     const minXc = (lonC - 0.05).toFixed(5), maxXc = (lonC + 0.05).toFixed(5);
     const minYc = (latC - 0.05).toFixed(5), maxYc = (latC + 0.05).toFixed(5);
     try {
-      const res = await fetch(`https://khoa.go.kr/oceandata/api/tidalCurrentArea/search.do?ServiceKey=${SERVICE_KEY}&Date=${ds}&Hour=${hh}&Minute=${mi}&MinX=${minXc}&MaxX=${maxXc}&MinY=${minYc}&MaxY=${maxYc}&ResultType=json`);
+      const res = await fetchWithTimeout(`https://khoa.go.kr/oceandata/api/tidalCurrentArea/search.do?ServiceKey=${SERVICE_KEY}&Date=${ds}&Hour=${hh}&Minute=${mi}&MinX=${minXc}&MaxX=${maxXc}&MinY=${minYc}&MaxY=${maxYc}&ResultType=json`, 8000);
       const d = await res.json(); const points = d.result.data;
       if (!points || points.length === 0) return null;
       let minDist = Infinity, nearest = null;
@@ -1238,16 +1254,43 @@
     }
   }
 
+  // ==========================================================================
+  // 전국 해안선(99,166개 조각) 전체를 매 시간·매 입자마다 대조하면 모바일에서
+  // 메모리 부족으로 탭이 죽는 문제가 있었다(6시간 예측 + 몬테카를로 500입자면
+  // 3,000회 넘게 전국 데이터와 대조하게 됨). 그래서 예측 시작 시 딱 한 번만,
+  // 사고지점 주변(버퍼 범위)의 해안선 조각만 추려서 이후 모든 판정은 이
+  // 작은 부분집합만 사용하도록 최적화한다.
+  // 좌표 배열 전체를 훑지 않고 첫/중간/끝 점만 표본 검사해 빠르게 거른다
+  // (정밀 bbox 계산 대신 근사 필터 - 오탐 방지를 위해 버퍼를 넉넉히 잡음).
+  function getLocalCoastline(centerLat, centerLon, bufferKm) {
+    if (!coastlineData || !coastlineData.features) return null;
+    const bufDeg = bufferKm / 111; // 1도 ≒ 111km 근사
+    const minLat = centerLat - bufDeg, maxLat = centerLat + bufDeg;
+    const minLon = centerLon - bufDeg, maxLon = centerLon + bufDeg;
+    const filtered = coastlineData.features.filter(f => {
+      const coords = f.geometry && f.geometry.coordinates;
+      if (!coords || coords.length === 0) return false;
+      // 표본 검사(첫점/중간점/끝점)로 빠르게 범위 안에 있는지만 확인 - 정밀도보다 속도 우선
+      const samples = [coords[0], coords[Math.floor(coords.length / 2)], coords[coords.length - 1]];
+      return samples.some(([lon, lat]) => lat >= minLat && lat <= maxLat && lon >= minLon && lon <= maxLon);
+    });
+    return { type: 'FeatureCollection', features: filtered };
+  }
+
   // 이전좌표->현재좌표 선분(LineString)이 해안선 폴리곤/라인과 교차하는지 판별.
+  // - dataset 인자를 생략하면 전국 데이터(coastlineData)를 쓰지만, runPrediction/
+  //   몬테카를로에서는 반드시 getLocalCoastline()으로 미리 추린 작은 부분집합을
+  //   넘겨서 반복 호출 시 성능 문제가 없도록 한다.
   // - coastlineData가 없거나 Turf.js가 아직 로드 안 됐으면 판정 자체를 건너뛰고 null 반환
   //   (= "육지 마스킹 없음" 상태. 이 경우 호출부는 기존처럼 전체 시간을 그대로 그린다)
   // - 교차점이 여러 개면(굴곡진 해안선 통과) 출발점에서 가장 가까운 지점을 실제
   //   좌초(stranding) 지점으로 사용한다 - 가장 먼저 육지에 닿는 지점이어야 하므로.
-  function checkSegmentCrossesCoastline(prevLat, prevLon, curLat, curLon) {
-    if (!coastlineData || typeof turf === 'undefined') return null;
+  function checkSegmentCrossesCoastline(prevLat, prevLon, curLat, curLon, dataset) {
+    const data = dataset !== undefined ? dataset : coastlineData;
+    if (!data || typeof turf === 'undefined') return null;
     try {
       const segment = turf.lineString([[prevLon, prevLat], [curLon, curLat]]);
-      const intersections = turf.lineIntersect(segment, coastlineData);
+      const intersections = turf.lineIntersect(segment, data);
       if (!intersections.features || intersections.features.length === 0) return null;
       let nearest = null, minDist = Infinity;
       intersections.features.forEach(f => {
@@ -1281,7 +1324,7 @@
   //  12시간 정도 규모는 청크 분할만으로도 충분히 부드럽다.)
   async function runMonteCarloSimulation(params) {
     const { lat, lon, ahead, curXY, hourlyCurrentXY, usedWind, fcstItemsForHourly,
-            leewayCoefVal, startDateTime, windDirFrom, windageDisp, wXY } = params;
+            leewayCoefVal, startDateTime, windDirFrom, windageDisp, wXY, localCoastline } = params;
 
     const PARTICLE_COUNT = 500;
     const CHUNK_SIZE = 50;
@@ -1325,7 +1368,7 @@
           const next = destinationPoint(pLat, pLon, combP.bearing, combP.magnitude);
 
           // 이 입자도 동일하게 해안선 충돌 시 그 지점에서 멈춘다 (좌초)
-          const hit = checkSegmentCrossesCoastline(pLat, pLon, next.lat, next.lon);
+          const hit = checkSegmentCrossesCoastline(pLat, pLon, next.lat, next.lon, localCoastline);
           if (hit) { pLat = hit.lat; pLon = hit.lon; break; }
           pLat = next.lat; pLon = next.lon;
         }
@@ -1497,7 +1540,7 @@
     // 확보 가능하면 이를 우선 사용하고, 순수 바람이 물체를 추가로 미는 힘(리웨이)만 별도로 더한다.
     try {
       const hfStation = findNearestHFStation(lat, lon);
-      const hfRes = await fetch(`/.netlify/functions/weather?mode=hfcurrent&obsCode=${hfStation.code}`);
+      const hfRes = await fetchWithTimeout(`/.netlify/functions/weather?mode=hfcurrent&obsCode=${hfStation.code}`, 8000);
       const hfData = await hfRes.json();
       const hfItems = hfData?.body?.items?.item || hfData?.response?.body?.items?.item;
       if (hfItems && hfItems.length > 0 && hfStation.distKm <= HF_COVERAGE_LIMIT_KM) {
@@ -1523,7 +1566,7 @@
     // ===== ② 2순위(폴백): KHOA 조류 예측 격자 (HF 실측 확보 실패 시에만 사용) =====
     if (!usedHf) {
       try {
-        const res = await fetch(`https://khoa.go.kr/oceandata/api/tidalCurrentArea/search.do?ServiceKey=${SERVICE_KEY}&Date=${dateStr}&Hour=${hour}&Minute=${minute}&MinX=${minX}&MaxX=${maxX}&MinY=${minY}&MaxY=${maxY}&ResultType=json`);
+        const res = await fetchWithTimeout(`https://khoa.go.kr/oceandata/api/tidalCurrentArea/search.do?ServiceKey=${SERVICE_KEY}&Date=${dateStr}&Hour=${hour}&Minute=${minute}&MinX=${minX}&MaxX=${maxX}&MinY=${minY}&MaxY=${maxY}&ResultType=json`, 8000);
         const d = await res.json(); const points = d.result.data;
         if (points && points.length > 0) {
           let minDist = Infinity, nearest = null;
@@ -1596,6 +1639,12 @@
       showLoading('표류 계산 중...');
     }
 
+    // 이번 예측에서 실제로 도달 가능한 범위만큼만 해안선을 미리 추려둔다
+    // (안전 마진 2배 + 10km 여유). 이 작은 부분집합을 메인 궤적과 몬테카를로
+    // 500입자 전부가 공유해서 쓰므로, 전국 데이터를 반복 대조하는 성능 문제가 없다.
+    const coastlineBufferKm = Math.max(20, (combSpeed * ahead / 1000) * 2 + 10);
+    const localCoastline = getLocalCoastline(lat, lon, coastlineBufferKm);
+
     const cLine = [{ lat, lon }];
     let curLat = lat, curLon = lon;
     let cumWindageDisp = 0;
@@ -1623,7 +1672,7 @@
       // coastlineData가 로드되어 있을 때만 실제 좌표 기반으로 판정한다.
       // 로드 실패(null)면 checkSegmentCrossesCoastline이 항상 null을 반환하므로
       // 이 블록은 자동으로 건너뛰어지고, 기존처럼 전체 시간을 그대로 그린다.
-      const hit = checkSegmentCrossesCoastline(curLat, curLon, next.lat, next.lon);
+      const hit = checkSegmentCrossesCoastline(curLat, curLon, next.lat, next.lon, localCoastline);
       if (hit) {
         curLat = hit.lat; curLon = hit.lon;
         cLine.push({ lat: curLat, lon: curLon });
@@ -1792,7 +1841,7 @@
     // 결과에는 전혀 영향이 없다 (원본 로직 보존 원칙).
     runMonteCarloSimulation({
       lat, lon, ahead, curXY, hourlyCurrentXY, usedWind, fcstItemsForHourly,
-      leewayCoefVal, startDateTime, windDirFrom, windageDisp, wXY
+      leewayCoefVal, startDateTime, windDirFrom, windageDisp, wXY, localCoastline
     }).then(finalPoints => {
       const hull = computeConvexHull(finalPoints);
       if (hull) {
