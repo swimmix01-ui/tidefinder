@@ -392,7 +392,9 @@
 <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=7cf14f6520831fe7a42b307b25e72103&libraries=services"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Turf.js/6.5.0/turf.min.js"></script>
 <script>
-  const SERVICE_KEY = 'srQx3b3XW8NV9RpGp9CQ==';
+  // ※ 기존엔 여기에 KHOA 서비스키를 하드코딩해서 브라우저 소스에 그대로 노출하고
+  //   있었다. 이제 /.netlify/functions/weather?mode=khoacurrent 프록시를 통해서만
+  //   조회하며, 실제 키는 Netlify 서버(환경변수 KHOA_SERVICE_KEY) 안에만 존재한다.
   let map, clickMarker, currentPolyline, currentCircles = [], currentMarkers = [], currentRectangle;
   let lastHfSpeedCms = null, lastHfDirDeg = null, lastWaterTempC = null;
 
@@ -887,7 +889,7 @@
     const minXc = (lonC - 0.05).toFixed(5), maxXc = (lonC + 0.05).toFixed(5);
     const minYc = (latC - 0.05).toFixed(5), maxYc = (latC + 0.05).toFixed(5);
     try {
-      const res = await fetchWithTimeout(`https://khoa.go.kr/oceandata/api/tidalCurrentArea/search.do?ServiceKey=${SERVICE_KEY}&Date=${ds}&Hour=${hh}&Minute=${mi}&MinX=${minXc}&MaxX=${maxXc}&MinY=${minYc}&MaxY=${maxYc}&ResultType=json`, 8000);
+      const res = await fetchWithTimeout(`/.netlify/functions/weather?mode=khoacurrent&date=${ds}&hour=${hh}&minute=${mi}&minX=${minXc}&maxX=${maxXc}&minY=${minYc}&maxY=${maxYc}`, 8000);
       const d = await res.json(); const points = d.result.data;
       if (!points || points.length === 0) return null;
       let minDist = Infinity, nearest = null;
@@ -1566,7 +1568,7 @@
     // ===== ② 2순위(폴백): KHOA 조류 예측 격자 (HF 실측 확보 실패 시에만 사용) =====
     if (!usedHf) {
       try {
-        const res = await fetchWithTimeout(`https://khoa.go.kr/oceandata/api/tidalCurrentArea/search.do?ServiceKey=${SERVICE_KEY}&Date=${dateStr}&Hour=${hour}&Minute=${minute}&MinX=${minX}&MaxX=${maxX}&MinY=${minY}&MaxY=${maxY}&ResultType=json`, 8000);
+        const res = await fetchWithTimeout(`/.netlify/functions/weather?mode=khoacurrent&date=${dateStr}&hour=${hour}&minute=${minute}&minX=${minX}&maxX=${maxX}&minY=${minY}&maxY=${maxY}`, 8000);
         const d = await res.json(); const points = d.result.data;
         if (points && points.length > 0) {
           let minDist = Infinity, nearest = null;
