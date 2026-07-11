@@ -1810,8 +1810,8 @@
     document.getElementById('statAvgSpeed').textContent = `${combinedKn.toFixed(2)}kn`;
     document.getElementById('statErrorRadius').textContent = `±${finalErrorRadius}m`;
     const coastlineStatusNote = coastlineData
-      ? `▶ 해안선 마스킹: <span style="color:var(--green);">활성</span> (Turf.js 실측 해안선 기반 자동 좌초판정 적용됨)`
-      : `▶ 해안선 마스킹: <span style="color:var(--amber);">비활성</span> (사유: ${coastlineLoadError || '알 수 없음'} - 최종 지점이 해안·방파제에 가까워 보이면 지도에서 직접 확인하세요)`;
+      ? `▶ 해안선 감지: <span style="color:var(--green);">활성</span> (Turf.js 실측 해안선 기반 자동 해안도달 판정 적용됨)`
+      : `▶ 해안선 감지: <span style="color:var(--amber);">비활성</span> (사유: ${coastlineLoadError || '알 수 없음'} - 최종 지점이 해안·방파제에 가까워 보이면 지도에서 직접 확인하세요)`;
     const strandedNote = strandedAt
       ? `<br>▶ <span style="color:var(--amber);">⚠ 약 ${strandedAt}시간 후 해안(육지)에 도달할 것으로 예상됩니다. 그 이후 경로는 표시하지 않습니다.</span>`
       : '';
