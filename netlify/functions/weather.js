@@ -17,6 +17,14 @@ exports.handler = async function (event) {
   const RAW_KEY = process.env.SERVICE_KEY || 'f26bd692b54db41eb90a99bed02f398b4a75fe6cab7c65dd03ebc8965f98b041';
   const SERVICE_KEY = encodeURIComponent(decodeURIComponent(RAW_KEY));
 
+  // ※ 국립해양조사원(KHOA) 조류예측 API 전용 키. 기존에는 이 키가 index.html(브라우저에서
+  //   그대로 보이는 클라이언트 코드)에 하드코딩되어 있어, 누구나 "페이지 소스 보기"로
+  //   확인할 수 있는 문제가 있었다. 이제 다른 공공데이터 키와 동일한 방식으로
+  //   Netlify 환경변수(KHOA_SERVICE_KEY)를 통해 서버(이 함수) 안에서만 사용하도록 옮겼다.
+  //   환경변수를 아직 등록 전이면 기존 값으로 폴백하되, 등록 즉시 이 폴백은 무시된다.
+  const KHOA_RAW_KEY = process.env.KHOA_SERVICE_KEY || 'srQx3b3XW8NV9RpGp9CQ==';
+  const KHOA_SERVICE_KEY = encodeURIComponent(decodeURIComponent(KHOA_RAW_KEY));
+
   const params = event.queryStringParameters || {};
   const mode = params.mode || 'fcst';
 
@@ -24,7 +32,6 @@ exports.handler = async function (event) {
     'Content-Type': 'application/json;charset=UTF-8',
     'Access-Control-Allow-Origin': '*'
   };
-
   const fetchHeaders = {
     'Accept': 'application/json',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
@@ -87,6 +94,17 @@ exports.handler = async function (event) {
       const reqDate = params.reqDate;
       if (!reqDate) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'reqDate 필요' }) };
       url = `https://apis.data.go.kr/1192136/fcstSurfingv2/GetFcstSurfingApiServiceV2?serviceKey=${SERVICE_KEY}&type=json&reqDate=${reqDate}&pageNo=1&numOfRows=30&placeCode=${placeCode}`;
+    }
+    // ===== 국립해양조사원(KHOA) 조류예측 격자 프록시 =====
+    // ※ 원래 index.html(클라이언트)에서 khoa.go.kr을 직접 호출하며 서비스키를 그대로
+    //   노출하고 있었다. 이제 클라이언트는 이 mode를 통해서만 조회하고, 실제 키와
+    //   목적지 URL은 서버(이 함수) 안에만 존재한다.
+    else if (mode === 'khoacurrent') {
+      const { date, hour, minute, minX, maxX, minY, maxY } = params;
+      if (!date || !hour || !minute || !minX || !maxX || !minY || !maxY) {
+        return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: '파라미터 누락' }) };
+      }
+      url = `https://khoa.go.kr/oceandata/api/tidalCurrentArea/search.do?ServiceKey=${KHOA_SERVICE_KEY}&Date=${date}&Hour=${hour}&Minute=${minute}&MinX=${minX}&MaxX=${maxX}&MinY=${minY}&MaxY=${maxY}&ResultType=json`;
     } else {
       return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: '올바르지 않은 mode' }) };
     }
@@ -107,7 +125,6 @@ exports.handler = async function (event) {
       headers: corsHeaders,
       body: text
     };
-
   } catch (err) {
     return {
       statusCode: 500,
