@@ -574,7 +574,10 @@
     fetchHfCurrent();
     loadCoastlineGeoJSON(); // 비차단 - 실패해도 페이지 동작에 영향 없음
     initInputCheckmarks();
-    useCurrentLocation(); // 사고 발생 정보 입력란에 현재 위치를 자동으로 채움 (브라우저 위치정보 권한 필요)
+    // ※ useCurrentLocation()을 여기서 자동 호출해봤으나, iOS Safari는 사용자의 직접적인
+    //   탭(터치) 없이 페이지 로드 시점에 자동으로 호출되는 위치정보 요청을 권한 팝업조차
+    //   띄우지 않고 조용히 무시하는 경우가 있다. 그래서 자동화가 안정적으로 동작하지
+    //   않아 제거하고, 아래 "현재 위치 사용" 버튼(실제 탭 이벤트)으로만 동작하도록 되돌림.
 
     kakao.maps.load(function () {
       const container = document.getElementById('map');
@@ -1166,6 +1169,12 @@
     if (currentRectangle) { currentRectangle.setMap(null); currentRectangle = null; }
     if (monteCarloHullOverlay) { monteCarloHullOverlay.setMap(null); monteCarloHullOverlay = null; }
 
+    // 혹시 이전 계산이 걸려서 predictionInFlight가 true로 남아있으면 강제로 풀어준다
+    // (사용자가 막힌 상태를 "지도 초기화"로 직접 탈출할 수 있게 하는 안전장치).
+    predictionInFlight = false;
+    const runBtn = document.querySelector('button[onclick="runPrediction()"]');
+    if (runBtn) runBtn.disabled = false;
+
     const defaultPos = new kakao.maps.LatLng(36.023, 129.419);
     clickMarker.setPosition(defaultPos);
     map.setCenter(defaultPos);
@@ -1443,7 +1452,17 @@
   // 그리고, 최종 지점이 육지에 가까운지는 지도에서 육안으로 확인하도록 안내한다.
   // ==========================================================================
 
+  let predictionInFlight = false; // 계산 진행 중 중복 실행 방지 (마커 잔류 버그 원인)
+
   async function runPrediction() {
+    if (predictionInFlight) {
+      setStatus('warn', '⏳ 이전 계산이 아직 진행 중입니다. 잠시만 기다려주세요.');
+      return;
+    }
+    predictionInFlight = true;
+    const runBtn = document.querySelector('button[onclick="runPrediction()"]');
+    if (runBtn) runBtn.disabled = true;
+
     const card = document.getElementById('resultCard');
     document.getElementById('aiCard').style.display = 'none';
     document.getElementById('searchCard').style.display = 'none';
@@ -1641,7 +1660,10 @@
     showLoading('수색구역 생성 중...');
 
     const start = new kakao.maps.LatLng(lat, lon);
-    const m1 = new kakao.maps.Marker({ position: start }); m1.setMap(map); currentMarkers.push(m1);
+    // ※ 예전엔 여기서 별도 마커(m1)를 새로 만들어서, 지도 클릭/GPS로 표시되던 clickMarker와
+    //   위치가 미세하게 다를 경우 파란 마커가 2개로 보이는 문제가 있었다. clickMarker를
+    //   그대로 재사용해서 항상 하나만 남도록 통일한다.
+    clickMarker.setPosition(start);
 
     currentPolyline = new kakao.maps.Polyline({ path: [start], strokeWeight: 3, strokeColor: '#22D3EE', strokeOpacity: 0.9 });
     currentPolyline.setMap(map);
@@ -1782,6 +1804,12 @@
     }).catch(err => {
       console.warn('몬테카를로 시뮬레이션 실패(메인 예측 결과에는 영향 없음):', err);
       setStatus('ok', '✅ 예측 완료 (몬테카를로 시뮬레이션은 생략됨)');
+    }).finally(() => {
+      // 몬테카를로까지 전부 끝난 뒤에야 다음 계산을 허용 - 그 전에 재실행하면
+      // 지연 렌더링(setTimeout) 중이던 마커/원이 정리 대상에서 빠져 지도에 남는
+      // 버그가 있었음. 이 가드로 그 경쟁 상태(race condition)를 원천 차단한다.
+      predictionInFlight = false;
+      if (runBtn) runBtn.disabled = false;
     });
   }
 </script>
