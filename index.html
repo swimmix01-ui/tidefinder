@@ -731,9 +731,15 @@
     else { el.textContent = `🔴 갱신 지연 (${Math.round(diffMin/60)}시간+)`; }
   }
 
-  async function fetchWaveHeight() {
+  // ※ lat/lon 인자를 받도록 수정함. 기존엔 항상 고정 기준좌표(포항 인근)만 조회해서,
+  //   "현재 해상 상태" 카드의 풍향과 실제 표류 계산에 쓰인 풍향이 서로 다른 지점 값이라
+  //   화면상 모순처럼 보이는 문제가 있었다(예: 카드엔 "남서"인데 예측 결과는 바람 100%로
+  //   "북서" 이동 — 사실은 서로 다른 좌표의 바람이라 안 맞아 보였을 뿐). 인자를 생략하면
+  //   페이지 최초 로드 시의 기준좌표를 그대로 쓰고, runPrediction()에서는 실제 사고지점
+  //   좌표를 넘겨 화면 표시와 계산이 항상 같은 지점 기준이 되도록 통일한다.
+  async function fetchWaveHeight(lat = 36.023, lon = 129.419) {
     try {
-      const wind = await fetchWindData(36.023, 129.419);
+      const wind = await fetchWindData(lat, lon);
       document.getElementById('marineWaveHeight').textContent = wind.waveHeightM !== null ? `${wind.waveHeightM}m` : '자료없음';
       document.getElementById('marineWind').textContent = (wind.windSpeedMS && wind.windDirFrom) ? `${bearingToCompass(wind.windDirFrom)} ${wind.windSpeedMS}m/s` : '자료없음';
       renderWaveStatusPill(wind.waveHeightM);
@@ -1445,13 +1451,17 @@
     showLoading('조류 분석 중...');
     setStatus('busy', '⏳ 조류 연산 수행 중...');
 
-    // 사고 지점 기준으로 해상 상태 카드(수온/기온/기압/시정/특보)를 다시 조회하여
-    // 페이지 로드 시 기본값(포항)이 아닌 실제 사고 지점의 가장 가까운 관측소 데이터로 갱신
-    fetchMarineWeather();
-    fetchAlert();
-
     const lat = dmsToDecimal(parseFloat(document.getElementById('latD').value), parseFloat(document.getElementById('latM').value), parseFloat(document.getElementById('latS').value));
     const lon = dmsToDecimal(parseFloat(document.getElementById('lonD').value), parseFloat(document.getElementById('lonM').value), parseFloat(document.getElementById('lonS').value));
+
+    // 사고 지점 기준으로 해상 상태 카드(수온/기온/기압/시정/특보/풍향풍속/파고)를 다시 조회하여
+    // 페이지 로드 시 기본값(포항 인근 고정좌표)이 아닌 실제 사고 지점 기준 데이터로 갱신.
+    // ※ fetchWaveHeight도 사고지점 좌표로 반드시 같이 갱신해야, 화면에 표시되는 풍향과
+    //   실제 표류 계산에 쓰인 풍향이 서로 다른 지점 값이 되는 혼선을 막을 수 있다.
+    fetchMarineWeather();
+    fetchAlert();
+    fetchWaveHeight(lat, lon);
+
     const dateStr = document.getElementById('dateInput').value.replace(/-/g, '');
     const hour = document.getElementById('hourInput').value.padStart(2, '0'); const minute = document.getElementById('minuteInput').value.padStart(2, '0');
     const ahead = parseInt(document.getElementById('hoursAhead').value);
