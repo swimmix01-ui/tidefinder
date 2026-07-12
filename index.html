@@ -287,18 +287,6 @@
   <div id="map"></div>
   <button class="run-btn" onclick="resetMap()" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px; margin-top:-4px;">↺ 지도 초기화</button>
 
-  <div class="card" style="padding-top:14px;">
-    <div class="card-title">
-      <svg class="icon-svg" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="#22D3EE" stroke-width="1.6"/><circle cx="12" cy="12" r="3" stroke="#22D3EE" stroke-width="1.6"/></svg>
-      실시간 해안 CCTV (시험 연동 - KBS 재난포털)
-    </div>
-    <div style="font-size:11px;color:var(--text-lo);margin-bottom:8px;">경북 포항 두호동 해안로 · 출처: KBS 재난감시 CCTV. 아래 영상이 안 뜨면 iframe이 차단된 것이니, 밑에 "새 탭에서 보기" 링크를 이용하세요.</div>
-    <div style="position:relative;width:100%;padding-top:56.25%;border-radius:12px;overflow:hidden;background:rgba(0,0,0,0.3);">
-      <iframe src="https://d.kbs.co.kr/special/cctvShare?cctvId=9988" style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;" allowfullscreen loading="lazy"></iframe>
-    </div>
-    <a href="https://d.kbs.co.kr/special/cctvShare?cctvId=9988" target="_blank" rel="noopener" style="display:block;text-align:center;font-size:12.5px;color:var(--cyan);margin-top:10px;">🔗 새 탭에서 직접 보기</a>
-  </div>
-
   <div id="marineCard" class="card">
     <div class="card-title">
       <svg class="icon-svg" viewBox="0 0 24 24" fill="none"><path d="M2 18c1.5 1.2 3 1.2 4.5 0s3-1.2 4.5 0 3 1.2 4.5 0 3-1.2 4.5 0" stroke="#22D3EE" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="9" r="3.5" stroke="#22D3EE" stroke-width="1.6"/></svg>
@@ -396,6 +384,18 @@
       <li><span class="k">예상 도달 위치</span><span class="v" id="searchEnd">-</span></li>
     </ul>
     <div class="search-order" id="searchOrder">-</div>
+  </div>
+
+  <div class="card">
+    <div class="card-title">
+      <svg class="icon-svg" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="#22D3EE" stroke-width="1.6"/><circle cx="12" cy="12" r="3" stroke="#22D3EE" stroke-width="1.6"/></svg>
+      전국 CCTV 현황 보기
+    </div>
+    <ul class="search-list">
+      <li><a href="https://d.kbs.co.kr/special/cctv" target="_blank" rel="noopener" style="display:flex; justify-content:space-between; width:100%; text-decoration:none; color:inherit;"><span class="k">🌊 KBS 재난포털</span><span class="v" style="color:var(--cyan);">새 탭 ↗</span></a></li>
+      <li><a href="https://coast.mof.go.kr/coastScene/coastMediaService.do" target="_blank" rel="noopener" style="display:flex; justify-content:space-between; width:100%; text-decoration:none; color:inherit;"><span class="k">🌊 해양수산부 연안(해수욕장·침식감시) 포털</span><span class="v" style="color:var(--cyan);">새 탭 ↗</span></a></li>
+      <li><a href="https://www.ulleung.go.kr/live/index.do" target="_blank" rel="noopener" style="display:flex; justify-content:space-between; width:100%; text-decoration:none; color:inherit;"><span class="k">🌊 울릉군청 실시간영상(독도·전망대)</span><span class="v" style="color:var(--cyan);">새 탭 ↗</span></a></li>
+    </ul>
   </div>
 </main>
 
