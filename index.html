@@ -786,7 +786,8 @@
       const data = await res.json();
       const items = data?.body?.items?.item || data?.response?.body?.items?.item;
       if (!items || items.length === 0) { el.textContent = '자료없음'; return; }
-      const latest = items[items.length - 1];
+      const latest = getLatestByObsTime(items);
+      if (!latest) { el.textContent = '자료없음'; return; }
       const dir = latest.crdir ?? latest.dir;
       const speed = latest.crsp ?? latest.speed;
       if (dir === undefined || speed === undefined) { el.textContent = '자료없음'; return; }
@@ -823,6 +824,25 @@
   function formatDMS(lat, lon) { const la = decimalToDMS(lat); const lo = decimalToDMS(lon); return `${la.d}°${la.m}′${la.s}″N, ${lo.d}°${lo.m}′${lo.s}″E`; }
   function setStatus(kind, text) { const el = document.getElementById('status'); el.className = kind; el.textContent = text; }
   function dmsToDecimal(d, m, s) { return d + (m / 60) + (s / 3600); }
+  // ==========================================================================
+  // 관측 API 응답 배열에서 "진짜" 최신 레코드를 찾는다.
+  // ※ 기존엔 fetchHfCurrent()는 items[배열 마지막]을, fetchAndRenderHFCurrent()는
+  //   items[0]을 각각 최신값으로 가정했는데, 이 둘의 가정이 서로 모순되어(둘 중
+  //   하나는 반드시 틀림) 같은 관측소인데도 두 카드에 서로 다른 유향·유속이
+  //   표시되는 문제가 있었다. API 응답에 실제 관측시각(obsrvnDt) 필드가 있으므로,
+  //   배열 순서를 추측하지 않고 이 값을 직접 비교해서 최신 레코드를 찾는다.
+  // ==========================================================================
+  function getLatestByObsTime(items) {
+    if (!items || items.length === 0) return null;
+    let latest = items[0];
+    let latestTime = new Date((items[0].obsrvnDt || '').replace(' ', 'T')).getTime() || -Infinity;
+    items.forEach(it => {
+      const t = new Date((it.obsrvnDt || '').replace(' ', 'T')).getTime();
+      if (!isNaN(t) && t > latestTime) { latestTime = t; latest = it; }
+    });
+    return latest;
+  }
+
   function bearingToCompass(deg) {
     const names = ['북', '북북동', '북동', '동북동', '동', '동남동', '남동', '남남동', '남', '남남서', '남서', '서남서', '서', '서북서', '북서', '북북서'];
     return names[Math.round(((deg % 360) + 360) % 360 / 22.5) % 16];
@@ -1570,7 +1590,7 @@
       const items = data?.response?.body?.items?.item || data?.body?.items?.item;
 
       if (items && items.length > 0) {
-        const latest = items[0];
+        const latest = getLatestByObsTime(items);
         const crspCmS = parseFloat(latest.crsp);
         const crdirDeg = parseFloat(latest.crdir);
         if (isNaN(crspCmS) || isNaN(crdirDeg)) return;
