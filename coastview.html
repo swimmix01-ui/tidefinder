@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
+<title>코스트뷰 CoastView - 연안 지형 확인</title>
+<style>
+  :root {
+    --bg-deep: #081826;
+    --bg-mid: #0E2A44;
+    --card: #123A5E;
+    --border: rgba(255,255,255,0.09);
+    --text-hi: #EAF4FF;
+    --text-lo: #8FB3D9;
+    --cyan: #22D3EE;
+    --red: #FF5C5C;
+    --amber: #FBBF24;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; height: 100%; background: var(--bg-deep); }
+  body {
+    font-family: 'Apple SD Gothic Neo', 'Malgun Gothic', -apple-system, sans-serif;
+    color: var(--text-hi);
+    display: flex; flex-direction: column; height: 100vh; overflow: hidden;
+  }
+  header {
+    padding: 12px 16px; display: flex; align-items: center; gap: 10px;
+    border-bottom: 1px solid var(--border); background: var(--bg-mid); flex-shrink: 0; z-index: 10;
+  }
+  header h1 { font-size: 16px; margin: 0; font-weight: 800; }
+  header .cyan { color: var(--cyan); }
+  .backbtn {
+    width: 34px; height: 34px; border-radius: 9px; border: 1px solid var(--border);
+    background: rgba(255,255,255,0.06); display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .backbtn svg { width: 18px; height: 18px; color: var(--cyan); }
+  #coordBar {
+    font-size: 12px; color: var(--text-lo); padding: 8px 16px; background: var(--card);
+    border-bottom: 1px solid var(--border); flex-shrink: 0; display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;
+  }
+  #coordBar b { color: var(--cyan); }
+  #mapWrap { position: relative; flex: 1; min-height: 0; }
+  #vmap { width: 100%; height: 100%; }
+  #statusOverlay {
+    position: absolute; inset: 0; background: var(--bg-deep); display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 14px; z-index: 5; padding: 20px; text-align: center;
+  }
+  #statusOverlay.hide { display: none; }
+  .spinner { width: 36px; height: 36px; border-radius: 50%; border: 3px solid rgba(34,211,238,0.2); border-top-color: var(--cyan); animation: spin 0.8s linear infinite; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  #statusText { font-size: 14px; color: var(--cyan); font-weight: 700; }
+  #statusSub { font-size: 12.5px; color: var(--text-lo); max-width: 320px; line-height: 1.6; }
+  #errBox {
+    display: none; position: absolute; top: 12px; left: 12px; right: 12px; z-index: 8;
+    background: rgba(255,92,92,0.12); border: 1px solid rgba(255,92,92,0.4); border-radius: 10px;
+    padding: 10px 14px; font-size: 12.5px; color: var(--red); font-weight: 600; line-height: 1.6;
+  }
+  #noCoordForm {
+    display: none; position: absolute; inset: 0; z-index: 6; background: var(--bg-deep);
+    flex-direction: column; align-items: center; justify-content: center; gap: 14px; padding: 24px;
+  }
+  #noCoordForm.show { display: flex; }
+  #noCoordForm p { color: var(--text-lo); font-size: 13px; text-align: center; margin: 0 0 6px; line-height: 1.6; }
+  .coordInputs { display: flex; gap: 8px; }
+  .coordInputs input {
+    background: rgba(255,255,255,0.06); border: 1px solid var(--border); color: var(--text-hi);
+    padding: 10px; border-radius: 10px; font-size: 15px; width: 140px; text-align: center;
+  }
+  #goBtn {
+    padding: 12px 28px; font-size: 14px; font-weight: 800; color: #06222E;
+    background: linear-gradient(135deg, var(--cyan), #4EE3FF); border: none; border-radius: 10px; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <button class="backbtn" onclick="history.back()" type="button" aria-label="뒤로가기">
+    <svg viewBox="0 0 24 24" fill="none"><path d="M15 18l-6-6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+  </button>
+  <h1>코스트뷰 <span class="cyan">CoastView</span></h1>
+</header>
+
+<div id="coordBar">
+  <span>사고좌표 3D 지형 확인 · <b id="coordLabel">-</b></span>
+  <span>출처: 국토교통부 브이월드(V-World)</span>
+</div>
+
+<div id="mapWrap">
+  <div id="errBox"></div>
+  <div id="vmap"></div>
+  <div id="statusOverlay">
+    <div class="spinner"></div>
+    <div id="statusText">3D 지형 불러오는 중...</div>
+    <div id="statusSub">브이월드 3D 지도 API에 접속하고 있습니다. 신호가 약하면 시간이 더 걸릴 수 있습니다.</div>
+  </div>
+  <div id="noCoordForm">
+    <p>사고좌표가 전달되지 않았습니다.<br>TideFinder에서 "3D 지형 보기" 버튼으로 들어오면 좌표가 자동 입력됩니다.<br>직접 확인하실 좌표를 입력하셔도 됩니다.</p>
+    <div class="coordInputs">
+      <input id="manualLat" type="number" step="0.0001" placeholder="위도 (예: 36.0248)">
+      <input id="manualLon" type="number" step="0.0001" placeholder="경도 (예: 129.4899)">
+    </div>
+    <button id="goBtn" type="button">3D 지형 보기</button>
+  </div>
+</div>
+
+<!-- ※ 브이월드(V-World) 개인 발급 API 키. 카카오맵/KHOA와 동일한 원칙 -
+     정식 이관 시 기관 명의 키로 교체 필요. -->
+<script>
+  const VWORLD_API_KEY = '719EABC5-66AC-3B3C-83CA-9EE32B0F6208';
+
+  function getParam(name) {
+    const params = new URLSearchParams(window.location.search);
+    return params.get(name);
+  }
+
+  function showError(msg) {
+    const box = document.getElementById('errBox');
+    box.textContent = '⚠ ' + msg;
+    box.style.display = 'block';
+    document.getElementById('statusOverlay').classList.add('hide');
+  }
+
+  function initMap(lat, lon) {
+    document.getElementById('coordLabel').textContent = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
+
+    // 브이월드 3D 지도 스크립트를 동적으로 로드 (좌표를 알아야 초기 위치를 정할 수 있어
+    // HTML head에 미리 박아두지 않고, 좌표 확보 이후 이 시점에 로드한다.
+    const script = document.createElement('script');
+    script.src = `https://map.vworld.kr/js/webglMapInit.js.do?version=3.0&apiKey=${VWORLD_API_KEY}`;
+    script.onload = () => {
+      try {
+        if (typeof vw === 'undefined') {
+          showError('브이월드 3D 엔진 로드 실패 - API 키 또는 도메인 등록 상태를 확인하세요.');
+          return;
+        }
+        const map = new vw.Map();
+        const options = {
+          mapId: 'vmap',
+          // 사고좌표 상공 약 900m 높이에서 45도 각도로 내려다보는 초기 시점 -
+          // 절벽·암초 등 지형 굴곡을 입체적으로 파악하기 좋은 각도.
+          initPosition: new vw.CameraPosition(
+            new vw.CoordZ(lon, lat, 900),
+            new vw.Direction(0, -45, 0)
+          ),
+          logo: false,
+          navigation: true,
+        };
+        map.setOption(options);
+        map.setMapId('vmap');
+        map.start();
+        document.getElementById('statusOverlay').classList.add('hide');
+      } catch (err) {
+        showError('3D 지도 초기화 중 오류: ' + (err && err.message ? err.message : err));
+      }
+    };
+    script.onerror = () => {
+      showError('브이월드 API 스크립트를 불러오지 못했습니다. 네트워크 상태를 확인하거나 새 탭에서 https://map.vworld.kr 접속 여부를 확인하세요.');
+    };
+    document.head.appendChild(script);
+
+    // 15초 안에 로드가 안 끝나면 무한 대기 대신 안내 메시지로 전환
+    setTimeout(() => {
+      const overlay = document.getElementById('statusOverlay');
+      if (!overlay.classList.contains('hide')) {
+        overlay.querySelector('#statusText').textContent = '로드가 지연되고 있습니다...';
+        overlay.querySelector('#statusSub').textContent = '15초 이상 걸리면 브이월드 서버 지연이거나 API 키/도메인 등록 문제일 수 있습니다. 계속 기다리거나 새로고침 해보세요.';
+      }
+    }, 15000);
+  }
+
+  window.onload = function () {
+    const latParam = getParam('lat');
+    const lonParam = getParam('lon');
+
+    if (latParam && lonParam && !isNaN(parseFloat(latParam)) && !isNaN(parseFloat(lonParam))) {
+      initMap(parseFloat(latParam), parseFloat(lonParam));
+    } else {
+      document.getElementById('statusOverlay').classList.add('hide');
+      document.getElementById('noCoordForm').classList.add('show');
+      document.getElementById('goBtn').addEventListener('click', () => {
+        const la = parseFloat(document.getElementById('manualLat').value);
+        const lo = parseFloat(document.getElementById('manualLon').value);
+        if (isNaN(la) || isNaN(lo)) { alert('위도·경도를 숫자로 입력해주세요.'); return; }
+        document.getElementById('noCoordForm').classList.remove('show');
+        document.getElementById('statusOverlay').classList.remove('hide');
+        initMap(la, lo);
+      });
+    }
+  };
+</script>
+
+</body>
+</html>
