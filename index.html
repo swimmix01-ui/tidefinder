@@ -1241,6 +1241,10 @@
   // 현재 입력된 사고좌표(DMS)를 십진수로 변환해 CoastView(3D 지형 확인 도구)를
   // 새 탭으로 연다. CoastView는 별도 파일(coastview.html)로 분리되어 있어
   // TideFinder 본체 코드량에는 영향이 없다 (index.html과 같은 저장소 루트에 배치).
+  // ※ window.open()으로 열면 사파리에서 about:blank를 거쳐 리퍼러가 유실되는
+  //   경우가 있어(실제로 브이월드 인증 실패의 원인이었음), 실제 <a target="_blank">
+  //   요소를 만들어 클릭하는 방식으로 대체했다 - 사용자가 직접 링크를 누른 것과
+  //   동일하게 처리되어 리퍼러가 안정적으로 전달된다.
   function openCoastView() {
     const lat = dmsToDecimal(parseFloat(document.getElementById('latD').value), parseFloat(document.getElementById('latM').value), parseFloat(document.getElementById('latS').value));
     const lon = dmsToDecimal(parseFloat(document.getElementById('lonD').value), parseFloat(document.getElementById('lonM').value), parseFloat(document.getElementById('lonS').value));
@@ -1248,7 +1252,13 @@
       alert('먼저 사고 좌표를 입력해주세요.');
       return;
     }
-    window.open(`coastview.html?lat=${lat}&lon=${lon}`, '_blank');
+    const a = document.createElement('a');
+    a.href = `coastview.html?lat=${lat}&lon=${lon}`;
+    a.target = '_blank';
+    a.rel = 'noopener';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   }
 
   function resetMap() {
