@@ -1,13 +1,17 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-<!-- 브이월드가 Referer 헤더로 서비스 도메인을 확인하는 것으로 추정됨.
-     기본 리퍼러 정책이 일부 상황에서 Referer를 아예 안 보내거나 축약해서
-     보낼 수 있어, 항상 origin(도메인)까지는 보내도록 명시적으로 강제한다. -->
-<meta name="referrer" content="origin">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 <title>코스트뷰 CoastView - 연안 지형 확인</title>
+<!-- ※ 지난 버전은 좌표를 먼저 읽은 뒤 document.createElement('script')로 동적 생성해서
+     끼워넣는 방식이었는데, 이게 "등록하신 API Key와 URI가 일치하지 않습니다" 에러의
+     원인이었을 가능성이 있다. 실제로 작동하는 다른 브이월드 3D 프로젝트 소스코드를
+     참고해보니, 전부 이렇게 head에 고정된 <script> 태그로 정적으로 불러오고 있었다.
+     동적 삽입 + 새 탭(window.open) 조합이 사파리에서 Referer 헤더를 다르게 처리했을
+     가능성이 있어, 검증된 방식(정적 로딩)으로 통일한다. 좌표 확보는 이 스크립트가
+     다 불러와진 뒤, 아래 body의 별도 스크립트에서 처리한다. -->
+<script type="text/javascript" src="https://map.vworld.kr/js/webglMapInit.js.do?version=3.0&apiKey=719EABC5-66AC-3B3C-83CA-9EE32B0F6208"></script>
 <style>
   :root {
     --bg-deep: #081826;
@@ -108,11 +112,7 @@
   </div>
 </div>
 
-<!-- ※ 브이월드(V-World) 개인 발급 API 키. 카카오맵/KHOA와 동일한 원칙 -
-     정식 이관 시 기관 명의 키로 교체 필요. -->
 <script>
-  const VWORLD_API_KEY = '719EABC5-66AC-3B3C-83CA-9EE32B0F6208';
-
   function getParam(name) {
     const params = new URLSearchParams(window.location.search);
     return params.get(name);
@@ -127,59 +127,43 @@
 
   function initMap(lat, lon) {
     document.getElementById('coordLabel').textContent = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
-
-    // 브이월드 3D 지도 스크립트를 동적으로 로드 (좌표를 알아야 초기 위치를 정할 수 있어
-    // HTML head에 미리 박아두지 않고, 좌표 확보 이후 이 시점에 로드한다.
-    const script = document.createElement('script');
-    script.src = `https://map.vworld.kr/js/webglMapInit.js.do?version=3.0&apiKey=${VWORLD_API_KEY}`;
-    script.onload = () => {
-      try {
-        if (typeof vw === 'undefined') {
-          showError('브이월드 3D 엔진 로드 실패 - API 키 또는 도메인 등록 상태를 확인하세요.');
-          return;
-        }
-        const map = new vw.Map();
-        const options = {
-          mapId: 'vmap',
-          // 사고좌표 상공 약 900m 높이에서 45도 각도로 내려다보는 초기 시점 -
-          // 절벽·암초 등 지형 굴곡을 입체적으로 파악하기 좋은 각도.
-          initPosition: new vw.CameraPosition(
-            new vw.CoordZ(lon, lat, 900),
-            new vw.Direction(0, -45, 0)
-          ),
-          logo: false,
-          navigation: true,
-        };
-        map.setOption(options);
-        map.setMapId('vmap');
-        map.start();
-        document.getElementById('statusOverlay').classList.add('hide');
-      } catch (err) {
-        showError('3D 지도 초기화 중 오류: ' + (err && err.message ? err.message : err));
+    try {
+      if (typeof vw === 'undefined') {
+        showError('브이월드 3D 엔진이 로드되지 않았습니다. API 키 또는 도메인 등록 상태를 확인하세요.');
+        return;
       }
-    };
-    script.onerror = () => {
-      showError('브이월드 API 스크립트를 불러오지 못했습니다. 네트워크 상태를 확인하거나 새 탭에서 https://map.vworld.kr 접속 여부를 확인하세요.');
-    };
-    document.head.appendChild(script);
-
-    // 15초 안에 로드가 안 끝나면 무한 대기 대신 안내 메시지로 전환
-    setTimeout(() => {
-      const overlay = document.getElementById('statusOverlay');
-      if (!overlay.classList.contains('hide')) {
-        overlay.querySelector('#statusText').textContent = '로드가 지연되고 있습니다...';
-        overlay.querySelector('#statusSub').textContent = '15초 이상 걸리면 브이월드 서버 지연이거나 API 키/도메인 등록 문제일 수 있습니다. 계속 기다리거나 새로고침 해보세요.';
-      }
-    }, 15000);
+      const map = new vw.Map();
+      const options = {
+        mapId: 'vmap',
+        initPosition: new vw.CameraPosition(
+          new vw.CoordZ(lon, lat, 900),
+          new vw.Direction(0, -45, 0)
+        ),
+        logo: false,
+        navigation: true,
+      };
+      map.setOption(options);
+      map.setMapId('vmap');
+      map.start();
+      document.getElementById('statusOverlay').classList.add('hide');
+    } catch (err) {
+      showError('3D 지도 초기화 중 오류: ' + (err && err.message ? err.message : err));
+    }
   }
 
   window.onload = function () {
+    // 정적으로 로드된 브이월드 스크립트가 이 시점엔 이미 실행 완료된 상태여야 정상.
+    // vw가 없다면 인증(도메인) 실패로 스크립트 자체가 빈 채로 내려온 것.
+    if (typeof vw === 'undefined') {
+      showError('브이월드 인증 실패 - API 키에 등록된 서비스 URL과 현재 접속 주소가 일치하지 않습니다. 브이월드 인증키 관리에서 도메인 등록 상태를 다시 확인하세요.');
+    }
+
     const latParam = getParam('lat');
     const lonParam = getParam('lon');
 
     if (latParam && lonParam && !isNaN(parseFloat(latParam)) && !isNaN(parseFloat(lonParam))) {
       initMap(parseFloat(latParam), parseFloat(lonParam));
-    } else {
+    } else if (typeof vw !== 'undefined') {
       document.getElementById('statusOverlay').classList.add('hide');
       document.getElementById('noCoordForm').classList.add('show');
       document.getElementById('goBtn').addEventListener('click', () => {
