@@ -106,7 +106,16 @@ exports.handler = async function (event) {
       if (!ymin || !ymax || !xmin || !xmax) {
         return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'ymin/ymax/xmin/xmax 파라미터 필요' }) };
       }
-      url = `https://apis.data.go.kr/1192136/roms/GetRomsApiService?serviceKey=${SERVICE_KEY}&type=json&numOfRows=10&pageNo=1&ymin=${ymin}&ymax=${ymax}&xmin=${xmin}&xmax=${xmax}`;
+      url = `https://apis.data.go.kr/1192136/roms/GetRomsApiService?serviceKey=${SERVICE_KEY}&type=json&numOfRows=200&pageNo=1&ymin=${ymin}&ymax=${ymax}&xmin=${xmin}&xmax=${xmax}`;
+    }
+    // ===== 조석예보(고조·저조) - 만조/간조 시각 및 조위(cm) =====
+    // ※ obsCode는 기존 DT_STATIONS와 동일한 코드 체계(DT_0091=포항 등)를 그대로 사용.
+    //   같은 1192136 API 그룹이라 기존 SERVICE_KEY 재사용.
+    else if (mode === 'tide') {
+      const obsCode = params.obsCode || 'DT_0091'; // 기본값: 포항
+      const reqDate = params.reqDate; // YYYYMMDD, 생략 시 API 기본값(현재일자) 사용
+      const dateParam = reqDate ? `&reqDate=${reqDate}` : '';
+      url = `https://apis.data.go.kr/1192136/tideFcstHghLw/GetTideFcstHghLwApiService?serviceKey=${SERVICE_KEY}&type=json&numOfRows=10&pageNo=1&obsCode=${obsCode}${dateParam}`;
     }
     // ===== 국립해양조사원(KHOA) 조류예측 격자 프록시 =====
     // ※ 원래 index.html(클라이언트)에서 khoa.go.kr을 직접 호출하며 서비스키를 그대로
