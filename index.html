@@ -305,6 +305,7 @@
       <div class="stat-box"><div class="label">관측시각</div><div class="value" id="marineObsTime" style="font-size:13px;">-</div></div>
       <div class="stat-box"><div class="label">관측정보 최신 여부</div><div class="value" id="marineFreshness" style="font-size:13px;">-</div></div>
       <div class="stat-box"><div class="label">실측 유향/유속 (HF레이더)</div><div class="value accent" id="marineHfCurrent" style="font-size:13px;">-</div></div>
+      <div class="stat-box"><div class="label">다음 만조/간조</div><div class="value accent" id="marineNextTide" style="font-size:13px;">-</div></div>
     </div>
     <div id="marineAlertBox" style="display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(255,92,92,0.12);border:1px solid rgba(255,92,92,0.35);font-size:13px;color:var(--red);font-weight:700;"></div>
   </div>
@@ -412,6 +413,8 @@
   //   있었다. 이제 /.netlify/functions/weather?mode=khoacurrent 프록시를 통해서만
   //   조회하며, 실제 키는 Netlify 서버(환경변수 KHOA_SERVICE_KEY) 안에만 존재한다.
   let map, clickMarker, currentPolyline, currentCircles = [], currentMarkers = [], currentRectangle;
+  let hfComparisonPolyline = null, romsComparisonPolyline = null; // HF·ROMS 순수 해류 비교경로 (바람 미반영, 참고용)
+  let lastRomsItems = null; // fetchAndRenderRomsInfo에서 받은 148시간 시계열 캐시 (비교경로 계산에 재사용)
   let lastHfSpeedCms = null, lastHfDirDeg = null, lastWaterTempC = null;
 
   // ==========================================================================
@@ -604,6 +607,7 @@
     fetchWaveHeight();
     fetchAlert();
     fetchHfCurrent();
+    fetchTideInfo(NaN, NaN); // 페이지 로드 시엔 좌표 미확정 - 기본값(포항)으로 조회
     loadCoastlineGeoJSON(); // 비차단 - 실패해도 페이지 동작에 영향 없음
     loadSetnetGeoJSON(); // 비차단 - 정치망 인접 경고용, 실패해도 예측에 영향 없음
     initInputCheckmarks();
@@ -828,6 +832,35 @@
     } catch (err) {
       el.textContent = '확인불가';
       console.error('HF 해수유동 조회 실패:', err);
+    }
+  }
+
+  // 조석예보(고조·저조) 조회 - 오늘 하루치 만조/간조 목록 중 "지금 이후 가장 가까운" 항목을
+  // 찾아 표시한다. extrSe: 1=오전고조, 2=오전저조, 3=오후고조, 4=오후저조.
+  async function fetchTideInfo(lat, lon) {
+    const el = document.getElementById('marineNextTide');
+    if (!el) return;
+    try {
+      const station = (!isNaN(lat) && !isNaN(lon)) ? findNearestStation(DT_STATIONS, lat, lon) : DT_STATIONS.find(s => s.code === 'DT_0091');
+      const res = await fetch(`/.netlify/functions/weather?mode=tide&obsCode=${station.code}`);
+      if (!res.ok) { el.textContent = '확인불가'; return; }
+      const data = await res.json();
+      const items = data?.body?.items?.item || data?.response?.body?.items?.item;
+      if (!items || items.length === 0) { el.textContent = '자료없음'; return; }
+      const now = new Date();
+      const upcoming = items
+        .map(it => ({ ...it, dt: new Date((it.predcDt || '').replace(' ', 'T')) }))
+        .filter(it => !isNaN(it.dt.getTime()) && it.dt.getTime() >= now.getTime())
+        .sort((a, b) => a.dt - b.dt);
+      const next = upcoming[0] || items[items.length - 1]; // 오늘 남은 게 없으면 마지막 항목이라도 참고 표시
+      if (!next) { el.textContent = '자료없음'; return; }
+      const isHigh = next.extrSe === '1' || next.extrSe === '3' || next.extrSe === 1 || next.extrSe === 3;
+      const hh = String(next.dt.getHours()).padStart(2, '0');
+      const mm = String(next.dt.getMinutes()).padStart(2, '0');
+      el.textContent = `${hh}:${mm} ${isHigh ? '만조' : '간조'} (${parseFloat(next.predcTdlvVl).toFixed(0)}cm)`;
+    } catch (err) {
+      el.textContent = '확인불가';
+      console.error('조석예보 조회 실패:', err);
     }
   }
 
@@ -1267,6 +1300,8 @@
     currentMarkers.forEach(m => m.setMap(null)); currentMarkers = [];
     if (currentRectangle) { currentRectangle.setMap(null); currentRectangle = null; }
     if (monteCarloHullOverlay) { monteCarloHullOverlay.setMap(null); monteCarloHullOverlay = null; }
+    if (hfComparisonPolyline) { hfComparisonPolyline.setMap(null); hfComparisonPolyline = null; }
+    if (romsComparisonPolyline) { romsComparisonPolyline.setMap(null); romsComparisonPolyline = null; }
 
     // 혹시 이전 계산이 걸려서 predictionInFlight가 true로 남아있으면 강제로 풀어준다
     // (사용자가 막힌 상태를 "지도 초기화"로 직접 탈출할 수 있게 하는 안전장치).
@@ -1667,6 +1702,116 @@
   //   국가 관측망이 커버하지 않는 구간이므로, 오인 방지를 위해 실측 숫자 대신
   //   "커버리지 밖" 안내만 표시한다. (예: 강원 동해안 - 최북단 관측소가 포항 36.0°N)
   // ==========================================================================
+  // ROMS(YES3K+MOHID300) 수치예측모델 참고 카드. ※ 방침: 실제 표류 계산 로직에는
+  // 아직 섞지 않고(HF레이더/KHOA 우선순위 원칙 유지), 화면에 참고정보로만 별도 표시한다.
+  // 나중에 여러 번 실사용해서 정확도를 확인한 뒤에야 계산 로직 편입 여부를 재검토한다.
+  async function fetchAndRenderRomsInfo(lat, lon) {
+    const existing = document.getElementById('romsBriefingBox');
+    if (existing) existing.remove();
+
+    const buf = 0.05;
+    const ymin = (lat - buf).toFixed(5), ymax = (lat + buf).toFixed(5);
+    const xmin = (lon - buf).toFixed(5), xmax = (lon + buf).toFixed(5);
+
+    try {
+      const res = await fetch(`/.netlify/functions/weather?mode=roms&ymin=${ymin}&ymax=${ymax}&xmin=${xmin}&xmax=${xmax}`);
+      const data = await res.json();
+      const items = data?.body?.items?.item || data?.response?.body?.items?.item;
+      if (!items || items.length === 0) return; // 참고용이므로 실패해도 조용히 생략
+      lastRomsItems = items; // 비교경로(renderComparisonPaths)에서 재사용
+
+      // 148시간 시계열 중 "지금 시각과 가장 가까운" 항목을 찾는다 (khoacurrent 등과 동일한 원칙)
+      const now = new Date();
+      let nearest = null, minDiff = Infinity;
+      items.forEach(it => {
+        const dt = new Date((it.predcDt || '').replace(' ', 'T'));
+        if (isNaN(dt.getTime())) return;
+        const diff = Math.abs(dt.getTime() - now.getTime());
+        if (diff < minDiff) { minDiff = diff; nearest = it; }
+      });
+      if (!nearest) return;
+
+      const crspMs = parseFloat(nearest.crsp); // m/s (공식 문서 확인됨)
+      const crdirDeg = parseFloat(nearest.crdir);
+      const wtem = parseFloat(nearest.wtem);
+      if (isNaN(crspMs) || isNaN(crdirDeg)) return;
+
+      const speedKnot = (crspMs * 1.94384).toFixed(2); // m/s -> knot
+      const compassDir = bearingToCompass(crdirDeg);
+
+      const romsHTML = `
+        <div id="romsBriefingBox" style="background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.3); border-radius: 12px; padding: 16px; margin-top: 14px;">
+          <div style="font-size: 13.5px; font-weight: 800; color: #A78BFA; margin-bottom: 4px;">
+            🌐 ROMS 수치예측모델 브리핑 (참고정보, 계산에는 미반영)
+          </div>
+          <div style="font-size: 11px; color: var(--text-lo); margin-bottom: 8px;">
+            국립해양조사원 · YES3K/MOHID300 통합 · 예측시각: ${nearest.predcDt || '-'}
+          </div>
+          <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; color: var(--text-hi); line-height: 1.8;">
+            <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 4px;">
+              <span style="color: var(--text-lo);">예측 유속 / 유향</span>
+              <b>${speedKnot} knot / ${compassDir}(${crdirDeg.toFixed(1)}°)</b>
+            </li>
+            ${!isNaN(wtem) ? `<li style="display: flex; justify-content: space-between; padding-top: 4px;"><span style="color: var(--text-lo);">예측 수온</span><b>${wtem.toFixed(1)}°C</b></li>` : ''}
+          </ul>
+        </div>
+      `;
+      document.getElementById('driftSummary').insertAdjacentHTML('afterend', romsHTML);
+    } catch (err) {
+      console.warn('ROMS 참고정보 조회 실패(무시하고 계속 진행):', err);
+    }
+  }
+
+  // HF·ROMS 각각 "이 흐름대로만 흘러갔을 때" 순수 해류 기준 시간별 경로를 지도에 겹쳐 그린다.
+  // 바람은 일부러 안 더한다 - 메인 예측(바람 포함)과 비교하려는 게 아니라, HF 실측과 ROMS
+  // 예측이라는 두 해류 데이터 소스 자체가 서로 얼마나 다른지를 공정하게 비교하기 위함이다.
+  function renderComparisonPaths(lat, lon, ahead, startDateTime) {
+    if (hfComparisonPolyline) { hfComparisonPolyline.setMap(null); hfComparisonPolyline = null; }
+    if (romsComparisonPolyline) { romsComparisonPolyline.setMap(null); romsComparisonPolyline = null; }
+
+    // ① HF 실측 기준 경로: 마지막 관측 유속·유향이 계속 유지된다고 가정한 단순 외삽
+    if (lastHfDirDeg !== null && lastHfSpeedCms !== null && lastHfSpeedCms > 0) {
+      const hourlyDispM = lastHfSpeedCms * 0.01 * 3600; // cm/s -> m/h
+      let hLat = lat, hLon = lon;
+      const hfPath = [new kakao.maps.LatLng(lat, lon)];
+      for (let t = 1; t <= ahead; t++) {
+        const next = destinationPoint(hLat, hLon, lastHfDirDeg, hourlyDispM);
+        hLat = next.lat; hLon = next.lon;
+        hfPath.push(new kakao.maps.LatLng(hLat, hLon));
+      }
+      hfComparisonPolyline = new kakao.maps.Polyline({
+        path: hfPath, strokeWeight: 2.5, strokeColor: '#FF9F1C', strokeOpacity: 0.85, strokeStyle: 'shortdash'
+      });
+      hfComparisonPolyline.setMap(map);
+    }
+
+    // ② ROMS 예측 기준 경로: 시간마다 그 시각에 해당하는 ROMS 예측 유속·유향 사용
+    if (lastRomsItems && lastRomsItems.length > 0) {
+      let rLat = lat, rLon = lon;
+      const romsPath = [new kakao.maps.LatLng(lat, lon)];
+      for (let t = 1; t <= ahead; t++) {
+        const targetTime = new Date(startDateTime.getTime() + t * 3600000);
+        let nearest = null, minDiff = Infinity;
+        lastRomsItems.forEach(it => {
+          const dt = new Date((it.predcDt || '').replace(' ', 'T'));
+          if (isNaN(dt.getTime())) return;
+          const diff = Math.abs(dt.getTime() - targetTime.getTime());
+          if (diff < minDiff) { minDiff = diff; nearest = it; }
+        });
+        if (!nearest) break;
+        const crspMs = parseFloat(nearest.crsp), crdirDeg = parseFloat(nearest.crdir);
+        if (isNaN(crspMs) || isNaN(crdirDeg)) break;
+        const next = destinationPoint(rLat, rLon, crdirDeg, crspMs * 3600); // m/s -> m/h
+        rLat = next.lat; rLon = next.lon;
+        romsPath.push(new kakao.maps.LatLng(rLat, rLon));
+      }
+      romsComparisonPolyline = new kakao.maps.Polyline({
+        path: romsPath, strokeWeight: 2.5, strokeColor: '#A78BFA', strokeOpacity: 0.85, strokeStyle: 'shortdash'
+      });
+      romsComparisonPolyline.setMap(map);
+    }
+  }
+
   async function fetchAndRenderHFCurrent() {
     const lat = dmsToDecimal(parseFloat(document.getElementById('latD').value), parseFloat(document.getElementById('latM').value), parseFloat(document.getElementById('latS').value));
     const lon = dmsToDecimal(parseFloat(document.getElementById('lonD').value), parseFloat(document.getElementById('lonM').value), parseFloat(document.getElementById('lonS').value));
@@ -1780,6 +1925,7 @@
     fetchMarineWeather();
     fetchAlert();
     fetchWaveHeight(lat, lon);
+    fetchTideInfo(lat, lon);
 
     const dateStr = document.getElementById('dateInput').value.replace(/-/g, '');
     const hour = document.getElementById('hourInput').value.padStart(2, '0'); const minute = document.getElementById('minuteInput').value.padStart(2, '0');
@@ -1974,6 +2120,8 @@
     if (currentPolyline) currentPolyline.setMap(null);
     currentCircles.forEach(c => c.setMap(null)); currentCircles = [];
     currentMarkers.forEach(m => m.setMap(null)); currentMarkers = [];
+    if (hfComparisonPolyline) { hfComparisonPolyline.setMap(null); hfComparisonPolyline = null; }
+    if (romsComparisonPolyline) { romsComparisonPolyline.setMap(null); romsComparisonPolyline = null; }
 
     showLoading('수색구역 생성 중...');
 
@@ -2120,8 +2268,11 @@
       startLat: lat, startLon: lon, combinedBearing: combBrng, finalErrorRadius, finalPoint
     });
 
-    // HF 레이더 실측 브리핑 카드 삽입 (커버리지 내면 실측값, 밖이면 안내문구로 자동 분기)
-    fetchAndRenderHFCurrent();
+    // ROMS 수치예측모델 참고 브리핑 삽입 (HF보다 먼저 호출 -> 화면상 HF 카드 아래에 위치)
+    // 두 브리핑이 다 끝난 뒤에야 비교경로(주황=HF, 보라=ROMS)를 지도에 겹쳐 그린다.
+    Promise.all([fetchAndRenderRomsInfo(lat, lon), fetchAndRenderHFCurrent()])
+      .then(() => { renderComparisonPaths(lat, lon, actualHours, startDateTime); })
+      .catch(err => console.warn('비교경로 렌더링 실패(무시하고 계속 진행):', err));
 
     // ===== [과제2] 몬테카를로 다중 입자 시뮬레이션 (부가 기능) =====
     // 메인 단일궤적/오차원 결과는 이미 위에서 다 그려졌으므로 건드리지 않는다.
