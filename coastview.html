@@ -1,6 +1,10 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
+<!-- 브이월드가 Referer 헤더로 서비스 도메인을 확인하는 것으로 추정됨.
+     기본 리퍼러 정책이 일부 상황에서 Referer를 아예 안 보내거나 축약해서
+     보낼 수 있어, 항상 origin(도메인)까지는 보내도록 명시적으로 강제한다. -->
+<meta name="referrer" content="origin">
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0" />
 <title>코스트뷰 CoastView - 연안 지형 확인</title>
