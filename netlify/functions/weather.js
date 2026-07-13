@@ -95,6 +95,19 @@ exports.handler = async function (event) {
       if (!reqDate) return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'reqDate 필요' }) };
       url = `https://apis.data.go.kr/1192136/fcstSurfingv2/GetFcstSurfingApiServiceV2?serviceKey=${SERVICE_KEY}&type=json&reqDate=${reqDate}&pageNo=1&numOfRows=30&placeCode=${placeCode}`;
     }
+    // ===== ROMS 수치예측모델(MOHID300+YES3K 계열) - 예측 유향유속(148시간)·수온(72시간) =====
+    // ※ 지금 쓰는 KHOA "수치조류도"(khoacurrent) API와는 별개의 데이터 소스.
+    //   같은 1192136 API 그룹이라 기존 SERVICE_KEY를 그대로 재사용한다(별도 키 발급 불필요).
+    //   요청받은 좌표와 "가장 가까운 예측점" 하나를 자동으로 찾아 돌려주는 방식이라,
+    //   현재 우리 코드처럼 격자 중 최근접점을 직접 찾는 로직이 필요 없을 수 있다 -
+    //   실제 응답 필드명은 첫 테스트 호출로 확인 필요 (아직 미검증).
+    else if (mode === 'roms') {
+      const { ymin, ymax, xmin, xmax } = params;
+      if (!ymin || !ymax || !xmin || !xmax) {
+        return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'ymin/ymax/xmin/xmax 파라미터 필요' }) };
+      }
+      url = `https://apis.data.go.kr/1192136/roms/GetRomsApiService?serviceKey=${SERVICE_KEY}&type=json&numOfRows=10&pageNo=1&ymin=${ymin}&ymax=${ymax}&xmin=${xmin}&xmax=${xmax}`;
+    }
     // ===== 국립해양조사원(KHOA) 조류예측 격자 프록시 =====
     // ※ 원래 index.html(클라이언트)에서 khoa.go.kr을 직접 호출하며 서비스키를 그대로
     //   노출하고 있었다. 이제 클라이언트는 이 mode를 통해서만 조회하고, 실제 키와
