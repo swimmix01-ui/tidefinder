@@ -372,7 +372,7 @@
     <button class="run-btn" onclick="copyOperationReport()" style="background: linear-gradient(135deg, var(--green), #059669); color: #06131F; margin-top: 12px; box-shadow: 0 4px 14px rgba(52,211,153,0.25);">
       📋 상황 보고서 양식 복사
     </button>
-    <details><summary>디버그 정보</summary><div id="debugBox"></div></details>
+    <details open><summary>디버그 정보</summary><div id="debugBox"></div></details>
   </div>
 
   <div id="searchCard" class="card" style="display:none;">
@@ -1743,15 +1743,30 @@
     const existing = document.getElementById('romsBriefingBox');
     if (existing) existing.remove();
 
+    const debugEl = document.getElementById('debugBox');
+    // ▼▼ 진단용: 실패/성공 어느 경로로 빠지든 항상 무언가 남도록 헬퍼 함수로 통일
+    function writeDebug(text) {
+      if (debugEl) debugEl.textContent = text;
+    }
+    // ▲▲
+
     const buf = 0.05;
     const ymin = (lat - buf).toFixed(5), ymax = (lat + buf).toFixed(5);
     const xmin = (lon - buf).toFixed(5), xmax = (lon + buf).toFixed(5);
+    const reqUrl = `/.netlify/functions/weather?mode=roms&ymin=${ymin}&ymax=${ymax}&xmin=${xmin}&xmax=${xmax}`;
 
     try {
-      const res = await fetch(`/.netlify/functions/weather?mode=roms&ymin=${ymin}&ymax=${ymax}&xmin=${xmin}&xmax=${xmax}`);
+      const res = await fetch(reqUrl);
+      if (!res.ok) {
+        writeDebug(`[ROMS 진단] HTTP 오류\n요청: ${reqUrl}\n상태코드: ${res.status} ${res.statusText}`);
+        return;
+      }
       const data = await res.json();
       const items = data?.body?.items?.item || data?.response?.body?.items?.item;
-      if (!items || items.length === 0) return; // 참고용이므로 실패해도 조용히 생략
+      if (!items || items.length === 0) {
+        writeDebug(`[ROMS 진단] 데이터 없음\n요청: ${reqUrl}\n원본 응답:\n${JSON.stringify(data, null, 2).slice(0, 2000)}`);
+        return; // 참고용이므로 실패해도 화면(카드)에는 조용히 생략
+      }
 
       // ===== 공간(좌표) 최근접 격자점 필터링 =====
       // ※ 버그 수정: 요청 박스(ymin~ymax, xmin~xmax) 안에는 여러 예측 격자점이
@@ -1768,7 +1783,10 @@
         const d = Math.pow(ilat - lat, 2) + Math.pow(ilot - lon, 2);
         if (d < minPointDist) { minPointDist = d; nearestPoint = { lat: ilat, lot: ilot }; }
       });
-      if (!nearestPoint) return;
+      if (!nearestPoint) {
+        writeDebug(`[ROMS 진단] 격자점 좌표 파싱 실패 (lat/lot 필드 없음?)\n요청: ${reqUrl}\n첫 항목 원본:\n${JSON.stringify(items[0], null, 2)}`);
+        return;
+      }
 
       // 동일 격자점(부동소수점 오차 감안 허용오차 0.0001도 ≈ 11m)의 시계열만 추출
       const sameLocationItems = items.filter(it => {
@@ -1786,6 +1804,19 @@
         const diff = Math.abs(dt.getTime() - now.getTime());
         if (diff < minDiff) { minDiff = diff; nearest = it; }
       });
+
+      // ▼▼ 진단용 로그 - 성공 경로에서는 항상 여기서 남긴다 (이후 조기 return과 무관하게)
+      writeDebug(
+        `[ROMS 진단] 정상 응답\n` +
+        `요청: ${reqUrl}\n` +
+        `[요청좌표] lat=${lat}, lon=${lon}\n` +
+        `[최근접 격자점] lat=${nearestPoint.lat}, lot=${nearestPoint.lot} (거리 약 ${(Math.sqrt(minPointDist) * 111).toFixed(2)}km)\n` +
+        `[동일 격자점 시계열 개수] ${lastRomsItems.length}건 (전체 응답 ${items.length}건 중)\n` +
+        `[가장 가까운 시각 항목]\n${JSON.stringify(nearest, null, 2)}\n` +
+        `[샘플 3건]\n${JSON.stringify(lastRomsItems.slice(0, 3), null, 2)}`
+      );
+      // ▲▲ 진단용 로그 끝
+
       if (!nearest) return;
 
       const crspMs = parseFloat(nearest.crsp); // m/s (공식 문서 확인됨)
@@ -1816,8 +1847,10 @@
       `;
       document.getElementById('driftSummary').insertAdjacentHTML('afterend', romsHTML);
     } catch (err) {
+      writeDebug(`[ROMS 진단] 예외 발생(fetch/파싱 실패)\n요청: ${reqUrl}\n에러: ${err && err.message ? err.message : String(err)}\n${err && err.stack ? err.stack : ''}`);
       console.warn('ROMS 참고정보 조회 실패(무시하고 계속 진행):', err);
     }
+
   }
 
   // HF·ROMS 각각 "이 흐름대로만 흘러갔을 때" 순수 해류 기준 시간별 경로를 지도에 겹쳐 그린다.
