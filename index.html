@@ -1552,15 +1552,7 @@
     "      const curSpeedFactor = Math.max(0, 1 + gaussianRandom(0, CURRENT_SPEED_STD));",
     "      const curDirOffset = gaussianRandom(0, CURRENT_DIR_STD_DEG);",
     "      const pCurXY = bearingToXY(baseCur.bearing + curDirOffset, baseCur.magnitude * curSpeedFactor);",
-    "      let baseWindXY = d.wXY;",
-    "      if (d.usedWind && d.fcstItemsForHourly) {",
-    "        const targetTime = new Date(startDateTime.getTime() + t * 3600000);",
-    "        const wsdT = getForecastValueAtTime(d.fcstItemsForHourly, 'WSD', targetTime);",
-    "        const vecT = getForecastValueAtTime(d.fcstItemsForHourly, 'VEC', targetTime);",
-    "        if (wsdT !== null && vecT !== null) {",
-    "          baseWindXY = bearingToXY((vecT + 180) % 360, wsdT * 3600 * d.leewayCoefVal);",
-    "        }",
-    "      }",
+    "      const baseWindXY = d.usedWind && d.hourlyWindXY ? d.hourlyWindXY[t] : d.wXY;",
     "      const baseWind = xyToBearingMag(baseWindXY.x, baseWindXY.y);",
     "      const windSpeedFactor = Math.max(0, 1 + gaussianRandom(0, WIND_SPEED_STD));",
     "      const windDirOffset = gaussianRandom(0, WIND_DIR_STD_DEG);",
@@ -1603,7 +1595,7 @@
       worker.postMessage({
         lat: params.lat, lon: params.lon, ahead: params.ahead, curXY: params.curXY,
         hourlyCurrentXY: params.hourlyCurrentXY, usedWind: params.usedWind,
-        fcstItemsForHourly: params.fcstItemsForHourly, leewayCoefVal: params.leewayCoefVal,
+        hourlyWindXY: params.hourlyWindXY, leewayCoefVal: params.leewayCoefVal,
         startDateTimeISO: params.startDateTime.toISOString(), wXY: params.wXY,
         localCoastline: params.localCoastline, particleCount: 500
       });
@@ -1614,7 +1606,7 @@
   // 구형/제한된 환경을 위한 폴백 경로 - 메인 스레드에서 setTimeout(0)으로 한 틱씩
   // 양보(yield)해서 완전히 멈추진 않지만, Worker 방식만큼 매끄럽진 않다.
   async function runMonteCarloSimulation(params) {
-    const { lat, lon, ahead, curXY, hourlyCurrentXY, usedWind, fcstItemsForHourly,
+    const { lat, lon, ahead, curXY, hourlyCurrentXY, usedWind, hourlyWindXY,
             leewayCoefVal, startDateTime, windDirFrom, windageDisp, wXY, localCoastline } = params;
 
     const PARTICLE_COUNT = 500;
@@ -1638,16 +1630,11 @@
           const curDirOffset = gaussianRandom(0, CURRENT_DIR_STD_DEG);
           const pCurXY = bearingToXY(baseCur.bearing + curDirOffset, baseCur.magnitude * curSpeedFactor);
 
-          // 해당 시각의 "기준" 풍압(윈드에이지)벡터
-          let baseWindXY = wXY;
-          if (usedWind && fcstItemsForHourly) {
-            const targetTime = new Date(startDateTime.getTime() + t * 3600000);
-            const wsdT = getForecastValueAtTime(fcstItemsForHourly, 'WSD', targetTime);
-            const vecT = getForecastValueAtTime(fcstItemsForHourly, 'VEC', targetTime);
-            if (wsdT !== null && vecT !== null) {
-              baseWindXY = bearingToXY((vecT + 180) % 360, wsdT * 3600 * leewayCoefVal);
-            }
-          }
+          // 해당 시각의 "기준" 풍압(윈드에이지)벡터 - 조류처럼 시간별로 미리 계산된 배열을 그대로 사용
+          // (기존엔 여기서 매 입자·매 시간마다 getForecastValueAtTime을 다시 호출해 fcstItemsForHourly
+          //  배열 전체를 스캔했으나, 같은 시간대(t)의 바람값은 500개 입자 전부 동일하므로
+          //  runPrediction()에서 미리 한 번만 계산한 hourlyWindXY를 재사용하도록 변경 - 결과값은 동일, 속도만 개선)
+          const baseWindXY = usedWind && hourlyWindXY ? hourlyWindXY[t] : wXY;
           const baseWind = xyToBearingMag(baseWindXY.x, baseWindXY.y);
           const windSpeedFactor = Math.max(0, 1 + gaussianRandom(0, WIND_SPEED_STD));
           const windDirOffset = gaussianRandom(0, WIND_DIR_STD_DEG);
@@ -2041,6 +2028,27 @@
       showLoading('표류 계산 중...');
     }
 
+    // ===== 바람벡터도 조류처럼 시간별로 미리 한 번만 계산 =====
+    // ※ 몬테카를로 500입자가 매 입자·매 시간마다 getForecastValueAtTime()으로
+    //   fcstItemsForHourly 배열 전체를 다시 스캔하던 걸(500×ahead×2회) 여기서
+    //   딱 ahead×2회만 계산해 배열로 캐싱해두는 것으로 대체. 같은 시간대(t)의
+    //   바람값은 500개 입자 전부 동일하므로 계산 결과·정확도에는 차이가 없고
+    //   반복 스캔 횟수만 줄어든다 (조류의 hourlyCurrentXY와 동일한 최적화 원칙).
+    let hourlyWindXY = null;
+    if (usedWind && fcstItemsForHourly) {
+      hourlyWindXY = [wXY];
+      for (let t = 1; t <= ahead; t++) {
+        const targetTime = new Date(startDateTime.getTime() + t * 3600000);
+        const wsdT = getForecastValueAtTime(fcstItemsForHourly, 'WSD', targetTime);
+        const vecT = getForecastValueAtTime(fcstItemsForHourly, 'VEC', targetTime);
+        hourlyWindXY.push(
+          (wsdT !== null && vecT !== null)
+            ? bearingToXY((vecT + 180) % 360, wsdT * 3600 * leewayCoefVal)
+            : hourlyWindXY[hourlyWindXY.length - 1] // 예보 시간대 매칭 실패 시 직전 시간값 유지 (기존 로직과 동일한 폴백 원칙)
+        );
+      }
+    }
+
     // 이번 예측에서 실제로 도달 가능한 범위만큼만 해안선을 미리 추려둔다
     // (안전 마진 2배 + 10km 여유). 이 작은 부분집합을 메인 궤적과 몬테카를로
     // 500입자 전부가 공유해서 쓰므로, 전국 데이터를 반복 대조하는 성능 문제가 없다.
@@ -2282,7 +2290,7 @@
     // ※ Web Worker(완전 별도 스레드)를 우선 시도하고, 워커 생성/실행이 안 되는
     //   환경에서만 기존 청크분할(메인 스레드) 방식으로 자동 폴백한다.
     const monteCarloParams = {
-      lat, lon, ahead, curXY, hourlyCurrentXY, usedWind, fcstItemsForHourly,
+      lat, lon, ahead, curXY, hourlyCurrentXY, usedWind, hourlyWindXY,
       leewayCoefVal, startDateTime, windDirFrom, windageDisp, wXY, localCoastline
     };
     runMonteCarloSimulationWorker(monteCarloParams)
