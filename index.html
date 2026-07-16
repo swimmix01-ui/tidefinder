@@ -1752,12 +1752,35 @@
       const data = await res.json();
       const items = data?.body?.items?.item || data?.response?.body?.items?.item;
       if (!items || items.length === 0) return; // 참고용이므로 실패해도 조용히 생략
-      lastRomsItems = items; // 비교경로(renderComparisonPaths)에서 재사용
 
-      // 148시간 시계열 중 "지금 시각과 가장 가까운" 항목을 찾는다 (khoacurrent 등과 동일한 원칙)
+      // ===== 공간(좌표) 최근접 격자점 필터링 =====
+      // ※ 버그 수정: 요청 박스(ymin~ymax, xmin~xmax) 안에는 여러 예측 격자점이
+      //   섞여 들어올 수 있는데(공식 API 필드명은 lat/lot - 'lon'이 아님, KHOA
+      //   오픈API 활용가이드 문서로 확인), 기존 코드는 "시간"만 맞춰서 뽑고
+      //   "위치"는 전혀 거르지 않았다. 그 결과 사고지점과 무관한 다른 격자점의
+      //   흐름이 섞여 들어와 ROMS 비교경로가 엉뚱한 방향(예: 실제와 정반대)으로
+      //   튀는 문제가 있었다. khoacurrent와 동일하게 최근접 격자점 하나를 먼저
+      //   찾고, 그 지점의 시계열만 사용하도록 수정.
+      let nearestPoint = null, minPointDist = Infinity;
+      items.forEach(it => {
+        const ilat = parseFloat(it.lat), ilot = parseFloat(it.lot);
+        if (isNaN(ilat) || isNaN(ilot)) return;
+        const d = Math.pow(ilat - lat, 2) + Math.pow(ilot - lon, 2);
+        if (d < minPointDist) { minPointDist = d; nearestPoint = { lat: ilat, lot: ilot }; }
+      });
+      if (!nearestPoint) return;
+
+      // 동일 격자점(부동소수점 오차 감안 허용오차 0.0001도 ≈ 11m)의 시계열만 추출
+      const sameLocationItems = items.filter(it => {
+        const ilat = parseFloat(it.lat), ilot = parseFloat(it.lot);
+        return Math.abs(ilat - nearestPoint.lat) < 0.0001 && Math.abs(ilot - nearestPoint.lot) < 0.0001;
+      });
+      lastRomsItems = sameLocationItems.length > 0 ? sameLocationItems : items; // 비교경로(renderComparisonPaths)에서 재사용
+
+      // 해당 격자점의 148시간 시계열 중 "지금 시각과 가장 가까운" 항목을 찾는다 (khoacurrent 등과 동일한 원칙)
       const now = new Date();
       let nearest = null, minDiff = Infinity;
-      items.forEach(it => {
+      lastRomsItems.forEach(it => {
         const dt = new Date((it.predcDt || '').replace(' ', 'T'));
         if (isNaN(dt.getTime())) return;
         const diff = Math.abs(dt.getTime() - now.getTime());
@@ -1772,6 +1795,7 @@
 
       const speedKnot = (crspMs * 1.94384).toFixed(2); // m/s -> knot
       const compassDir = bearingToCompass(crdirDeg);
+      const pointDistKm = Math.sqrt(minPointDist) * 111; // 참고용 - 사고지점과 격자점 간 거리
 
       const romsHTML = `
         <div id="romsBriefingBox" style="background: rgba(167,139,250,0.08); border: 1px solid rgba(167,139,250,0.3); border-radius: 12px; padding: 16px; margin-top: 14px;">
@@ -1779,7 +1803,7 @@
             🌐 ROMS 수치예측모델 브리핑 (참고정보, 계산에는 미반영)
           </div>
           <div style="font-size: 11px; color: var(--text-lo); margin-bottom: 8px;">
-            국립해양조사원 · YES3K/MOHID300 통합 · 예측시각: ${nearest.predcDt || '-'}
+            국립해양조사원 · YES3K/MOHID300 통합 · 최근접 격자점 ${pointDistKm.toFixed(1)}km · 예측시각: ${nearest.predcDt || '-'}
           </div>
           <ul style="list-style: none; padding: 0; margin: 0; font-size: 13px; color: var(--text-hi); line-height: 1.8;">
             <li style="display: flex; justify-content: space-between; border-bottom: 1px solid var(--border); padding-bottom: 4px;">
