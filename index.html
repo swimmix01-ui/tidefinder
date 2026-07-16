@@ -372,7 +372,7 @@
     <button class="run-btn" onclick="copyOperationReport()" style="background: linear-gradient(135deg, var(--green), #059669); color: #06131F; margin-top: 12px; box-shadow: 0 4px 14px rgba(52,211,153,0.25);">
       📋 상황 보고서 양식 복사
     </button>
-    <details open><summary>디버그 정보</summary><div id="debugBox"></div></details>
+    <details><summary>디버그 정보</summary><div id="debugBox"></div></details>
   </div>
 
   <div id="searchCard" class="card" style="display:none;">
@@ -1804,18 +1804,6 @@
         const diff = Math.abs(dt.getTime() - now.getTime());
         if (diff < minDiff) { minDiff = diff; nearest = it; }
       });
-
-      // ▼▼ 진단용 로그 - 성공 경로에서는 항상 여기서 남긴다 (이후 조기 return과 무관하게)
-      writeDebug(
-        `[ROMS 진단] 정상 응답\n` +
-        `요청: ${reqUrl}\n` +
-        `[요청좌표] lat=${lat}, lon=${lon}\n` +
-        `[최근접 격자점] lat=${nearestPoint.lat}, lot=${nearestPoint.lot} (거리 약 ${(Math.sqrt(minPointDist) * 111).toFixed(2)}km)\n` +
-        `[동일 격자점 시계열 개수] ${lastRomsItems.length}건 (전체 응답 ${items.length}건 중)\n` +
-        `[가장 가까운 시각 항목]\n${JSON.stringify(nearest, null, 2)}\n` +
-        `[샘플 3건]\n${JSON.stringify(lastRomsItems.slice(0, 3), null, 2)}`
-      );
-      // ▲▲ 진단용 로그 끝
 
       if (!nearest) return;
 
