@@ -1103,17 +1103,6 @@
     return { score: normalized, label, cls, rawScore: score, maxScore };
   }
 
-  function calcRiskLevel(windSpeedMS, waveHeightM, maxDistNm) {
-    const w = windSpeedMS || 0;
-    const wave = waveHeightM || 0;
-    const dist = maxDistNm || 0;
-    const score = (w * 1.2) + (wave * 12) + (dist * 3);
-    if (score < 8) return { label: 'LOW', cls: 'low' };
-    if (score < 18) return { label: 'MEDIUM', cls: 'medium' };
-    if (score < 30) return { label: 'HIGH', cls: 'high' };
-    return { label: 'VERY HIGH', cls: 'veryhigh' };
-  }
-
   function renderAIAnalysis(params) {
     const { currentDispPerHourM, waveHeightM, usedWind, usedFallback, combinedBearing, windSpeedMS, maxDistNm, leewayCoef, currentContribPct, windContribPct } = params;
     const underwaterMode = leewayCoef === 0; // 수중 실종: 바람 영향 없음, 조류만 반영
