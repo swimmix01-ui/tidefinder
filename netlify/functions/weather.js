@@ -11,19 +11,14 @@ function nativeHttpsFetch(url, headers) {
 }
 
 exports.handler = async function (event) {
-  // 보안 개선: Netlify 환경변수(SERVICE_KEY)를 우선 사용하고, 아직 설정 전이면 기존 값으로 폴백.
-  // Netlify 대시보드 > Site configuration > Environment variables 에서 SERVICE_KEY를 등록하면
-  // 이 하드코딩된 값은 더 이상 쓰이지 않게 되어 GitHub에 키가 노출되는 문제가 해결됩니다.
-  const RAW_KEY = process.env.SERVICE_KEY || 'f26bd692b54db41eb90a99bed02f398b4a75fe6cab7c65dd03ebc8965f98b041';
-  const SERVICE_KEY = encodeURIComponent(decodeURIComponent(RAW_KEY));
+  // 공공데이터포털 서비스키. Netlify 환경변수(SERVICE_KEY)로만 공급하며, 코드에는 값을
+  // 두지 않는다 - 예전엔 여기 하드코딩된 폴백값이 있어 GitHub에 키가 그대로 노출됐었다.
+  const SERVICE_KEY = process.env.SERVICE_KEY ? encodeURIComponent(decodeURIComponent(process.env.SERVICE_KEY)) : null;
 
-  // ※ 국립해양조사원(KHOA) 조류예측 API 전용 키. 기존에는 이 키가 index.html(브라우저에서
-  //   그대로 보이는 클라이언트 코드)에 하드코딩되어 있어, 누구나 "페이지 소스 보기"로
-  //   확인할 수 있는 문제가 있었다. 이제 다른 공공데이터 키와 동일한 방식으로
-  //   Netlify 환경변수(KHOA_SERVICE_KEY)를 통해 서버(이 함수) 안에서만 사용하도록 옮겼다.
-  //   환경변수를 아직 등록 전이면 기존 값으로 폴백하되, 등록 즉시 이 폴백은 무시된다.
-  const KHOA_RAW_KEY = process.env.KHOA_SERVICE_KEY || 'srQx3b3XW8NV9RpGp9CQ==';
-  const KHOA_SERVICE_KEY = encodeURIComponent(decodeURIComponent(KHOA_RAW_KEY));
+  // 국립해양조사원(KHOA) 조류예측 API 전용 키. Netlify 환경변수(KHOA_SERVICE_KEY)로만 공급.
+  // ※ 원래 index.html(브라우저에서 그대로 보이는 클라이언트 코드)에 하드코딩되어 있어
+  //   "페이지 소스 보기"로 누구나 확인할 수 있었던 걸 이 함수(서버)로 옮긴 것.
+  const KHOA_SERVICE_KEY = process.env.KHOA_SERVICE_KEY ? encodeURIComponent(decodeURIComponent(process.env.KHOA_SERVICE_KEY)) : null;
 
   const params = event.queryStringParameters || {};
   const mode = params.mode || 'fcst';
@@ -37,6 +32,16 @@ exports.handler = async function (event) {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
     'Content-Type': 'application/json'
   };
+
+  // 필요한 서비스키가 Netlify에 등록 안 되어 있으면, 원격 API를 호출하기 전에 여기서
+  // 바로 명확한 에러를 반환한다 (예전처럼 유출된 값으로 조용히 폴백하지 않음).
+  if (mode === 'khoacurrent') {
+    if (!KHOA_SERVICE_KEY) {
+      return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: 'KHOA_SERVICE_KEY 환경변수가 설정되지 않았습니다. Netlify 대시보드에서 등록해주세요.' }) };
+    }
+  } else if (!SERVICE_KEY) {
+    return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: 'SERVICE_KEY 환경변수가 설정되지 않았습니다. Netlify 대시보드에서 등록해주세요.' }) };
+  }
 
   try {
     let url = '';
