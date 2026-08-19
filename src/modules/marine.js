@@ -81,9 +81,9 @@ export async function loadMarineStatus() {
     const pressItem = latestItem(press);
     pushDebug('watertemp/airtemp/airpress raw', { waterItem, airItem, pressItem });
 
-    const waterTemp = pickNumeric(waterItem, ['temp', 'tmp', 'wtr']);
-    const airTemp = pickNumeric(airItem, ['temp', 'tmp', 'air']);
-    const airPress = pickNumeric(pressItem, ['press', 'pres']);
+    const waterTemp = pickNumeric(waterItem, ['wtem', 'temp', 'tmp', 'wtr']);
+    const airTemp = pickNumeric(airItem, ['artmp', 'temp', 'tmp', 'air']);
+    const airPress = pickNumeric(pressItem, ['atmpr', 'press', 'pres']);
     if (waterTemp !== null) setText('marineWaterTemp', `${waterTemp}℃`);
     if (airTemp !== null) setText('marineAirTemp', `${airTemp}℃`);
     if (airPress !== null) setText('marineAirPress', `${airPress}hPa`);
@@ -133,7 +133,7 @@ export async function loadMarineStatus() {
     pushDebug('tide raw', list.slice(0, 3));
     const now = new Date();
     const upcoming = list.find((t) => {
-      const timeStr = pickText(t, ['time', 'tph']);
+      const timeStr = pickText(t, ['time', 'tph', 'predcdt', 'dt']);
       return timeStr && new Date(timeStr.replace(' ', 'T')) > now;
     });
     if (upcoming) {
