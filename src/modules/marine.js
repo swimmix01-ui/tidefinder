@@ -2,9 +2,7 @@
 // 상단 "현재 해상 상태" 카드 로더
 // ※ Vite 리팩토링 과정에서 이 부분(카드에 실측/예보값 채우는 로직)이 빠져있어서
 //   화면에 전부 "-"로만 나오던 문제를 해결하기 위해 새로 작성함.
-//   각 API의 실제 응답 필드명은 문서로 100% 확정하지 못했으므로, 후보 키워드로
-//   유연하게 찾아 채우고 원본 응답을 디버그 박스에도 남겨서, 값이 안 맞으면
-//   디버그 박스를 보고 필드명을 바로 교정할 수 있게 해둔다.
+//   각 API의 실제 필드명은 배포된 상태에서 원본 응답을 직접 확인해 확정했다.
 // ==========================================================================
 import * as api from './api.js';
 import * as ui from './ui.js';
@@ -25,7 +23,6 @@ function latestItem(data) {
   return Array.isArray(data) ? data[data.length - 1] : data;
 }
 
-// item 객체에서 keywords 중 하나라도 key에 포함되고, 값이 숫자로 변환되는 첫 항목을 찾는다.
 function pickNumeric(item, keywords) {
   if (!item || typeof item !== 'object') return null;
   for (const [k, v] of Object.entries(item)) {
@@ -52,34 +49,16 @@ function setText(id, text) {
   if (el) el.textContent = text;
 }
 
-// marineAlertBox는 원래 경보문구용이지만, 예측을 돌리기 전에는 화면에 보이는 카드가
-// 없어서(resultCard의 debugBox는 숨김 상태) 임시로 여기에 원본 응답을 남겨 눈으로
-// 바로 확인 가능하게 한다. 필드명이 실제 API와 다르면 이 내용을 보고 교정한다.
-function pushDebug(label, payload) {
-  const box = document.getElementById('marineAlertBox');
-  if (!box) return;
-  box.style.display = 'block';
-  box.style.color = 'var(--text-lo)';
-  box.style.fontFamily = "'SF Mono', Consolas, monospace";
-  box.style.fontSize = '10.5px';
-  box.style.whiteSpace = 'pre-wrap';
-  box.style.maxHeight = '260px';
-  box.style.overflowY = 'auto';
-  const line = `[${label}] ${JSON.stringify(payload)}\n`;
-  box.textContent = (box.textContent || '') + line;
-}
-
 export async function loadMarineStatus() {
   setText('marineStationName', STATION_NAME);
   const reqDate = todayYYYYMMDD();
 
-  // 1) 수온/기온/기압 (조위관측소 실측)
+  // 1) 수온/기온/기압 (조위관측소 실측) - 필드명: wtem/artmp/atmpr
   try {
     const { water, air, press } = await api.fetchMarineWeatherData(DT_STATION.code, reqDate);
     const waterItem = latestItem(water);
     const airItem = latestItem(air);
     const pressItem = latestItem(press);
-    pushDebug('watertemp/airtemp/airpress raw', { waterItem, airItem, pressItem });
 
     const waterTemp = pickNumeric(waterItem, ['wtem', 'temp', 'tmp', 'wtr']);
     const airTemp = pickNumeric(airItem, ['artmp', 'temp', 'tmp', 'air']);
@@ -88,7 +67,7 @@ export async function loadMarineStatus() {
     if (airTemp !== null) setText('marineAirTemp', `${airTemp}℃`);
     if (airPress !== null) setText('marineAirPress', `${airPress}hPa`);
 
-    const obsTime = pickText(waterItem || airItem || pressItem, ['time', 'date', 'dt']);
+    const obsTime = pickText(waterItem || airItem || pressItem, ['obsrvndt', 'time', 'date', 'dt']);
     if (obsTime) {
       setText('marineObsTime', obsTime);
       ui.renderFreshness(obsTime);
@@ -100,7 +79,6 @@ export async function loadMarineStatus() {
   // 2) 풍향/풍속/파고 (기상청 단기예보, 포항 좌표 기준)
   try {
     const wind = await api.fetchWindData(DT_STATION.lat, DT_STATION.lon);
-    pushDebug('wind raw', { windDirFrom: wind.windDirFrom, windSpeedMS: wind.windSpeedMS, waveHeightM: wind.waveHeightM });
     if (wind.windSpeedMS !== null) {
       const dirText = wind.windDirFrom !== null ? `${Math.round(wind.windDirFrom)}°` : '-';
       setText('marineWind', `${dirText} / ${wind.windSpeedMS}m/s`);
@@ -114,11 +92,10 @@ export async function loadMarineStatus() {
     console.warn('⚠ 풍향/풍속/파고 로드 실패:', err);
   }
 
-  // 3) HF레이더 실측 유향/유속
+  // 3) HF레이더 실측 유향/유속 - 필드명: crdir/crsp
   try {
     const hf = await api.fetchHfCurrentByStation(HF_STATION.code);
     const hfItem = latestItem(hf);
-    pushDebug('hfcurrent raw', hfItem);
     const dir = pickNumeric(hfItem, ['crdir', 'dir']);
     const sp = pickNumeric(hfItem, ['crsp', 'speed', 'sp']);
     if (dir !== null && sp !== null) setText('marineHfCurrent', `${dir}° / ${sp}cm/s`);
@@ -126,22 +103,20 @@ export async function loadMarineStatus() {
     console.warn('⚠ HF레이더 실측 로드 실패:', err);
   }
 
-  // 4) 다음 만조/간조
+  // 4) 다음 만조/간조 - 필드명: predcDt(시각)/predcTdlvVl(조위값)/extrSe(극값구분)
+  //    extrSe: 1=고고조, 2=저고조, 3=고저조, 4=저저조 → 1·2는 만조, 3·4는 간조로 단순화
   try {
     const tide = await api.fetchTideData(DT_STATION.code);
     const list = Array.isArray(tide) ? tide : tide ? [tide] : [];
-    pushDebug('tide raw', list.slice(0, 3));
     const now = new Date();
     const upcoming = list.find((t) => {
-      const timeStr = pickText(t, ['time', 'tph', 'predcdt', 'dt']);
+      const timeStr = pickText(t, ['predcdt', 'time', 'tph', 'dt']);
       return timeStr && new Date(timeStr.replace(' ', 'T')) > now;
     });
     if (upcoming) {
-      // extrSe(극값구분): 1=고고조, 2=저고조, 3=고저조, 4=저저조
-      // → 1·2는 만조(고조) 계열, 3·4는 간조(저조) 계열로 단순화해서 표시
       const extrSe = pickText(upcoming, ['extrse']);
       const kind = extrSe === '1' || extrSe === '2' ? '만조' : extrSe === '3' || extrSe === '4' ? '간조' : '조위 변화';
-      const timeStr = pickText(upcoming, ['time', 'tph', 'predcdt', 'dt']);
+      const timeStr = pickText(upcoming, ['predcdt', 'time', 'tph', 'dt']);
       const level = pickNumeric(upcoming, ['predctdlvvl', 'lvl', 'level']);
       setText('marineNextTide', `${kind} ${timeStr || ''}${level !== null ? ` (${level}cm)` : ''}`);
     }
@@ -149,13 +124,14 @@ export async function loadMarineStatus() {
     console.warn('⚠ 조석 로드 실패:', err);
   }
 
-  // 5) 시정 (해무관측소)
+  // 5) 시정 (해무관측소) - 필드명: dtvsbV20kLen (탐지가시거리, m 단위)
   try {
     const fog = await api.fetchSeaFogData(SF_STATION.code, reqDate);
     const fogItem = latestItem(fog);
-    pushDebug('seafog raw', fogItem);
-    const vis = pickNumeric(fogItem, ['vis']);
-    if (vis !== null) setText('marineVisibility', `${vis}m`);
+    const visRaw = pickNumeric(fogItem, ['dtvsbv', 'vsb', 'vis']);
+    if (visRaw !== null) {
+      setText('marineVisibility', visRaw >= 1000 ? `${(visRaw / 1000).toFixed(1)}km` : `${visRaw}m`);
+    }
   } catch (err) {
     console.warn('⚠ 시정 로드 실패:', err);
   }
