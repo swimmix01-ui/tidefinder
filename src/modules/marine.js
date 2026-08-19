@@ -137,10 +137,13 @@ export async function loadMarineStatus() {
       return timeStr && new Date(timeStr.replace(' ', 'T')) > now;
     });
     if (upcoming) {
-      const kindRaw = pickText(upcoming, ['hl', 'code', 'type']) || '';
-      const kind = kindRaw.includes('고') || kindRaw.toUpperCase().includes('H') ? '만조' : '간조';
-      const timeStr = pickText(upcoming, ['time', 'tph']);
-      setText('marineNextTide', `${kind} ${timeStr || ''}`);
+      // extrSe(극값구분): 1=고고조, 2=저고조, 3=고저조, 4=저저조
+      // → 1·2는 만조(고조) 계열, 3·4는 간조(저조) 계열로 단순화해서 표시
+      const extrSe = pickText(upcoming, ['extrse']);
+      const kind = extrSe === '1' || extrSe === '2' ? '만조' : extrSe === '3' || extrSe === '4' ? '간조' : '조위 변화';
+      const timeStr = pickText(upcoming, ['time', 'tph', 'predcdt', 'dt']);
+      const level = pickNumeric(upcoming, ['predctdlvvl', 'lvl', 'level']);
+      setText('marineNextTide', `${kind} ${timeStr || ''}${level !== null ? ` (${level}cm)` : ''}`);
     }
   } catch (err) {
     console.warn('⚠ 조석 로드 실패:', err);
