@@ -10,6 +10,8 @@ import * as ui from './modules/ui.js';
 import { runPrediction } from './predict.js';
 import { loadMarineStatus } from './modules/marine.js';
 
+let lastPredictionResult = null;
+
 function getCoordsFromInputs() {
   const lat = dmsToDecimal(
     parseFloat(document.getElementById('latD').value),
@@ -57,6 +59,7 @@ async function handleRunPrediction() {
     );
     ui.hideLoading();
     ui.setStatus('ok', '✅ 예측 완료');
+    lastPredictionResult = { ...result, inputLat: lat, inputLon: lon, startDateTime, ahead };
     console.log('예측 결과:', result); // TODO(2단계): 상태 저장소(state.js)로 옮겨 화면 결과카드와 자동 연동
   } catch (err) {
     ui.hideLoading();
@@ -64,6 +67,47 @@ async function handleRunPrediction() {
     console.error(err);
   }
 }
+
+// "🗻 3D 지형 보기" 버튼 - 현재 입력된 좌표를 붙여서 coastview.html을 새 탭으로 연다.
+// (index.html에 onclick="openCoastView()"로 이미 연결돼 있어 전역에 노출해야 한다)
+window.openCoastView = function openCoastView() {
+  const { lat, lon } = getCoordsFromInputs();
+  if (Number.isNaN(lat) || Number.isNaN(lon)) {
+    window.open('/coastview.html', '_blank', 'noopener');
+    return;
+  }
+  window.open(`/coastview.html?lat=${lat}&lon=${lon}`, '_blank', 'noopener');
+};
+
+// "📋 상황 보고서 양식 복사" 버튼 - 가장 최근 예측 결과를 텍스트 양식으로 복사한다.
+window.copyOperationReport = function copyOperationReport() {
+  if (!lastPredictionResult) {
+    ui.setStatus('warn', '⚠ 먼저 표류 예측을 실행해주세요.');
+    return;
+  }
+  const r = lastPredictionResult;
+  const fmt = (n, digits = 4) => (typeof n === 'number' ? n.toFixed(digits) : '-');
+  const text = [
+    '[해양 수색지원 상황 보고서 - TideFinder]',
+    `사고 발생 좌표: ${fmt(r.inputLat)}, ${fmt(r.inputLon)}`,
+    `사고 발생 시각: ${r.startDateTime instanceof Date ? r.startDateTime.toLocaleString('ko-KR') : '-'}`,
+    `예측 시간: ${r.ahead}시간`,
+    r.finalPoint ? `예상 도달 위치: ${fmt(r.finalPoint.lat)}, ${fmt(r.finalPoint.lon)}` : null,
+    typeof r.finalErrorRadius === 'number' ? `오차반경: 약 ${Math.round(r.finalErrorRadius)}m` : null,
+    typeof r.combBrng === 'number' ? `추천 탐색 방향: ${Math.round(r.combBrng)}°` : null,
+    typeof r.combSpeed === 'number' ? `평균 이동속도: 시속 약 ${Math.round(r.combSpeed)}m` : null,
+    '',
+    '※ 본 보고서는 광역 조류 격자 데이터 기반 예측치이며, 현장 상황과 다를 수 있습니다.',
+  ].filter(Boolean).join('\n');
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text)
+      .then(() => ui.setStatus('ok', '📋 상황 보고서가 클립보드에 복사되었습니다.'))
+      .catch(() => ui.setStatus('warn', '⚠ 클립보드 복사에 실패했습니다.'));
+  } else {
+    ui.setStatus('warn', '⚠ 이 브라우저는 클립보드 복사를 지원하지 않습니다.');
+  }
+};
 
 async function init() {
   const today = new Date();
@@ -86,6 +130,7 @@ async function init() {
     mapModule.resetMapView();
     ui.setStatus('warn', '↺ 지도가 초기화되었습니다.');
   });
+
   document.getElementById('useLocationBtn').addEventListener('click', () => {
     if (!navigator.geolocation) { ui.setStatus('warn', '⚠ 이 브라우저는 위치 정보를 지원하지 않습니다.'); return; }
     ui.setStatus('busy', '⏳ 현재 위치 확인 중...');
