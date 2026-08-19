@@ -106,16 +106,23 @@ export function renderSearchRecommendationCard({ startLat, startLon, combinedBea
 
 // "예측 결과 요약" 카드 - 상황 보고서 복사 버튼이 이 카드 안에 있으므로,
 // 이 카드가 표시돼야 그 버튼도 화면에 나타난다.
+// 1kn = 1852m/h = 51.4444cm/s
+const MS_PER_KNOT_HOUR = 1852; // m/h
+const CMS_PER_KNOT = 51.4444; // cm/s
+
 export function renderResultCard({ curSpeed, curDir, netDistM, actualHours, combSpeed, finalErrorRadius, finalPoint }) {
-  document.getElementById('statSpeed').textContent = `${curSpeed.toFixed(2)}cm/s`;
+  const curSpeedKn = curSpeed / CMS_PER_KNOT;
+  const combSpeedKn = combSpeed / MS_PER_KNOT_HOUR;
+
+  document.getElementById('statSpeed').textContent = `${curSpeedKn.toFixed(2)}kn (${curSpeed.toFixed(1)}cm/s)`;
   document.getElementById('statDir').textContent = `${bearingToCompass(curDir)} (${Math.round(curDir)}°)`;
   document.getElementById('statDist').textContent = `${Math.round(netDistM)}m`;
   document.getElementById('statHours').textContent = `${actualHours}시간`;
-  document.getElementById('statAvgSpeed').textContent = `시속 ${Math.round(combSpeed)}m`;
+  document.getElementById('statAvgSpeed').textContent = `${combSpeedKn.toFixed(2)}kn`;
   document.getElementById('statErrorRadius').textContent = `${Math.round(finalErrorRadius)}m`;
   document.getElementById('driftSummary').innerHTML =
     `예측 종료 지점: <b>${formatDMS(finalPoint.lat, finalPoint.lon)}</b><br>` +
-    `${actualHours}시간 동안 약 ${Math.round(netDistM)}m 이동 (평균 시속 약 ${Math.round(combSpeed)}m), 오차반경 ±${Math.round(finalErrorRadius)}m`;
+    `${actualHours}시간 동안 약 ${Math.round(netDistM)}m 이동 (평균 ${combSpeedKn.toFixed(2)}kn), 오차반경 ±${Math.round(finalErrorRadius)}m`;
 
   animateCardIn(document.getElementById('resultCard'));
 }

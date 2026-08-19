@@ -96,7 +96,7 @@ window.copyOperationReport = function copyOperationReport() {
     r.finalPoint ? `예상 도달 위치: ${fmt(r.finalPoint.lat)}, ${fmt(r.finalPoint.lon)}` : null,
     typeof r.finalErrorRadius === 'number' ? `오차반경: 약 ${Math.round(r.finalErrorRadius)}m` : null,
     typeof r.combBrng === 'number' ? `추천 탐색 방향: ${Math.round(r.combBrng)}°` : null,
-    typeof r.combSpeed === 'number' ? `평균 이동속도: 시속 약 ${Math.round(r.combSpeed)}m` : null,
+    typeof r.combSpeed === 'number' ? `평균 이동속도: ${(r.combSpeed / 1852).toFixed(2)}kn` : null,
     '',
     '※ 본 보고서는 광역 조류 격자 데이터 기반 예측치이며, 현장 상황과 다를 수 있습니다.',
   ].filter(Boolean).join('\n');
