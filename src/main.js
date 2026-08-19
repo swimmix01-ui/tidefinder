@@ -59,6 +59,7 @@ async function handleRunPrediction() {
     );
     ui.hideLoading();
     ui.setStatus('ok', '✅ 예측 완료');
+    ui.renderResultCard(result);
     lastPredictionResult = { ...result, inputLat: lat, inputLon: lon, startDateTime, ahead };
     console.log('예측 결과:', result); // TODO(2단계): 상태 저장소(state.js)로 옮겨 화면 결과카드와 자동 연동
   } catch (err) {

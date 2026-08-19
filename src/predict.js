@@ -242,5 +242,6 @@ export async function runPrediction(input, callbacks = {}) {
   return {
     combBrng, combSpeed, actualHours, finalErrorRadius, finalPoint, strandedAt,
     currentSource, setnetWarnings, coastlineStatus: getCoastlineStatus(),
+    curSpeed: speed, curDir: dir, netDistM,
   };
 }
