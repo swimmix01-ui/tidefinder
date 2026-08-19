@@ -8,6 +8,7 @@ import { loadCoastlineGeoJSON, loadSetnetGeoJSON } from './modules/coastline.js'
 import * as mapModule from './modules/map.js';
 import * as ui from './modules/ui.js';
 import { runPrediction } from './predict.js';
+import { loadMarineStatus } from './modules/marine.js';
 
 function getCoordsFromInputs() {
   const lat = dmsToDecimal(
@@ -73,6 +74,7 @@ async function init() {
   // 비차단 로드 - 실패해도 페이지 동작에 영향 없음
   loadCoastlineGeoJSON();
   loadSetnetGeoJSON();
+  loadMarineStatus();
 
   ['latD', 'latM', 'latS', 'lonD', 'lonM', 'lonS', 'dateInput', 'hourInput', 'minuteInput', 'hoursAhead'].forEach((id) => {
     document.getElementById(id).addEventListener('input', ui.refreshInputCheckmarks);
