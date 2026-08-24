@@ -131,6 +131,23 @@ async function init() {
   ui.refreshInputCheckmarks();
 
   document.getElementById('runPredictionBtn').addEventListener('click', handleRunPrediction);
+
+  document.getElementById('headerRefreshBtn').addEventListener('click', async (e) => {
+    const btn = e.currentTarget;
+    if (btn.classList.contains('spinning')) return; // 중복 클릭 방지
+    btn.classList.add('spinning');
+    ui.setStatus('busy', '⏳ 해상상태 갱신 중...');
+    try {
+      const { lat, lon } = getCoordsFromInputs();
+      await loadMarineStatus(Number.isNaN(lat) || Number.isNaN(lon) ? {} : { lat, lon });
+      ui.setStatus('ok', '✅ 해상상태 갱신 완료');
+    } catch (err) {
+      ui.setStatus('warn', '⚠ 해상상태 갱신 실패');
+    } finally {
+      btn.classList.remove('spinning');
+    }
+  });
+
   document.getElementById('resetMapBtn').addEventListener('click', () => {
     mapModule.resetMapView();
     ui.setStatus('warn', '↺ 지도가 초기화되었습니다.');

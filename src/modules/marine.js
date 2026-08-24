@@ -82,7 +82,16 @@ function hoursSince(dateStr) {
 /**
  * @param {{lat?: number, lon?: number}} [coords] - 기준 좌표. 생략하면 포항 기본 관측소를 쓴다.
  */
+// 값이 채워지는 필드들 - 로딩 시작 시 "불러오는 중"으로, 끝나고도 안 채워진 건 "-"로 정리한다.
+const MARINE_VALUE_IDS = [
+  'marineWaterTemp', 'marineAirTemp', 'marineAirPress', 'marineWaveHeight',
+  'marineWind', 'marineVisibility', 'marineHfCurrent', 'marineNextTide',
+];
+const LOADING_TEXT = '불러오는 중…';
+
 export async function loadMarineStatus(coords = {}) {
+  MARINE_VALUE_IDS.forEach((id) => setText(id, LOADING_TEXT));
+
   const lat = coords.lat ?? DEFAULT_DT.lat;
   const lon = coords.lon ?? DEFAULT_DT.lon;
   const dtStation = nearestStation(DT_STATIONS, lat, lon);
@@ -209,4 +218,10 @@ export async function loadMarineStatus(coords = {}) {
   } catch (err) {
     console.warn('⚠ 기상특보 로드 실패:', err);
   }
+
+  // 끝까지 값을 못 채운 필드는 "불러오는 중" 문구를 지우고 "-"로 정리한다.
+  MARINE_VALUE_IDS.forEach((id) => {
+    const el = document.getElementById(id);
+    if (el && el.textContent === LOADING_TEXT) el.textContent = '-';
+  });
 }
