@@ -5,7 +5,7 @@
 //   "어떻게 그릴지"는 map.js/ui.js에 위임한다 - 이 파일을 읽으면 예측
 //   로직의 전체 흐름이 한눈에 들어오는 것이 목표다.
 // ==========================================================================
-import { HF_STATIONS, HF_COVERAGE_LIMIT_KM } from './modules/constants.js';
+import { HF_STATIONS, HF_COVERAGE_LIMIT_KM, CROSSWIND_DIVERGENCE_FALLBACK_DEG } from './modules/constants.js';
 import {
   dmsToDecimal, bearingToXY, xyToBearingMag, destinationPoint,
   bearingBetween, distanceBetween, bearingToCompass,
@@ -35,11 +35,11 @@ function findNearestHFStation(targetLat, targetLon) {
 
 /**
  * 표류 예측 전체 파이프라인을 실행한다.
- * @param {object} input - { lat, lon, ahead, startDateTime, leewayCoefVal }
+ * @param {object} input - { lat, lon, ahead, startDateTime, leewayCoefVal, crosswindAngleDeg }
  * @param {object} callbacks - { onStatus, onProgress } (선택)
  */
 export async function runPrediction(input, callbacks = {}) {
-  const { lat, lon, ahead, startDateTime, leewayCoefVal } = input;
+  const { lat, lon, ahead, startDateTime, leewayCoefVal, crosswindAngleDeg = CROSSWIND_DIVERGENCE_FALLBACK_DEG } = input;
   const { onStatus = () => {}, onProgress = () => {} } = callbacks;
 
   let speed = 5.0, dir = 90, usedWind = false, waveHeightM = null, windSpeedMS = null, windDirFrom = null, fcstItemsForHourly = null;
@@ -192,7 +192,7 @@ export async function runPrediction(input, callbacks = {}) {
 
   // ===== 오차반경 (좌우발산 포함) =====
   const wFactor = waveHeightM ? waveHeightM * 0.02 : 0;
-  const crosswindTan = Math.tan((20 * Math.PI) / 180); // TODO: 표류물 종류별 각도는 다음 단계에서 UI 연결
+  const crosswindTan = Math.tan((crosswindAngleDeg * Math.PI) / 180);
   const hourlyRadii = { 0: 0 };
   let finalErrorRadius = 0;
   cLine.slice(1).forEach((_, idx) => {

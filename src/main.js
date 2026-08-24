@@ -44,14 +44,18 @@ async function handleRunPrediction() {
   const minute = document.getElementById('minuteInput').value.padStart(2, '0');
   const dateInputVal = document.getElementById('dateInput').value;
   const startDateTime = new Date(`${dateInputVal}T${hour}:${minute}:00`);
-  const leewayCoefVal = parseFloat(document.getElementById('leewayCoef').value);
+  const leewaySelect = document.getElementById('leewayCoef');
+  const leewayCoefVal = parseFloat(leewaySelect.value);
+  const selectedOption = leewaySelect.options[leewaySelect.selectedIndex];
+  const cwAngleAttr = selectedOption?.dataset?.cwangle;
+  const crosswindAngleDeg = cwAngleAttr ? parseFloat(cwAngleAttr) : undefined; // 없으면 predict.js 기본값(20°) 사용
 
   ui.showLoading('조류 분석 중...');
   ui.setStatus('busy', '⏳ 조류 연산 수행 중...');
 
   try {
     const result = await runPrediction(
-      { lat, lon, ahead, startDateTime, leewayCoefVal },
+      { lat, lon, ahead, startDateTime, leewayCoefVal, crosswindAngleDeg },
       {
         onStatus: ui.setStatus,
         onProgress: (done, total) => ui.setStatus('busy', `🎲 몬테카를로 시뮬레이션 중... (${done}/${total})`),
@@ -61,7 +65,7 @@ async function handleRunPrediction() {
     ui.setStatus('ok', '✅ 예측 완료');
     ui.renderResultCard(result);
     lastPredictionResult = { ...result, inputLat: lat, inputLon: lon, startDateTime, ahead };
-    console.log('예측 결과:', result); // TODO(2단계): 상태 저장소(state.js)로 옮겨 화면 결과카드와 자동 연동
+    console.log('예측 결과:', result);
   } catch (err) {
     ui.hideLoading();
     ui.setStatus('warn', `⚠ 예측 실패: ${err.message}`);
