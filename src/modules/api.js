@@ -181,8 +181,9 @@ export async function fetchSeaFogData(obsCode, reqDate) {
 }
 
 // 스킨스쿠버 예보 (국립해양조사원) - 다이빙 지점 전용 파고/수온/시정 예보.
-// 기상청 단기예보(WAV)는 육상 격자라 해안 근처에서 0으로 나오는 경우가 흔해서,
-// 다이버 전용으로 설계된 이 API 값이 실제 파고에 더 가까울 가능성이 높다.
+// ⚠ 2026-08-25 기준: 이 API는 현재 서비스키에 활용신청이 안 되어 있어 호출하면
+//   NO_OPENAPI_SERVICE_ERROR(returnReasonCode 12)가 뜬다. data.go.kr에서
+//   "국립해양조사원_스킨스쿠버 예보" 활용신청을 승인받은 뒤에 marine.js에서 다시 연결할 것.
 export async function fetchScubaForecast(placeCode, reqDate) {
   const res = await fetchWithTimeout(`/.netlify/functions/weather?mode=scuba&placeCode=${placeCode}&reqDate=${reqDate}`, 8000);
   const data = await res.json();

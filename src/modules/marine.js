@@ -135,23 +135,14 @@ export async function loadMarineStatus(coords = {}) {
       ui.renderWindStatusPill(wind.windSpeedMS);
     }
     if (wind.waveHeightM !== null) {
-      setText('marineWaveHeight', `${wind.waveHeightM}m`);
+      // ※ 기상청 단기예보 격자(육상용)라 해안 인접 지점에서 0으로 나오기 쉽다.
+      //   다이버 전용 예보 API는 아직 활용신청이 안 되어 있어 못 붙였다(참고: NO_OPENAPI_SERVICE_ERROR).
+      //   실제 파고는 현장에서 육안으로 반드시 재확인할 것.
+      setText('marineWaveHeight', `${wind.waveHeightM}m*`);
       ui.renderWaveStatusPill(wind.waveHeightM);
     }
   } catch (err) {
     console.warn('⚠ 풍향/풍속/파고 로드 실패:', err);
-  }
-
-  // 2-1) [임시 점검] 스킨스쿠버 예보(다이버 전용 파고) 원본 응답을 잠깐 화면에 찍어서
-  //      실제 필드명/placeCode 유효성을 확인한다. 확인 끝나면 이 블록은 제거하고
-  //      정식으로 marineWaveHeight 소스를 이걸로 교체한다.
-  let scubaDebugText = null;
-  try {
-    const scuba = await api.fetchScubaForecast('SS1', reqDate);
-    const preview = Array.isArray(scuba) ? scuba.slice(0, 2) : scuba;
-    scubaDebugText = `[scuba raw] ${JSON.stringify(preview)}`;
-  } catch (err) {
-    console.warn('⚠ 스킨스쿠버 예보 점검 실패:', err);
   }
 
   // 3) HF레이더 실측 유향/유속 - 필드명: crdir/crsp
@@ -229,21 +220,6 @@ export async function loadMarineStatus(coords = {}) {
     }
   } catch (err) {
     console.warn('⚠ 기상특보 로드 실패:', err);
-  }
-
-  // [임시] 스킨스쿠버 예보 원본을 알림박스에 덮어 표시 (특보가 없을 때만) - 확인 후 제거 예정
-  if (scubaDebugText) {
-    const box = document.getElementById('marineAlertBox');
-    if (box && box.style.display !== 'block') {
-      box.style.display = 'block';
-      box.style.color = 'var(--text-lo)';
-      box.style.fontFamily = "'SF Mono', Consolas, monospace";
-      box.style.fontSize = '10.5px';
-      box.style.whiteSpace = 'pre-wrap';
-      box.textContent = scubaDebugText;
-    } else if (box) {
-      box.textContent += `\n${scubaDebugText}`;
-    }
   }
 
   // 끝까지 값을 못 채운 필드는 "불러오는 중" 문구를 지우고 "-"로 정리한다.
