@@ -185,9 +185,12 @@ export async function fetchSeaFogData(obsCode, reqDate) {
 // 다이버 전용으로 설계된 이 API 값이 실제 파고에 더 가까울 가능성이 높다.
 export async function fetchScubaForecast(placeCode, reqDate) {
   const res = await fetchWithTimeout(`/.netlify/functions/weather?mode=scuba&placeCode=${placeCode}&reqDate=${reqDate}`, 8000);
-  if (!res.ok) return null;
+  if (!res.ok) return { httpError: res.status };
   const data = await res.json();
-  return data?.body?.items?.item || data?.response?.body?.items?.item || null;
+  const item = data?.body?.items?.item || data?.response?.body?.items?.item || null;
+  if (item) return item;
+  // 정상 파싱이 안 되면 원인 파악을 위해 최상위 응답 구조를 그대로 반환한다.
+  return { rawResponse: data };
 }
 
 export { bearingToXY }; // predict.js 등에서 재사용 편의를 위한 re-export
