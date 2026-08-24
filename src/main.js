@@ -145,6 +145,7 @@ async function init() {
         mapModule.setMarkerPosition(pos.coords.latitude, pos.coords.longitude);
         mapModule.centerMap(pos.coords.latitude, pos.coords.longitude);
         ui.setStatus('ok', `📍 현재 위치 적용 완료 (오차 ±${Math.round(pos.coords.accuracy)}m)`);
+        loadMarineStatus({ lat: pos.coords.latitude, lon: pos.coords.longitude });
       },
       (err) => ui.setStatus('warn', `⚠ 위치 확인 실패: ${err.message}`)
     );
@@ -154,6 +155,7 @@ async function init() {
     setCoordsToInputs(lat, lon);
     mapModule.setMarkerPosition(lat, lon);
     ui.setStatus('ok', '🎯 좌표 자동 입력 완료');
+    loadMarineStatus({ lat, lon });
   });
   ui.setStatus('ok', '✅ 지도 연동 완료');
 }
