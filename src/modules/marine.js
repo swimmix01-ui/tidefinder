@@ -26,15 +26,6 @@ function haversineKm(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-function nearestStations(list, lat, lon, count = 2) {
-  if (lat == null || lon == null || Number.isNaN(lat) || Number.isNaN(lon)) return list.slice(0, count);
-  return [...list]
-    .map((s) => ({ s, d: haversineKm(lat, lon, s.lat, s.lon) }))
-    .sort((a, b) => a.d - b.d)
-    .slice(0, count)
-    .map(({ s, d }) => ({ ...s, distKm: d }));
-}
-
 function nearestStation(list, lat, lon) {
   if (lat == null || lon == null || Number.isNaN(lat) || Number.isNaN(lon)) return list[0];
   let best = list[0];
@@ -155,27 +146,20 @@ export async function loadMarineStatus(coords = {}) {
   }
 
   // 3) HF레이더 실측 유향/유속 - 필드명: crdir/crsp
-  //    가장 가까운 관측소 데이터가 너무 오래됐으면(장비 문제 등), 그 다음으로 가까운
-  //    관측소를 대신 시도한다. 그래도 오래됐으면 그 사실과 거리를 같이 표시한다.
+  //    관측소는 항상 가장 가까운 곳으로 고정한다(다른 관측소로 바꾸면 어디 데이터인지
+  //    헷갈릴 수 있어서). 데이터가 오래됐으면(장비 미갱신 등) 그 사실만 같이 표시한다.
   try {
-    const candidates = nearestStations(HF_STATIONS, lat, lon, 2);
-    let chosen = null;
-    for (const station of candidates) {
-      const hf = await api.fetchHfCurrentByStation(station.code);
-      const hfItem = latestItem(hf);
-      const dir = pickNumeric(hfItem, ['crdir', 'dir']);
-      const sp = pickNumeric(hfItem, ['crsp', 'speed', 'sp']);
-      const hfTime = pickText(hfItem, ['obsrvndt', 'time', 'dt']);
-      const ageHours = hfTime ? hoursSince(hfTime) : null;
-      if (dir === null || sp === null) continue;
-      chosen = { station, dir, sp, ageHours };
-      if (ageHours === null || ageHours < HF_STALE_HOURS) break; // 신선하면 더 안 찾아도 됨
-    }
-    if (chosen) {
-      let text = `${chosen.dir}° / ${chosen.sp}cm/s`;
-      if (chosen.ageHours !== null && chosen.ageHours >= HF_STALE_HOURS) text += ` (${Math.floor(chosen.ageHours)}시간 전 - 오래됨)`;
-      if (chosen.station.distKm > 50) text += ` (${chosen.station.name}, ${Math.round(chosen.station.distKm)}km 거리 - 참고용)`;
-      else if (chosen.station.code !== hfStation.code) text += ` (${chosen.station.name} 관측소)`;
+    const distKm = lat != null && lon != null ? haversineKm(lat, lon, hfStation.lat, hfStation.lon) : 0;
+    const hf = await api.fetchHfCurrentByStation(hfStation.code);
+    const hfItem = latestItem(hf);
+    const dir = pickNumeric(hfItem, ['crdir', 'dir']);
+    const sp = pickNumeric(hfItem, ['crsp', 'speed', 'sp']);
+    const hfTime = pickText(hfItem, ['obsrvndt', 'time', 'dt']);
+    const ageHours = hfTime ? hoursSince(hfTime) : null;
+    if (dir !== null && sp !== null) {
+      let text = `${dir}° / ${sp}cm/s`;
+      if (ageHours !== null && ageHours >= HF_STALE_HOURS) text += ` (${Math.floor(ageHours)}시간 전 - 오래됨)`;
+      if (distKm > 50) text += ` (관측소 ${Math.round(distKm)}km 거리 - 참고용)`;
       setText('marineHfCurrent', text);
     }
   } catch (err) {
