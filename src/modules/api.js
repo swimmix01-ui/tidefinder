@@ -62,10 +62,14 @@ export async function fetchWindData(lat, lon) {
   const res = await fetchWithTimeout(`/.netlify/functions/weather?nx=${nx}&ny=${ny}&base_date=${base_date}&base_time=${base_time}`, 8000);
   const data = await res.json();
   const items = data.response.body.items.item;
+  // ※ 예보 배치는 3시간 간격으로 여러 시각의 값을 함께 담고 있어서, 배열의 첫 항목이
+  //   아니라 "지금"과 가장 가까운 시각의 값을 골라야 한다 (안 그러면 새로고침 시점에 따라
+  //   base_time 배치가 바뀌면서 값이 들쭉날쭉하게 보인다).
+  const now = new Date();
   return {
-    windDirFrom: items.find((i) => i.category === 'VEC') ? parseFloat(items.find((i) => i.category === 'VEC').fcstValue) : null,
-    windSpeedMS: items.find((i) => i.category === 'WSD') ? parseFloat(items.find((i) => i.category === 'WSD').fcstValue) : null,
-    waveHeightM: items.find((i) => i.category === 'WAV') ? parseFloat(items.find((i) => i.category === 'WAV').fcstValue) : null,
+    windDirFrom: getForecastValueAtTime(items, 'VEC', now),
+    windSpeedMS: getForecastValueAtTime(items, 'WSD', now),
+    waveHeightM: getForecastValueAtTime(items, 'WAV', now),
     items, // 시간별 예보 전체 - 시간대별 벡터 변동 계산에 재사용 (추가 API 호출 없음)
     nx, ny, base_date, base_time,
   };
