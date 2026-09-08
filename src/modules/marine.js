@@ -145,6 +145,23 @@ export async function loadMarineStatus(coords = {}) {
     console.warn('⚠ 풍향/풍속/파고 로드 실패:', err);
   }
 
+  // [임시 재점검] 활용신청 승인 후 스킨스쿠버 예보가 실제로 되는지 확인
+  try {
+    const scuba = await api.fetchScubaForecast('SS1', reqDate);
+    const box = document.getElementById('marineAlertBox');
+    if (box) {
+      box.style.display = 'block';
+      box.style.color = 'var(--text-lo)';
+      box.style.fontFamily = "'SF Mono', Consolas, monospace";
+      box.style.fontSize = '10.5px';
+      box.style.whiteSpace = 'pre-wrap';
+      const preview = Array.isArray(scuba) ? scuba.slice(0, 3) : scuba;
+      box.textContent = `[scuba raw] ${JSON.stringify(preview)}`;
+    }
+  } catch (err) {
+    console.warn('⚠ 스킨스쿠버 예보 재점검 실패:', err);
+  }
+
   // 3) HF레이더 실측 유향/유속 - 필드명: crdir/crsp
   //    관측소는 항상 가장 가까운 곳으로 고정한다(다른 관측소로 바꾸면 어디 데이터인지
   //    헷갈릴 수 있어서). 데이터가 오래됐으면(장비 미갱신 등) 그 사실만 같이 표시한다.
