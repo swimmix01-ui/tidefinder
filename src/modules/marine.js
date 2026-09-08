@@ -229,6 +229,8 @@ export async function loadMarineStatus(coords = {}) {
       box.textContent = `⚠ ${lines.join(' / ')}`;
       box.style.display = 'block';
       ui.forceAlertPills(); // 특보 발효 중엔 파고/풍속 배지를 무조건 경고로 표시
+      // [임시] 특보 문구 뒤에 스쿠버 예보 점검 결과도 이어붙인다 - 특보 중에도 확인 가능하게
+      if (scubaDebugText) box.textContent += `\n${scubaDebugText}`;
     } else if (box && scubaDebugText) {
       // [임시] 특보가 없을 때만 스쿠버 예보 점검 결과를 대신 보여준다 - 확인 후 제거 예정
       box.style.display = 'block';
