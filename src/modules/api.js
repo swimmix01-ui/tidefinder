@@ -185,9 +185,11 @@ export async function fetchSeaFogData(obsCode, reqDate) {
 }
 
 // 스킨스쿠버 예보 (국립해양조사원) - 다이빙 지점 전용 파고/수온/시정 예보.
-// ⚠ 2026-08-25 기준: 이 API는 현재 서비스키에 활용신청이 안 되어 있어 호출하면
-//   NO_OPENAPI_SERVICE_ERROR(returnReasonCode 12)가 뜬다. data.go.kr에서
-//   "국립해양조사원_스킨스쿠버 예보" 활용신청을 승인받은 뒤에 marine.js에서 다시 연결할 것.
+// ⚠ 2026-09-08 기준: returnReasonCode 12(NO_OPENAPI_SERVICE_ERROR)로 확인됨 - 이건
+//   "활용신청 미승인"(코드 20번대)이 아니라 "해당 오픈API 서비스가 없거나 폐기됨"이라는
+//   뜻이라, 승인을 기다린다고 해결되지 않는다. GetFcstSkinScubaApiServiceV2 자체가
+//   data.go.kr에서 폐기됐거나 서비스 ID가 바뀐 것으로 보임 - 재사용하려면 포털에서
+//   대체 서비스명부터 새로 찾아야 한다. marine.js에서는 이 함수 호출을 뺐다(2026-09-08).
 export async function fetchScubaForecast(placeCode, reqDate) {
   const res = await fetchWithTimeout(`/.netlify/functions/weather?mode=scuba&placeCode=${placeCode}&reqDate=${reqDate}`, 8000);
   const data = await res.json();

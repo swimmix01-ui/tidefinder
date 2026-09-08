@@ -135,24 +135,16 @@ export async function loadMarineStatus(coords = {}) {
       ui.renderWindStatusPill(wind.windSpeedMS);
     }
     if (wind.waveHeightM !== null) {
-      // ※ 기상청 단기예보 격자(육상용)라 해안 인접 지점에서 0으로 나오기 쉽다.
-      //   다이버 전용 예보 API는 아직 활용신청이 안 되어 있어 못 붙였다(참고: NO_OPENAPI_SERVICE_ERROR).
-      //   실제 파고는 현장에서 육안으로 반드시 재확인할 것.
+      // ※ 기상청 단기예보 격자(육상용)라 해안 인접 지점에서 0으로 나오기 쉽고, 특보가 뜬
+      //   상황에서도 낮은 값으로 나올 수 있다(2026-09-08 실측: 풍랑·강풍주의보 중에도
+      //   0.5m/6.1m/s로 표시됨). 다이버 전용 예보(스킨스쿠버 예보) API로 대체하려 했으나
+      //   해당 서비스 자체가 폐기됨(returnReasonCode 12) - 대체 소스를 새로 찾기 전까지는
+      //   실제 파고·풍속은 반드시 현장에서 육안·체감으로 재확인할 것.
       setText('marineWaveHeight', `${wind.waveHeightM}m*`);
       ui.renderWaveStatusPill(wind.waveHeightM);
     }
   } catch (err) {
     console.warn('⚠ 풍향/풍속/파고 로드 실패:', err);
-  }
-
-  // [임시 재점검] 활용신청 승인 후 스킨스쿠버 예보가 실제로 되는지 확인
-  let scubaDebugText = null;
-  try {
-    const scuba = await api.fetchScubaForecast('SS1', reqDate);
-    const preview = Array.isArray(scuba) ? scuba.slice(0, 3) : scuba;
-    scubaDebugText = `[scuba raw] ${JSON.stringify(preview)}`;
-  } catch (err) {
-    console.warn('⚠ 스킨스쿠버 예보 재점검 실패:', err);
   }
 
   // 3) HF레이더 실측 유향/유속 - 필드명: crdir/crsp
@@ -229,16 +221,6 @@ export async function loadMarineStatus(coords = {}) {
       box.textContent = `⚠ ${lines.join(' / ')}`;
       box.style.display = 'block';
       ui.forceAlertPills(); // 특보 발효 중엔 파고/풍속 배지를 무조건 경고로 표시
-      // [임시] 특보 문구 뒤에 스쿠버 예보 점검 결과도 이어붙인다 - 특보 중에도 확인 가능하게
-      if (scubaDebugText) box.textContent += `\n${scubaDebugText}`;
-    } else if (box && scubaDebugText) {
-      // [임시] 특보가 없을 때만 스쿠버 예보 점검 결과를 대신 보여준다 - 확인 후 제거 예정
-      box.style.display = 'block';
-      box.style.color = 'var(--text-lo)';
-      box.style.fontFamily = "'SF Mono', Consolas, monospace";
-      box.style.fontSize = '10.5px';
-      box.style.whiteSpace = 'pre-wrap';
-      box.textContent = scubaDebugText;
     }
   } catch (err) {
     console.warn('⚠ 기상특보 로드 실패:', err);
