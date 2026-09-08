@@ -205,7 +205,10 @@ export async function fetchTwRecent(obsCode, reqDate) {
   const res = await fetchWithTimeout(`/.netlify/functions/weather?mode=twrecent&obsCode=${obsCode}&reqDate=${reqDate}&min=60`, 8000);
   const data = await res.json();
   if (!res.ok) return null;
-  const item = data?.response?.body?.items?.item || null;
+  // ※ 이 API는 XML 응답과 달리 JSON 응답엔 최상위 <response> 래핑이 없다 - body가 루트에
+  //   바로 온다({header, body}). response.body 경로로만 찾으면 항상 null이 되는 버그가
+  //   있었음(2026-09-08 실측으로 확인) - 두 경로 다 시도해서 안전하게 처리.
+  const item = data?.body?.items?.item || data?.response?.body?.items?.item || null;
   return Array.isArray(item) ? item[0] : item;
 }
 
@@ -216,7 +219,7 @@ export async function fetchDtRecent(obsCode, reqDate) {
   const res = await fetchWithTimeout(`/.netlify/functions/weather?mode=dtrecent&obsCode=${obsCode}&reqDate=${reqDate}&min=60`, 8000);
   const data = await res.json();
   if (!res.ok) return null;
-  const item = data?.response?.body?.items?.item || null;
+  const item = data?.body?.items?.item || data?.response?.body?.items?.item || null;
   return Array.isArray(item) ? item[0] : item;
 }
 
