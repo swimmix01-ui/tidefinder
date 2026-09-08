@@ -209,4 +209,15 @@ export async function fetchTwRecent(obsCode, reqDate) {
   return Array.isArray(item) ? item[0] : item;
 }
 
+// 조위관측소 최신 관측데이터 - 실측 풍속(wspd)/풍향(wndrct) 등. 파고는 없음(조위관측소는
+// 파고를 관측하지 않음 - 파고는 fetchTwRecent 쪽 해양관측부이에서만 나옴).
+// obsCode는 DT_RECENT_STATIONS 전용 코드만 유효 (기존 DT_STATIONS와 번호 체계 다름).
+export async function fetchDtRecent(obsCode, reqDate) {
+  const res = await fetchWithTimeout(`/.netlify/functions/weather?mode=dtrecent&obsCode=${obsCode}&reqDate=${reqDate}&min=60`, 8000);
+  const data = await res.json();
+  if (!res.ok) return null;
+  const item = data?.response?.body?.items?.item || null;
+  return Array.isArray(item) ? item[0] : item;
+}
+
 export { bearingToXY }; // predict.js 등에서 재사용 편의를 위한 re-export

@@ -64,6 +64,27 @@ export const DT_STATIONS = [
   { code: 'DT_0091', name: '포항', lat: 36.03, lon: 129.38 },
 ];
 
+// 조위관측소 최신 관측데이터(dtRecent) 전용 관측소 좌표 사전 - 실측 풍속용.
+// ⚠ 위 DT_STATIONS와 겉보기엔 같은 'DT_' 접두사지만 번호 체계가 다른 별도 API용
+//   레지스트리다 - 실제로 대조해보니 포항이 여기선 DT_0091이 아니라 DT_0009였다
+//   (dtRecent API 활용가이드 관측소 코드표 및 API 실응답으로 확인: DT_0018 군산의
+//   좌표(35.975556, 126.563056)는 두 목록에서 일치하지만 포항 번호는 다름).
+//   그래서 dtRecent 호출에는 반드시 이 목록을 쓰고, DT_STATIONS(수온/기온/기압용)와는
+//   절대 섞어 쓰지 않는다. 좌표는 위 DT_STATIONS 값을 재사용(같은 물리적 위치).
+export const DT_RECENT_STATIONS = [
+  { code: 'DT_0002', name: '평택', lat: 36.97, lon: 126.82 },
+  { code: 'DT_0006', name: '묵호', lat: 37.55, lon: 129.11 },
+  { code: 'DT_0007', name: '목포', lat: 34.78, lon: 126.38 },
+  { code: 'DT_0009', name: '포항', lat: 36.03, lon: 129.38, verified: true },
+  { code: 'DT_0012', name: '속초', lat: 38.21, lon: 128.59 },
+  { code: 'DT_0017', name: '대산', lat: 37.01, lon: 126.35 },
+  { code: 'DT_0018', name: '군산', lat: 35.975556, lon: 126.563056, verified: true },
+  { code: 'DT_0021', name: '추자도', lat: 33.96, lon: 126.30 },
+  { code: 'DT_0026', name: '고흥', lat: 34.61, lon: 127.28 },
+  { code: 'DT_0028', name: '진도', lat: 34.48, lon: 126.31 },
+  { code: 'DT_0035', name: '흑산도', lat: 34.68, lon: 125.44 },
+];
+
 // 전국 해무관측소(SF) 좌표 사전 - 시정 조회용
 export const SF_STATIONS = [
   { code: 'SF_0001', name: '부산항(북항)', lat: 35.10, lon: 129.04 },

@@ -8,7 +8,7 @@
 // ==========================================================================
 import * as api from './api.js';
 import * as ui from './ui.js';
-import { DT_STATIONS, HF_STATIONS, SF_STATIONS, TW_STATIONS, getKmaStnId } from './constants.js';
+import { DT_STATIONS, DT_RECENT_STATIONS, HF_STATIONS, SF_STATIONS, TW_STATIONS, getKmaStnId } from './constants.js';
 
 const DEFAULT_STATION_NAME = '포항';
 const DEFAULT_DT = DT_STATIONS.find((s) => s.name === DEFAULT_STATION_NAME) || { code: 'DT_0091', lat: 36.03, lon: 129.38, name: '포항' };
@@ -98,6 +98,7 @@ export async function loadMarineStatus(coords = {}) {
   const hfStation = nearestStation(HF_STATIONS, lat, lon);
   const sfStation = nearestStation(SF_STATIONS, lat, lon);
   const twStation = nearestStation(TW_STATIONS, lat, lon);
+  const dtRecentStation = nearestStation(DT_RECENT_STATIONS, lat, lon);
   const windLat = lat;
   const windLon = lon;
 
@@ -127,27 +128,44 @@ export async function loadMarineStatus(coords = {}) {
     console.warn('⚠ 수온/기온/기압 로드 실패:', err);
   }
 
-  // 2) 풍향/풍속/파고 - 해양관측부이 실측(twRecent) 우선, 실패 시 기상청 단기예보로 대체
+  // 2) 풍향/풍속/파고 - 실측 우선(풍속: 조위관측소 dtRecent, 파고: 해양관측부이 twRecent),
+  //    둘 다 실패했을 때만 기상청 단기예보로 대체.
   //    ※ 기상청 단기예보(WAV/WSD)는 육상용 격자라 해안 인접 지점에서 파고가 0으로 나오기
   //      쉽고, 특보가 뜬 상황에서도 낮은 값으로 나올 수 있다(2026-09-08 실측: 풍랑·강풍
   //      주의보 중에도 0.5m/6.1m/s로 표시됨) - 그래서 실측 소스를 우선한다.
+  //    ※ 풍속은 dtRecent(조위관측소)가 twRecent(해양관측부이)보다 관측소가 촘촘해서 보통
+  //      더 가깝다 - 포항은 dtRecent가 0km(포항 자체), twRecent는 70km(고래불) 떨어져
+  //      있음. 파고는 조위관측소에 없는 항목이라 twRecent로만 채운다.
+  try {
+    const dtrDistKm = lat != null && lon != null ? haversineKm(lat, lon, dtRecentStation.lat, dtRecentStation.lon) : 0;
+    const dtr = await api.fetchDtRecent(dtRecentStation.code, reqDate);
+    const wspd = pickNumeric(dtr, ['wspd']);
+    const wndrct = pickNumeric(dtr, ['wndrct']);
+    if (wspd !== null) {
+      const distNote = dtrDistKm > 50 ? ` (관측소 ${Math.round(dtrDistKm)}km 거리 - 참고용)` : '';
+      const dirText = wndrct !== null ? `${Math.round(wndrct)}°` : '-';
+      setText('marineWind', `${dirText} / ${wspd}m/s (실측)${distNote}`);
+      ui.renderWindStatusPill(wspd);
+    }
+  } catch (err) {
+    console.warn('⚠ 조위관측소 실측 풍속 로드 실패:', err);
+  }
   try {
     const twDistKm = lat != null && lon != null ? haversineKm(lat, lon, twStation.lat, twStation.lon) : 0;
     const tw = await api.fetchTwRecent(twStation.code, reqDate);
     const wvhgt = pickNumeric(tw, ['wvhgt']);
     const wspd = pickNumeric(tw, ['wspd']);
     const wndrct = pickNumeric(tw, ['wndrct']);
-    if (wvhgt !== null || wspd !== null) {
-      const distNote = twDistKm > 50 ? ` (관측소 ${Math.round(twDistKm)}km 거리 - 참고용)` : '';
-      if (wspd !== null) {
-        const dirText = wndrct !== null ? `${Math.round(wndrct)}°` : '-';
-        setText('marineWind', `${dirText} / ${wspd}m/s (실측)${distNote}`);
-        ui.renderWindStatusPill(wspd);
-      }
-      if (wvhgt !== null) {
-        setText('marineWaveHeight', `${wvhgt}m (실측)${distNote}`);
-        ui.renderWaveStatusPill(wvhgt);
-      }
+    const distNote = twDistKm > 50 ? ` (관측소 ${Math.round(twDistKm)}km 거리 - 참고용)` : '';
+    if (wvhgt !== null) {
+      setText('marineWaveHeight', `${wvhgt}m (실측)${distNote}`);
+      ui.renderWaveStatusPill(wvhgt);
+    }
+    // dtRecent가 풍속을 못 채웠을 때만 twRecent 풍속으로 보충.
+    if (wspd !== null && document.getElementById('marineWind')?.textContent === LOADING_TEXT) {
+      const dirText = wndrct !== null ? `${Math.round(wndrct)}°` : '-';
+      setText('marineWind', `${dirText} / ${wspd}m/s (실측)${distNote}`);
+      ui.renderWindStatusPill(wspd);
     }
   } catch (err) {
     console.warn('⚠ 해양관측부이 실측 파고/풍속 로드 실패:', err);
