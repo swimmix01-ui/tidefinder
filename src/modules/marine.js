@@ -146,18 +146,11 @@ export async function loadMarineStatus(coords = {}) {
   }
 
   // [임시 재점검] 활용신청 승인 후 스킨스쿠버 예보가 실제로 되는지 확인
+  let scubaDebugText = null;
   try {
     const scuba = await api.fetchScubaForecast('SS1', reqDate);
-    const box = document.getElementById('marineAlertBox');
-    if (box) {
-      box.style.display = 'block';
-      box.style.color = 'var(--text-lo)';
-      box.style.fontFamily = "'SF Mono', Consolas, monospace";
-      box.style.fontSize = '10.5px';
-      box.style.whiteSpace = 'pre-wrap';
-      const preview = Array.isArray(scuba) ? scuba.slice(0, 3) : scuba;
-      box.textContent = `[scuba raw] ${JSON.stringify(preview)}`;
-    }
+    const preview = Array.isArray(scuba) ? scuba.slice(0, 3) : scuba;
+    scubaDebugText = `[scuba raw] ${JSON.stringify(preview)}`;
   } catch (err) {
     console.warn('⚠ 스킨스쿠버 예보 재점검 실패:', err);
   }
@@ -235,6 +228,15 @@ export async function loadMarineStatus(coords = {}) {
       const lines = seaAlerts.slice(0, 3).map((a) => pickText(a, ['title', 'wrnvar', 'msg']) || '특보 발효 중');
       box.textContent = `⚠ ${lines.join(' / ')}`;
       box.style.display = 'block';
+      ui.forceAlertPills(); // 특보 발효 중엔 파고/풍속 배지를 무조건 경고로 표시
+    } else if (box && scubaDebugText) {
+      // [임시] 특보가 없을 때만 스쿠버 예보 점검 결과를 대신 보여준다 - 확인 후 제거 예정
+      box.style.display = 'block';
+      box.style.color = 'var(--text-lo)';
+      box.style.fontFamily = "'SF Mono', Consolas, monospace";
+      box.style.fontSize = '10.5px';
+      box.style.whiteSpace = 'pre-wrap';
+      box.textContent = scubaDebugText;
     }
   } catch (err) {
     console.warn('⚠ 기상특보 로드 실패:', err);

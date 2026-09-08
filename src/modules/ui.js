@@ -67,6 +67,17 @@ export function renderWindStatusPill(windSpeedMS) {
   el.innerHTML = `<span class="status-pill ${cls}">${label}</span>`;
 }
 
+// 풍랑/강풍/태풍 등 해상 특보가 발효 중이면, 숫자만 보고 계산된 "양호/보통" 배지가
+// 반대로 안심시키는 걸 막기 위해 파고·풍속 배지를 무조건 경고 상태로 덮어쓴다.
+// (파고·풍속 수치 자체는 신뢰도가 낮을 수 있어도, 특보 발효 여부는 기상청이 확정한 사실이다)
+export function forceAlertPills() {
+  const waveEl = document.getElementById('waveStatusPill');
+  const windEl = document.getElementById('windStatusPill');
+  const warnHtml = `<span class="status-pill warn">⚠ 특보중</span>`;
+  if (waveEl) waveEl.innerHTML = warnHtml;
+  if (windEl) windEl.innerHTML = warnHtml;
+}
+
 export function renderAIAnalysisCard({ confidence, currentPct, windPct, windSpeedPct, wavePct, explain, risk, underwaterMode }) {
   document.getElementById('aiConfidence').textContent = `${confidence}%`;
   document.getElementById('factorCurrentPct').textContent = `${currentPct}%`;
