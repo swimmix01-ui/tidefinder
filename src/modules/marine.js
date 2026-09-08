@@ -8,7 +8,7 @@
 // ==========================================================================
 import * as api from './api.js';
 import * as ui from './ui.js';
-import { DT_STATIONS, HF_STATIONS, SF_STATIONS, getKmaStnId } from './constants.js';
+import { DT_STATIONS, HF_STATIONS, SF_STATIONS, TW_STATIONS, getKmaStnId } from './constants.js';
 
 const DEFAULT_STATION_NAME = '포항';
 const DEFAULT_DT = DT_STATIONS.find((s) => s.name === DEFAULT_STATION_NAME) || { code: 'DT_0091', lat: 36.03, lon: 129.38, name: '포항' };
@@ -97,6 +97,7 @@ export async function loadMarineStatus(coords = {}) {
   const dtStation = nearestStation(DT_STATIONS, lat, lon);
   const hfStation = nearestStation(HF_STATIONS, lat, lon);
   const sfStation = nearestStation(SF_STATIONS, lat, lon);
+  const twStation = nearestStation(TW_STATIONS, lat, lon);
   const windLat = lat;
   const windLon = lon;
 
@@ -126,25 +127,45 @@ export async function loadMarineStatus(coords = {}) {
     console.warn('⚠ 수온/기온/기압 로드 실패:', err);
   }
 
-  // 2) 풍향/풍속/파고 (기상청 단기예보, 기준 좌표)
+  // 2) 풍향/풍속/파고 - 해양관측부이 실측(twRecent) 우선, 실패 시 기상청 단기예보로 대체
+  //    ※ 기상청 단기예보(WAV/WSD)는 육상용 격자라 해안 인접 지점에서 파고가 0으로 나오기
+  //      쉽고, 특보가 뜬 상황에서도 낮은 값으로 나올 수 있다(2026-09-08 실측: 풍랑·강풍
+  //      주의보 중에도 0.5m/6.1m/s로 표시됨) - 그래서 실측 소스를 우선한다.
+  try {
+    const twDistKm = lat != null && lon != null ? haversineKm(lat, lon, twStation.lat, twStation.lon) : 0;
+    const tw = await api.fetchTwRecent(twStation.code, reqDate);
+    const wvhgt = pickNumeric(tw, ['wvhgt']);
+    const wspd = pickNumeric(tw, ['wspd']);
+    const wndrct = pickNumeric(tw, ['wndrct']);
+    if (wvhgt !== null || wspd !== null) {
+      const distNote = twDistKm > 50 ? ` (관측소 ${Math.round(twDistKm)}km 거리 - 참고용)` : '';
+      if (wspd !== null) {
+        const dirText = wndrct !== null ? `${Math.round(wndrct)}°` : '-';
+        setText('marineWind', `${dirText} / ${wspd}m/s (실측)${distNote}`);
+        ui.renderWindStatusPill(wspd);
+      }
+      if (wvhgt !== null) {
+        setText('marineWaveHeight', `${wvhgt}m (실측)${distNote}`);
+        ui.renderWaveStatusPill(wvhgt);
+      }
+    }
+  } catch (err) {
+    console.warn('⚠ 해양관측부이 실측 파고/풍속 로드 실패:', err);
+  }
   try {
     const wind = await api.fetchWindData(windLat, windLon);
-    if (wind.windSpeedMS !== null) {
+    if (wind.windSpeedMS !== null && document.getElementById('marineWind')?.textContent === LOADING_TEXT) {
       const dirText = wind.windDirFrom !== null ? `${Math.round(wind.windDirFrom)}°` : '-';
       setText('marineWind', `${dirText} / ${wind.windSpeedMS}m/s`);
       ui.renderWindStatusPill(wind.windSpeedMS);
     }
-    if (wind.waveHeightM !== null) {
-      // ※ 기상청 단기예보 격자(육상용)라 해안 인접 지점에서 0으로 나오기 쉽고, 특보가 뜬
-      //   상황에서도 낮은 값으로 나올 수 있다(2026-09-08 실측: 풍랑·강풍주의보 중에도
-      //   0.5m/6.1m/s로 표시됨). 다이버 전용 예보(스킨스쿠버 예보) API로 대체하려 했으나
-      //   해당 서비스 자체가 폐기됨(returnReasonCode 12) - 대체 소스를 새로 찾기 전까지는
-      //   실제 파고·풍속은 반드시 현장에서 육안·체감으로 재확인할 것.
+    if (wind.waveHeightM !== null && document.getElementById('marineWaveHeight')?.textContent === LOADING_TEXT) {
+      // 실측 실패시의 예보 폴백값 - 육상 격자 기반이라 참고용(*) 표시 유지.
       setText('marineWaveHeight', `${wind.waveHeightM}m*`);
       ui.renderWaveStatusPill(wind.waveHeightM);
     }
   } catch (err) {
-    console.warn('⚠ 풍향/풍속/파고 로드 실패:', err);
+    console.warn('⚠ 풍향/풍속/파고 예보 로드 실패:', err);
   }
 
   // 3) HF레이더 실측 유향/유속 - 필드명: crdir/crsp

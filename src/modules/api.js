@@ -199,4 +199,14 @@ export async function fetchScubaForecast(placeCode, reqDate) {
   return { rawResponse: data };
 }
 
+// 해양관측부이 최신 관측데이터 - 실측 파고(wvhgt)/풍향(wndrct)/풍속(wspd) 등.
+// 스킨스쿠버 예보(폐기됨)를 대신하는 실측 소스. obsCode는 TW_ 관측소 코드만 유효.
+export async function fetchTwRecent(obsCode, reqDate) {
+  const res = await fetchWithTimeout(`/.netlify/functions/weather?mode=twrecent&obsCode=${obsCode}&reqDate=${reqDate}&min=60`, 8000);
+  const data = await res.json();
+  if (!res.ok) return null;
+  const item = data?.response?.body?.items?.item || null;
+  return Array.isArray(item) ? item[0] : item;
+}
+
 export { bearingToXY }; // predict.js 등에서 재사용 편의를 위한 re-export

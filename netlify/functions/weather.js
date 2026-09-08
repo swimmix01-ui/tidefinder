@@ -25,6 +25,14 @@ exports.handler = async function (event) {
   const KHOA_RAW_KEY = process.env.KHOA_SERVICE_KEY || 'srQx3b3XW8NV9RpGp9CQ==';
   const KHOA_SERVICE_KEY = encodeURIComponent(decodeURIComponent(KHOA_RAW_KEY));
 
+  // ※ 해양관측부이 최신 관측데이터(twRecent) 전용 키. 2026-09-08 data.go.kr 활용신청
+  //   승인 후 서비스 상세페이지에 표시된 "일반 인증키"를 그대로 사용한다. 기존 SERVICE_KEY와
+  //   같은 1192136 API 그룹이지만 표시된 키 형식이 달라(인코딩된 base64 형태) 별도 변수로
+  //   분리했다 - 나중에 실제로 SERVICE_KEY와 동일한 키인지 확인되면 하나로 합쳐도 된다.
+  //   Netlify 환경변수(TW_SERVICE_KEY) 등록 전까지는 이 값으로 폴백.
+  const TW_RAW_KEY = process.env.TW_SERVICE_KEY || 'maDTn85O5hOnL3OMZgubNtde12H%2Fd1RTd1qbfp43kqLqBOfi57kuKAPmCEW4oLCsayYHvYVMlq03jlr6dE9ilg%3D%3D';
+  const TW_SERVICE_KEY = encodeURIComponent(decodeURIComponent(TW_RAW_KEY));
+
   const params = event.queryStringParameters || {};
   const mode = params.mode || 'fcst';
 
@@ -121,6 +129,18 @@ exports.handler = async function (event) {
     // ※ 원래 index.html(클라이언트)에서 khoa.go.kr을 직접 호출하며 서비스키를 그대로
     //   노출하고 있었다. 이제 클라이언트는 이 mode를 통해서만 조회하고, 실제 키와
     //   목적지 URL은 서버(이 함수) 안에만 존재한다.
+    // ===== 해양관측부이 최신 관측데이터 - 실측 파고/풍향/풍속/기온/기압/수온/유향/유속 =====
+    // ※ 스킨스쿠버 예보(폐기됨)를 대신할 실측 파고 소스. obsCode는 TW_로 시작하는
+    //   해양관측부이/해수욕장 관측소 코드만 유효 (활용가이드 관측소 목록 표 기준).
+    else if (mode === 'twrecent') {
+      const { obsCode } = params;
+      const reqDate = params.reqDate;
+      const min = params.min || '60';
+      if (!obsCode || !reqDate) {
+        return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'obsCode/reqDate 필요' }) };
+      }
+      url = `https://apis.data.go.kr/1192136/twRecent/GetTWRecentApiService?serviceKey=${TW_SERVICE_KEY}&type=json&obsCode=${obsCode}&reqDate=${reqDate}&min=${min}&numOfRows=10&pageNo=1`;
+    }
     else if (mode === 'khoacurrent') {
       const { date, hour, minute, minX, maxX, minY, maxY } = params;
       if (!date || !hour || !minute || !minX || !maxX || !minY || !maxY) {
