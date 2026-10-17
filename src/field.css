@@ -1,0 +1,294 @@
+:root {
+  --text-lo: #b5cde5;
+}
+a {
+  color: #75e0ef;
+}
+h2 {
+  font-size: 17px;
+  margin: 0 0 14px;
+}
+h3 {
+  font-size: 15px;
+}
+.help {
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--text-lo);
+}
+.section-nav {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.section-nav a {
+  padding: 9px 12px;
+  background: #133b59;
+  border-radius: 9px;
+  text-decoration: none;
+  font-size: 13px;
+}
+button {
+  cursor: pointer;
+  min-height: 42px;
+  border: 1px solid #3b6687;
+  border-radius: 9px;
+  color: #eaf4ff;
+  background: #194663;
+  padding: 9px 13px;
+  font-weight: 650;
+}
+button:hover {
+  border-color: #22d3ee;
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: wait;
+}
+button:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 3px solid #fbbf24;
+  outline-offset: 3px;
+}
+input[type="datetime-local"] {
+  background: #234964;
+  border: 1px solid #52728b;
+  color: #fff;
+  border-radius: 9px;
+  padding: 10px;
+  width: 100%;
+  font: inherit;
+}
+input[type="checkbox"] {
+  accent-color: #22d3ee;
+  margin: 10px 7px 10px 0;
+  width: 18px;
+  height: 18px;
+  vertical-align: middle;
+}
+input[type="range"] {
+  width: 100%;
+  accent-color: #fbbf24;
+  margin: 15px 0;
+}
+label {
+  display: block;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-lo);
+  margin: 6px 0;
+}
+label input,
+label select {
+  margin-top: 5px;
+}
+.two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+.button-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 9px;
+  margin: 12px 0;
+}
+.button-row label {
+  flex: 1;
+  min-width: 100px;
+}
+summary {
+  font-size: 13px;
+  padding: 6px 0;
+}
+.check-row {
+  line-height: 1.6;
+}
+#timePosition {
+  display: block;
+  line-height: 1.8;
+  color: #ffe099;
+  font-size: 14px;
+}
+#predictionWarnings {
+  color: #ffe099;
+  font-size: 13px;
+  line-height: 1.8;
+  padding-left: 20px;
+}
+#caseStatus,
+#contextStatus {
+  color: #ffe099;
+  font-size: 13px;
+  line-height: 1.8;
+}
+#sourceSummary {
+  font-size: 13px;
+  line-height: 1.8;
+}
+.table-scroll {
+  overflow: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+  line-height: 1.6;
+}
+th,
+td {
+  text-align: left;
+  border-bottom: 1px solid #3b6687;
+  padding: 9px;
+  white-space: nowrap;
+}
+caption {
+  text-align: left;
+  padding: 12px 0;
+}
+#contextValues .value {
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}
+#contextValues > p {
+  grid-column: 1/-1;
+}
+#navigationWarnings details p {
+  white-space: pre-wrap;
+  font-size: 13px;
+  line-height: 1.7;
+}
+#romsInfo p {
+  font-size: 13px;
+  line-height: 1.8;
+}
+ol {
+  padding-left: 20px;
+  font-size: 12px;
+  line-height: 1.8;
+  max-height: 260px;
+  overflow: auto;
+}
+.risk-badge.unknown {
+  background: #45505a;
+  color: white;
+}
+#aiConfidence {
+  font-size: 17px;
+}
+.map-label {
+  border: 0;
+  background: none;
+}
+.map-label span {
+  color: #06222e;
+  border-radius: 5px;
+  font-size: 11px;
+  white-space: nowrap;
+  font-weight: 700;
+  padding: 4px 7px;
+}
+.leaflet-tooltip {
+  color: #122d46;
+}
+.leaflet-control-attribution {
+  font-size: 10px;
+}
+.leaflet-control-attribution a {
+  color: #135d91;
+}
+.leaflet-container {
+  font-family: inherit;
+}
+#map {
+  height: 460px;
+  z-index: 0;
+}
+#printReportText {
+  display: none;
+}
+[hidden] {
+  display: none !important;
+}
+.footnote {
+  opacity: 1;
+}
+.card {
+  scroll-margin-top: 15px;
+}
+#resourceHub small {
+  font-size: 12px;
+  color: #b5cde5;
+}
+@media (min-width: 1100px) {
+  main {
+    max-width: 1450px;
+    display: grid;
+    grid-template-columns: 360px minmax(0, 1fr);
+    gap: 0 20px;
+    align-items: start;
+  }
+  .section-nav {
+    grid-column: 1/-1;
+  }
+  #inputCard {
+    grid-column: 1;
+    grid-row: 2 / span 4;
+    position: sticky;
+    top: 12px;
+    max-height: calc(100vh - 25px);
+    overflow: auto;
+  }
+  main > *:not(#inputCard):not(.section-nav) {
+    grid-column: 2;
+  }
+  #map {
+    height: 540px;
+  }
+}
+@media (max-width: 500px) {
+  .two-col {
+    gap: 7px;
+  }
+  #contextValues {
+    grid-template-columns: 1fr 1fr;
+  }
+  .button-row > button {
+    flex: 1;
+  }
+  #map {
+    height: 380px;
+  }
+  .search-list li {
+    flex-wrap: wrap;
+  }
+  .search-list li .k {
+    white-space: normal;
+  }
+}
+@media print {
+  body {
+    background: white;
+    color: black;
+  }
+  body > * {
+    display: none !important;
+  }
+  #printReportText {
+    display: block !important;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font: 11pt/1.6 sans-serif;
+    margin: 15mm;
+  }
+}
+
+#marineCard .stat-box .value {
+  font-size: 13px;
+  line-height: 1.7;
+  overflow-wrap: anywhere;
+}

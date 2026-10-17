@@ -1,181 +1,139 @@
-// ==========================================================================
-// 카카오맵 렌더링 전담 모듈
-// ※ kakao.maps SDK는 index.html의 <script> 태그로 전역 로드되므로 import하지
-//   않는다 (npm 패키지가 아니라 외부 스크립트다). window.kakao를 그대로 쓴다.
-// ==========================================================================
-
-let map = null;
-let clickMarker = null;
-let currentPolyline = null;
-let currentCircles = [];
-let currentMarkers = [];
-let currentRectangle = null;
-let monteCarloHullOverlay = null;
-let hfComparisonPolyline = null;
-let romsComparisonPolyline = null;
-
-export function initMap(containerId, onMapClick) {
-  return new Promise((resolve) => {
-    window.kakao.maps.load(() => {
-      const container = document.getElementById(containerId);
-      map = new window.kakao.maps.Map(container, { center: new window.kakao.maps.LatLng(36.023, 129.419), level: 8 });
-      clickMarker = new window.kakao.maps.Marker({ position: map.getCenter() });
-      clickMarker.setMap(map);
-
-      window.kakao.maps.event.addListener(map, 'click', (mouseEvent) => {
-        onMapClick(mouseEvent.latLng.getLat(), mouseEvent.latLng.getLng());
-      });
-      resolve(map);
-    });
+import L from "leaflet";
+import "leaflet/dist/leaflet.css";
+import { formatDMS } from "./geo.js";
+let map, clickMarker, prediction, hull, comparisons, selection, records;
+const icon = (text, color = "#22d3ee") =>
+  L.divIcon({
+    className: "map-label",
+    html: `<span style="background:${color}">${text}</span>`,
+    iconSize: [44, 24],
+    iconAnchor: [22, 12],
   });
+export async function initMap(id, onMapClick) {
+  map = L.map(id).setView([36.023, 129.419], 11);
+  L.tileLayer(
+    import.meta.env.VITE_TILE_URL ||
+      "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    {
+      maxZoom: 19,
+      attribution:
+        '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    },
+  ).addTo(map);
+  L.control.scale({ imperial: false }).addTo(map);
+  prediction = L.layerGroup().addTo(map);
+  hull = L.layerGroup().addTo(map);
+  comparisons = L.layerGroup().addTo(map);
+  selection = L.layerGroup().addTo(map);
+  records = L.layerGroup().addTo(map);
+  clickMarker = L.circleMarker([36.023, 129.419], {
+    radius: 7,
+    color: "#22d3ee",
+    fillOpacity: 1,
+  }).addTo(map);
+  map.on("click", (e) => onMapClick(e.latlng.lat, e.latlng.lng));
+  return map;
 }
-
 export function setMarkerPosition(lat, lon) {
-  const pos = new window.kakao.maps.LatLng(lat, lon);
-  clickMarker.setPosition(pos);
-  return pos;
+  clickMarker?.setLatLng([lat, lon]);
 }
-
-export function centerMap(lat, lon, level) {
-  map.setCenter(new window.kakao.maps.LatLng(lat, lon));
-  if (level) map.setLevel(level);
+export function centerMap(lat, lon) {
+  map?.panTo([lat, lon]);
 }
-
-function animateCircleFade(circle, targetOpacity, steps = 10, durationMs = 400) {
-  let step = 0;
-  const interval = setInterval(() => {
-    step++;
-    circle.setOptions({ fillOpacity: (targetOpacity * step) / steps });
-    if (step >= steps) clearInterval(interval);
-  }, durationMs / steps);
-}
-
-// 예측 결과 전체(경로선/오차원/시간마커/사각형/최종핀)를 지도에 그린다.
-export function renderPredictionPath({ startLat, startLon, pathPoints, hourlyRadii, strandedAt, finalErrorRadius }) {
+export function renderPredictionPath({
+  pathPoints,
+  hourlyRadii,
+  strandedAt,
+  finalErrorRadius,
+}) {
   clearPrediction();
-
-  const start = new window.kakao.maps.LatLng(startLat, startLon);
-  clickMarker.setPosition(start);
-
-  currentPolyline = new window.kakao.maps.Polyline({ path: [start], strokeWeight: 3, strokeColor: '#22D3EE', strokeOpacity: 0.9 });
-  currentPolyline.setMap(map);
-  const fullPath = [start, ...pathPoints.slice(1).map((p) => new window.kakao.maps.LatLng(p.lat, p.lon))];
-  fullPath.forEach((pos, idx) => {
-    setTimeout(() => currentPolyline.setPath(fullPath.slice(0, idx + 1)), idx * 140);
+  const path = pathPoints.map((p) => [p.lat, p.lon]);
+  L.polyline(path, { color: "#00a9bd", weight: 4 }).addTo(prediction);
+  pathPoints.forEach((p, i) => {
+    if (i === 0) return;
+    L.circle([p.lat, p.lon], {
+      radius: hourlyRadii[i],
+      color: "#ef6666",
+      weight: 1,
+      fillOpacity: 0.03,
+    }).addTo(prediction);
+    L.marker([p.lat, p.lon], { icon: icon(`${i}h`) }).addTo(prediction);
   });
-
-  pathPoints.slice(1).forEach((p, idx) => {
-    const hourNum = idx + 1;
-    const r = hourlyRadii[hourNum] ?? 0;
-    const isFinal = hourNum === (pathPoints.length - 1);
-    const pos = new window.kakao.maps.LatLng(p.lat, p.lon);
-
-    const c = new window.kakao.maps.Circle({
-      center: pos, radius: r, strokeWeight: 1, strokeColor: '#FF5C5C', strokeOpacity: 0.6, strokeStyle: 'shortdash',
-      fillColor: '#FF5C5C', fillOpacity: 0,
-    });
-    c.setMap(map);
-    currentCircles.push(c);
-    setTimeout(() => animateCircleFade(c, isFinal ? 0.2 : 0.06), idx * 140);
-
-    const label = new window.kakao.maps.CustomOverlay({
-      position: pos, content: `<div class="hour-marker bounce-in">${hourNum}h</div>`, yAnchor: 1.6,
-    });
-    setTimeout(() => label.setMap(map), idx * 140);
-    currentMarkers.push(label);
-  });
-
-  const finalPoint = pathPoints[pathPoints.length - 1];
-  const finalPos = new window.kakao.maps.LatLng(finalPoint.lat, finalPoint.lon);
-  const finalPin = new window.kakao.maps.CustomOverlay({
-    position: finalPos,
-    content: `<div class="final-pin bounce-in">
-                 <svg width="28" height="38" viewBox="0 0 28 38"><path d="M14 0C6 0 0 6.2 0 13.8 0 24 14 38 14 38s14-14 14-24.2C28 6.2 22 0 14 0z" fill="#FF5C5C" stroke="#06222E" stroke-width="1"/><circle cx="14" cy="14" r="5" fill="#06222E"/></svg>
-                 <div class="final-pin-label">${strandedAt ? `해안 도달 예상지점 (${strandedAt}h)` : '예상 최종지점'}</div>
-               </div>`,
-    yAnchor: 1, zIndex: 20,
-  });
-  setTimeout(() => finalPin.setMap(map), fullPath.length * 140 + 100);
-  currentMarkers.push(finalPin);
-
-  const innerCircle = new window.kakao.maps.Circle({
-    center: finalPos, radius: Math.round(finalErrorRadius * 0.5),
-    strokeWeight: 1.5, strokeColor: '#22D3EE', strokeOpacity: 0.7, strokeStyle: 'solid', fillColor: '#22D3EE', fillOpacity: 0,
-  });
-  innerCircle.setMap(map);
-  currentCircles.push(innerCircle);
-
-  const outerCircle = new window.kakao.maps.Circle({
-    center: finalPos, radius: finalErrorRadius,
-    strokeWeight: 2.6, strokeColor: '#FF5C5C', strokeOpacity: 0.9, strokeStyle: 'solid', fillColor: '#FF5C5C', fillOpacity: 0,
-  });
-  outerCircle.setMap(map);
-  currentCircles.push(outerCircle);
-
-  setTimeout(() => {
-    animateCircleFade(innerCircle, 0.14);
-    animateCircleFade(outerCircle, 0.16);
-  }, fullPath.length * 140);
-
-  const latOffset = finalErrorRadius / 111000;
-  const lonOffset = finalErrorRadius / (111000 * Math.cos((finalPoint.lat * Math.PI) / 180));
-  currentRectangle = new window.kakao.maps.Rectangle({
-    bounds: new window.kakao.maps.LatLngBounds(
-      new window.kakao.maps.LatLng(finalPoint.lat - latOffset, finalPoint.lon - lonOffset),
-      new window.kakao.maps.LatLng(finalPoint.lat + latOffset, finalPoint.lon + lonOffset)
-    ),
-    strokeWeight: 2, strokeColor: '#22D3EE', strokeOpacity: 0.6, strokeStyle: 'solid', fillColor: '#22D3EE', fillOpacity: 0.03,
-  });
-  currentRectangle.setMap(map);
-
-  centerMap(startLat, startLon, 9);
-  return { animationDurationMs: fullPath.length * 140 };
+  const end = path.at(-1);
+  const finalCircle = L.circle(end, {
+    radius: finalErrorRadius,
+    color: "#ef6666",
+    weight: 2,
+    fillOpacity: 0.08,
+  }).addTo(prediction);
+  L.marker(end, {
+    icon: icon(strandedAt !== null ? "해안 도달" : "종료점", "#ff7777"),
+  }).addTo(prediction);
+  const bounds = L.latLngBounds(path);
+  bounds.extend(finalCircle.getBounds());
+  map.fitBounds(bounds.pad(0.2), { maxZoom: 15 });
 }
-
-export function renderMonteCarloHull(hullFeature) {
-  if (!hullFeature || !hullFeature.geometry) return;
-  const coords = hullFeature.geometry.coordinates[0];
-  const path = coords.map((c) => new window.kakao.maps.LatLng(c[1], c[0]));
-  if (monteCarloHullOverlay) monteCarloHullOverlay.setMap(null);
-  monteCarloHullOverlay = new window.kakao.maps.Polygon({
-    path, strokeWeight: 2, strokeColor: '#A78BFA', strokeOpacity: 0.85, strokeStyle: 'solid', fillColor: '#A78BFA', fillOpacity: 0.12,
-  });
-  monteCarloHullOverlay.setMap(map);
+export function renderMonteCarloHull(feature) {
+  hull.clearLayers();
+  if (feature)
+    L.geoJSON(feature, {
+      style: { color: "#9467d7", weight: 2, fillOpacity: 0.1 },
+    }).addTo(hull);
 }
-
 export function renderComparisonPolylines({ hfPathLatLon, romsPathLatLon }) {
-  if (hfComparisonPolyline) { hfComparisonPolyline.setMap(null); hfComparisonPolyline = null; }
-  if (romsComparisonPolyline) { romsComparisonPolyline.setMap(null); romsComparisonPolyline = null; }
-
-  if (hfPathLatLon && hfPathLatLon.length > 1) {
-    hfComparisonPolyline = new window.kakao.maps.Polyline({
-      path: hfPathLatLon.map((p) => new window.kakao.maps.LatLng(p.lat, p.lon)),
-      strokeWeight: 2.5, strokeColor: '#FF9F1C', strokeOpacity: 0.85, strokeStyle: 'shortdash',
-    });
-    hfComparisonPolyline.setMap(map);
-  }
-  if (romsPathLatLon && romsPathLatLon.length > 1) {
-    romsComparisonPolyline = new window.kakao.maps.Polyline({
-      path: romsPathLatLon.map((p) => new window.kakao.maps.LatLng(p.lat, p.lon)),
-      strokeWeight: 2.5, strokeColor: '#A78BFA', strokeOpacity: 0.85, strokeStyle: 'shortdash',
-    });
-    romsComparisonPolyline.setMap(map);
-  }
+  comparisons.clearLayers();
+  for (const [p, color] of [
+    [hfPathLatLon, "#f99f1c"],
+    [romsPathLatLon, "#9467d7"],
+  ])
+    if (p?.length > 1)
+      L.polyline(
+        p.map((v) => [v.lat, v.lon]),
+        { color, dashArray: "5 5" },
+      ).addTo(comparisons);
 }
-
+export function showTimePosition(p) {
+  selection.clearLayers();
+  if (!p) return;
+  L.circle([p.lat, p.lon], {
+    radius: p.radius,
+    color: "#ffd166",
+    weight: 3,
+    fillOpacity: 0.12,
+  }).addTo(selection);
+  L.marker([p.lat, p.lon], { icon: icon("선택", "#ffd166") })
+    .addTo(selection)
+    .bindTooltip(formatDMS(p.lat, p.lon));
+  map.panTo([p.lat, p.lon]);
+}
+export function renderRecords(observations, searches) {
+  records.clearLayers();
+  for (const r of observations)
+    L.circleMarker([r.lat, r.lon], {
+      radius: 6,
+      color: "#ffbf47",
+      fillOpacity: 1,
+    })
+      .addTo(records)
+      .bindTooltip(document.createTextNode(`목격 ${formatDMS(r.lat, r.lon)}`));
+  for (const r of searches)
+    L.circle([r.lat, r.lon], {
+      radius: r.radius,
+      color: "#25b389",
+      dashArray: "6 4",
+      fillOpacity: 0.12,
+    })
+      .addTo(records)
+      .bindTooltip(document.createTextNode(`${r.method} / ${r.result}`));
+}
 export function clearPrediction() {
-  if (currentPolyline) { currentPolyline.setMap(null); currentPolyline = null; }
-  currentCircles.forEach((c) => c.setMap(null)); currentCircles = [];
-  currentMarkers.forEach((m) => m.setMap(null)); currentMarkers = [];
-  if (currentRectangle) { currentRectangle.setMap(null); currentRectangle = null; }
-  if (monteCarloHullOverlay) { monteCarloHullOverlay.setMap(null); monteCarloHullOverlay = null; }
-  if (hfComparisonPolyline) { hfComparisonPolyline.setMap(null); hfComparisonPolyline = null; }
-  if (romsComparisonPolyline) { romsComparisonPolyline.setMap(null); romsComparisonPolyline = null; }
+  prediction?.clearLayers();
+  hull?.clearLayers();
+  comparisons?.clearLayers();
+  selection?.clearLayers();
 }
-
 export function resetMapView() {
   clearPrediction();
-  const defaultPos = new window.kakao.maps.LatLng(36.023, 129.419);
-  clickMarker.setPosition(defaultPos);
-  centerMap(36.023, 129.419, 8);
+  map?.setView([36.023, 129.419], 11);
+  setMarkerPosition(36.023, 129.419);
 }
