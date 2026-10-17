@@ -20,14 +20,14 @@ function kstTime(v) {
 }
 async function textFetch(url) {
   const r=await fetch(url,{signal:AbortSignal.timeout(9000)});
-  if(!r.ok)throw new Error('제공기관 연결 실패');
+  if(!r.ok){const e=new Error('제공기관 연결 실패');e.upstreamStatus=r.status;throw e;}
   const b=await r.text(); if(b.length>4000000)throw new Error('자료 크기 제한 초과'); return b;
 }
 function items(data) {
   const r=data.response || data;
   if(!['00','0'].includes(String(r?.header?.resultCode))) {
     const code=String(r?.header?.resultCode || 'UNKNOWN').replace(/[^A-Z0-9_]/g,'').slice(0,24);
-    throw new Error(`제공기관 응답 확인 필요 (${code})`);
+    const e=new Error(`제공기관 응답 확인 필요 (${code})`);e.providerCode=code;throw e;
   }
   const i=r.body?.items?.item; return {rows:Array.isArray(i)?i:i?[i]:[],total:Number(r.body?.totalCount || 0)};
 }
@@ -70,5 +70,5 @@ export async function handler(event) {
       data={source:'KHOA 자연과학용 수심정보',fetchedAt:new Date().toISOString(),points,resolutionM:150,verticalDatum:'미검증',depthUnit:'활용가이드 추가 대조 필요',limitations:['150m 격자·광역 지형 참고','수심 단위·수직기준 검증 전 잠수 깊이·해도 수심으로 사용하지 않음','보간하거나 장애물 부재를 판단하지 않음']};
     }
     if(cache.size>100)cache.clear();cache.set(cacheKey,{time:Date.now(),data});return json(200,data);
-  }catch{return json(502,{error:'공식자료 수신·형식·이용권한 확인 필요',source:p.mode});}
+  }catch(e){return json(502,{error:'공식자료 수신·형식·이용권한 확인 필요',source:p.mode,...(e.providerCode?{providerCode:e.providerCode}:{}),...(e.upstreamStatus?{upstreamStatus:e.upstreamStatus}:{})});}
 }
