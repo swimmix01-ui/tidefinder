@@ -80,6 +80,14 @@ test("field workflow: manual prediction, timeline, sighting, records, safe text 
       document.querySelectorAll("[id]").length,
       "IDs must be unique",
     );
+    const tabs=[...document.querySelectorAll('.workspace-tabs button')];
+    assert.equal(tabs.length,4);
+    const mapNode=$("map");
+    tabs[3].click();assert.equal($("view-sources").hidden,false);assert.equal(document.querySelectorAll('.source-row').length,20);
+    const filter=document.querySelector('input[type="search"]');filter.value='자연과학';filter.dispatchEvent(new dom.window.Event('input'));
+    assert.equal(document.querySelectorAll('.source-row').length,1);
+    tabs[1].click();assert.equal($("view-plan").hidden,false);assert.equal($("status").closest('.workspace-panel'),null);
+    tabs[0].click();assert.equal($("map"),mapNode);assert.equal($("view-scene").hidden,false);
     $("manualCurrentEnabled").checked = true;
     $("manualCurrentSpeed").value = "10";
     $("manualCurrentDir").value = "90";

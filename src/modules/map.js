@@ -137,3 +137,29 @@ export function resetMapView() {
   map?.setView([36.023, 129.419], 11);
   setMarkerPosition(36.023, 129.419);
 }
+
+let observationStations, bathymetryReference;
+export function invalidateMapSize() { map?.invalidateSize(); }
+export function clearReferenceLayers() { observationStations?.clearLayers(); bathymetryReference?.clearLayers(); }
+export function renderObservationStations(stations) {
+  if(!map)return;
+  if(!observationStations)observationStations=L.layerGroup().addTo(map);
+  observationStations.clearLayers();
+  const grouped=new Map();
+  for(const s of stations){const key=`${s.lat}:${s.lon}`;if(!grouped.has(key))grouped.set(key,[]);grouped.get(key).push(s);}
+  for(const group of grouped.values()){
+    const s=group[0],label=document.createElement('div');
+    for(const row of group){const p=document.createElement('p');p.textContent=`${row.label} / ${row.value} / ${row.time}`;label.append(p);}
+    L.circleMarker([s.lat,s.lon],{radius:5,color:'#2a7896',fillColor:'#d8eff7',fillOpacity:1,weight:2}).addTo(observationStations).bindTooltip(label);
+    const flow=group.find(v=>Number.isFinite(v.direction)&&v.direction!==null&&v.direction>=0&&v.direction<=360);
+    if(flow){const arrow=L.divIcon({className:'current-direction',iconSize:[44,44],iconAnchor:[22,22],html:`<svg width="44" height="44" viewBox="0 0 44 44" style="transform:rotate(${flow.direction}deg)" aria-label="표층 유향"><path d="M22 38V7m-8 9 8-9 8 9" fill="none" stroke="#007f91" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`});const tip=document.createElement('div');tip.textContent=`표층 유향 ${flow.direction}° · 화살표 길이는 유속 크기를 뜻하지 않습니다.`;L.marker([s.lat,s.lon],{icon:arrow}).addTo(observationStations).bindTooltip(tip);}
+  }
+}
+export function renderBathymetryReference(points) {
+  if(!map)return;
+  if(!bathymetryReference)bathymetryReference=L.layerGroup().addTo(map);
+  bathymetryReference.clearLayers();
+  for(const p of points){const tip=document.createElement('div');tip.textContent=`150m 격자 / 원시 dpwt ${p.rawDepth} / 단위·수직기준 미검증`;
+    L.circleMarker([p.lat,p.lon],{radius:3,color:'#806f91',fillOpacity:.35,weight:1}).addTo(bathymetryReference).bindTooltip(tip);
+  }
+}

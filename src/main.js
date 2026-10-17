@@ -1,4 +1,6 @@
 import "./field.css";
+import "./workspace.css";
+import { mountWorkspace } from "./modules/workspace.js";
 import { decimalToDMS } from "./modules/geo.js";
 import {
   validateDms,
@@ -56,6 +58,7 @@ function setCoords(lat, lon) {
     $(prefix + "S").value = p.s;
   }
   map.setMarkerPosition(lat, lon);
+  document.dispatchEvent(new window.Event("tidefinder:location-changed"));
   ui.refreshInputCheckmarks();
 }
 function invalidate() {
@@ -213,6 +216,7 @@ async function handleRunPrediction() {
       },
     });
     lastResult = r;
+    document.dispatchEvent(new window.Event("tidefinder:prediction-ready"));
     ui.renderResultCard(r);
     showSources(r);
     recordPrediction(r, {
@@ -291,6 +295,7 @@ async function init() {
     },
   });
   resetIntelligence = mountIntelligence(coords);
+  mountWorkspace(coords);
   ensureCoastlineReady();
   loadSetnetGeoJSON();
   loadMarineStatus(coords());
@@ -319,7 +324,7 @@ async function init() {
     $(id).addEventListener("input", () => {
       invalidate();
       ui.refreshInputCheckmarks();
-      if (id.startsWith("lat") || id.startsWith("lon")) { resetIntelligence(); invalidateMarineStatus(); }
+      if (id.startsWith("lat") || id.startsWith("lon")) { resetIntelligence(); invalidateMarineStatus(); document.dispatchEvent(new window.Event("tidefinder:location-changed")); }
       ui.setStatus("warn", "입력이 변경됐습니다. 다시 계산하세요.");
     });
   }

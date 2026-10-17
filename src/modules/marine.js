@@ -1,3 +1,4 @@
+import { renderObservationStations, clearReferenceLayers } from "./map.js";
 import * as api from './api.js';
 import { DT_STATIONS, DT_RECENT_STATIONS, HF_STATIONS, SF_STATIONS, TW_STATIONS, getKmaStnId } from './constants.js';
 import { distanceBetween } from './geo.js';
@@ -16,7 +17,10 @@ function render(id, value, meta = '', state = 'missing') {
 }
 export function invalidateMarineStatus() {
   generation++;
+  clearReferenceLayers();
   ids.forEach(id => render(id, '—', '좌표 변경 · 새로고침 필요'));
+  const extra=document.getElementById('kmaRegionalComparison');if(extra)extra.replaceChildren();
+  const official=document.getElementById('officialMarineStatus');if(official)official.textContent='좌표 변경 · 새로고침 필요';
   document.getElementById('marineStationName').textContent = '좌표 변경';
   document.getElementById('marineFreshness').textContent = '기존 해역 자료 표시 해제';
   document.getElementById('marineObsTime').textContent = '새 좌표 조회 필요';
@@ -34,14 +38,17 @@ export async function loadMarineStatus(point = {lat:36.023,lon:129.419}) {
   const tomorrow=kstParts(new Date(now+86400000)).compact;
   const tasks=await Promise.allSettled([
     api.fetchMarineWeatherData(dt.code,date), api.fetchDtRecent(dtr.code,date), api.fetchTwRecent(tw.code,date), api.fetchWindData(point.lat,point.lon), api.fetchHfCurrentByStation(hf.code),
-    Promise.allSettled([api.fetchTideData(dt.code,date),api.fetchTideData(dt.code,tomorrow)]), api.fetchSeaFogData(sf.code,date), api.fetchAlertData(getKmaStnId(point.lat,point.lon))
+    Promise.allSettled([api.fetchTideData(dt.code,date),api.fetchTideData(dt.code,tomorrow)]), api.fetchSeaFogData(sf.code,date), api.fetchAlertData(getKmaStnId(point.lat,point.lon)),
+    (async()=>{ const r=await api.fetchWithTimeout(`/.netlify/functions/field-data?mode=kma&lat=${point.lat}&lon=${point.lon}`,11000);return r.json(); })()
   ]);
   if(request!==generation)return;
   const val=i=>tasks[i].status==='fulfilled'?tasks[i].value:null;
   const error=i=>tasks[i].status==='rejected'?tasks[i].reason.message:'시각·수치가 유효한 관측자료 없음';
+  const stationMarkers=[];
   const show=(id,item,station,value,label='실측')=>{
     if(!item)return false;
     const q=observationQuality(item,station,point), name=item.obsvtrNm || station.name;
+    if(!q.location.approximate)stationMarkers.push({lat:q.location.lat,lon:q.location.lon,label:name+' · '+label,value,direction:id==='marineHfCurrent'?Number(item.crdir):null,time:formatKst(parseKst(observationTime(item)))});
     render(id,value,`${label} · ${name} (${station.code}) · ${q.distanceKm.toFixed(1)}km${q.location.approximate?' 약':''} / ${formatKst(parseKst(observationTime(item)))} KST${q.flags.length?' / '+q.flags.join(' · '):''}`,q.flags.length?'caution':'observed');
     return true;
   };
@@ -52,16 +59,23 @@ export async function loadMarineStatus(point = {lat:36.023,lon:129.419}) {
     const it=latestMeasurement(marine?.[key],keys,min,max,now);
     if(!show(id,it,dt,`${measurement(it,keys,min,max)} ${unit}`)) render(id,'미확보',marine?.errors?.[key] || error(0));
   }
-  const candidates=[[val(1),dtr],[val(2),tw]].map(([data,station])=>({item:latestMeasurement(data,['wspd'],0,100,now),station})).filter(v=>v.item);
+  const kma=val(8), kmaCandidates=rows(kma?.records).filter(r=>r.lat!==null&&r.lon!==null).map(r=>({item:{obsrvnDt:r.time,lat:r.lat,lot:r.lon,obsvtrNm:r.name,wspd:r.windMS,wndrct:r.windFromDeg,wvhgt:r.significantWaveM},station:{name:r.name,code:'KMA '+r.code,lat:r.lat,lon:r.lon}}));
+  const kmaBox=document.getElementById('officialMarineStatus');
+  if(kmaBox)kmaBox.textContent=kmaCandidates.length?`기상청 해양관측 ${kmaCandidates.length}개 지점 좌표 결합 · 가까운 유효 관측 비교`:'기상청 해양관측 미수신 · 인증·권한·응답 확인 필요';
+  const candidates=[[val(1),dtr],[val(2),tw]].map(([data,station])=>({item:latestMeasurement(data,['wspd'],0,100,now),station})).concat(kmaCandidates).filter(v=>v.item && latestMeasurement([v.item],['wspd'],0,100,now));
   candidates.sort((a,b)=>{
     const qa=observationQuality(a.item,a.station,point,now),qb=observationQuality(b.item,b.station,point,now);
     return Number(qa.ageMinutes>90)-Number(qb.ageMinutes>90) || qa.distanceKm-qb.distanceKm || qa.ageMinutes-qb.ageMinutes;
   });
   const wind=candidates[0];
-  if(wind) {const dir=measurement(wind.item,['wndrct'],0,360);show('marineWind',wind.item,wind.station,`${dir===null?'방향 미확인':dir+'°'} / ${measurement(wind.item,['wspd'],0,100)} m/s`);}
+  if(wind) {const dir=measurement(wind.item,['wndrct'],0,360);show('marineWind',wind.item,wind.station,`${dir===null?'방향 미확인':dir+'°'} / ${measurement(wind.item,['wspd'],0,100)} m/s`,wind.station.code.startsWith('KMA')?'기상청 해상 실측':'실측');}
   else render('marineWind','미확보',`조위관측: ${error(1)} / 부이: ${error(2)}`);
-  const wave=latestMeasurement(val(2),['wvhgt'],0,30,now);
-  if(!show('marineWaveHeight',wave,tw,`${measurement(wave,['wvhgt'],0,30)} m`))render('marineWaveHeight','미확보',error(2));
+  const waveCandidates=[{item:latestMeasurement(val(2),['wvhgt'],0,30,now),station:tw},...kmaCandidates].filter(v=>v.item&&latestMeasurement([v.item],['wvhgt'],0,30,now));
+  waveCandidates.sort((a,b)=>{const qa=observationQuality(a.item,a.station,point,now),qb=observationQuality(b.item,b.station,point,now);return Number(qa.ageMinutes>90)-Number(qb.ageMinutes>90)||qa.distanceKm-qb.distanceKm;});
+  const wave=waveCandidates[0];
+  if(!wave || !show('marineWaveHeight',wave.item,wave.station,`${measurement(wave.item,['wvhgt'],0,30)} m`,wave.station.code.startsWith('KMA')?'기상청 유의파고 실측':'부이 파고 실측 · 통계정의 미검증'))render('marineWaveHeight','미확보',error(2));
+  const compare=document.getElementById('kmaRegionalComparison');
+  if(compare){compare.replaceChildren();for(const r of rows(kma?.records).filter(r=>['22106','22453','22490'].includes(r.code))){const line=document.createElement('p');line.className='help';line.textContent=`${r.name} (${r.code}) · ${formatKst(r.time)} KST / 유의파고 ${r.significantWaveM??'미수신'}m / 풍속 ${r.windMS??'미수신'}m/s${r.lat===null?' / 관측좌표 미결합':''}`;compare.append(line);}}
   const hfItems=rows(val(4)).filter(v=>latestMeasurement([v],['crsp'],0,1000,now)&&measurement(v,['crdir'],0,360)!==null&&measurement(v,['lat'],-90,90)!==null&&measurement(v,['lot'],-180,180)!==null);
   hfItems.sort((a,b)=>{
     const qa=observationQuality(a,hf,point,now),qb=observationQuality(b,hf,point,now);
@@ -86,6 +100,7 @@ export async function loadMarineStatus(point = {lat:36.023,lon:129.419}) {
   box.textContent=titles.length?`최근 발표 · 발효·해제 상태 미확인: ${titles.slice(0,3).join(' / ')}`:`특보 발효 상태 미확인${tasks[7].status==='rejected'?' · '+error(7):' · 발표목록만으로 무특보를 판단하지 않습니다.'}`;
   const observed=ids.slice(0,7).map(id=>document.getElementById(id).dataset.quality);
   const received=observed.filter(v=>v==='observed'||v==='caution').length;
+  renderObservationStations(stationMarkers);
   document.getElementById('marineFreshness').textContent=`실측 ${received}/7항목 수신 · 주의 ${observed.filter(v=>v==='caution').length}항목`;
   document.getElementById('marineObsTime').textContent=`조회 완료 ${formatKst(new Date())} KST · 관측시각은 항목별 표시`;
 }
