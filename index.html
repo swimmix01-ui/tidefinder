@@ -184,7 +184,7 @@
     </div>
     <div>
       <h1>타이드파인더 <span style="color:var(--cyan);font-weight:700;">TideFinder</span></h1>
-      <p class="tagline">해양 수색·현장 대응지원 시스템</p>
+      <p class="tagline">해상정보 · 표류예측</p>
       <p class="tagline2">실시간 조류·기상 데이터 기반 표류예측</p>
     </div>
   </div>
@@ -194,6 +194,16 @@
 </header>
 
 <main>
+  <section id="marineCard" class="card marine-overview">
+    <div class="marine-heading"><div><p class="eyebrow">MARINE OBSERVATIONS</p><h2>해상 관측정보</h2></div><a href="#inputCard" class="location-link">위치 변경 ↓</a></div>
+    <p class="selected-location">기준 좌표 <span id="marineStationName">조회 중</span></p>
+    <div class="marine-health"><strong id="marineFreshness">공식 관측자료 조회 중</strong><span id="marineObsTime">항목별 관측시각 확인</span></div>
+    <div class="observation-grid"><div class="observation-cell"><div class="label">표층 유향·유속</div><div class="value" id="marineHfCurrent">—</div></div><div class="observation-cell"><div class="label">관측 풍향·풍속</div><div class="value" id="marineWind">—</div></div><div class="observation-cell"><div class="label">관측 파고</div><div class="value" id="marineWaveHeight">—</div></div><div class="observation-cell"><div class="label">관측 시정</div><div class="value" id="marineVisibility">—</div></div><div class="observation-cell"><div class="label">수온</div><div class="value" id="marineWaterTemp">—</div></div><div class="observation-cell"><div class="label">기온</div><div class="value" id="marineAirTemp">—</div></div><div class="observation-cell"><div class="label">기압</div><div class="value" id="marineAirPress">—</div></div><div class="observation-cell"><div class="label">다음 조석 극치</div><div class="value" id="marineNextTide">—</div></div></div><div id="waveStatusPill" hidden></div><div id="windStatusPill" hidden></div>
+    <div id="marineAlertBox" role="status"></div>
+    <details class="forecast-disclosure"><summary>기상청 예보 별도 보기</summary><p class="help">관측값을 예보로 대체하지 않습니다. 단기예보 파고는 연안 격자 참고값입니다.</p><div class="observation-grid"><div class="observation-cell"><div class="label">예보 풍속</div><div class="value" id="marineForecastWind">—</div></div><div class="observation-cell"><div class="label">예보 파고</div><div class="value" id="marineForecastWave">—</div></div></div></details>
+    <details><summary>자료 출처·표시 기준</summary><p class="help">국립해양조사원 관측자료와 기상청 예보를 구분합니다. 관측점의 수치이며 선택 좌표의 직접 관측값이 아닙니다. 거리·시각은 항목별로 표시합니다. 90분 초과·30km 초과는 이 앱의 주의 표시 기준이며 기관 품질보증 기준이 아닙니다. 제공기관 품질 플래그를 검증하지 않은 자료입니다. 유향은 흘러가는 방향, 풍향은 불어오는 방향입니다.</p><p class="help"><a href="https://www.data.go.kr/data/15155531/openapi.do" target="_blank" rel="noopener">HF 실측 출처 ↗</a> · <a href="https://www.data.go.kr/data/15155516/openapi.do" target="_blank" rel="noopener">관측부이 출처 ↗</a> · <a href="https://www.data.go.kr/data/15156018/openapi.do" target="_blank" rel="noopener">조석예보 출처 ↗</a></p></details>
+  </section>
+
 
 
   <div class="card" id="inputCard">
@@ -306,25 +316,6 @@
   </button></div>
 
 
-  <div id="marineCard" class="card">
-    <div class="card-title">
-      <svg class="icon-svg" viewBox="0 0 24 24" fill="none"><path d="M2 18c1.5 1.2 3 1.2 4.5 0s3-1.2 4.5 0 3 1.2 4.5 0 3-1.2 4.5 0" stroke="#22D3EE" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="9" r="3.5" stroke="#22D3EE" stroke-width="1.6"/></svg>
-      현재 해상 상태 (<span id="marineStationName">포항</span>)
-    </div>
-    <div class="result-grid">
-      <div class="stat-box"><div class="label">수온</div><div class="value accent" id="marineWaterTemp">-</div></div>
-      <div class="stat-box"><div class="label">기온</div><div class="value accent" id="marineAirTemp">-</div></div>
-      <div class="stat-box"><div class="label">기압</div><div class="value accent" id="marineAirPress">-</div></div>
-      <div class="stat-box"><div class="label">파고 (참고용)</div><div class="value accent" id="marineWaveHeight">-</div><div id="waveStatusPill"></div></div>
-      <div class="stat-box"><div class="label">풍향/풍속</div><div class="value accent" id="marineWind">-</div><div id="windStatusPill"></div></div>
-      <div class="stat-box"><div class="label">시정</div><div class="value accent" id="marineVisibility">-</div></div>
-      <div class="stat-box"><div class="label">관측시각</div><div class="value" id="marineObsTime" style="font-size:13px;">-</div></div>
-      <div class="stat-box"><div class="label">관측정보 최신 여부</div><div class="value" id="marineFreshness" style="font-size:13px;">-</div></div>
-      <div class="stat-box"><div class="label">실측 유향/유속 (HF레이더)</div><div class="value accent" id="marineHfCurrent" style="font-size:13px;">-</div></div>
-      <div class="stat-box"><div class="label">다음 만조/간조</div><div class="value accent" id="marineNextTide" style="font-size:13px;">-</div></div>
-    </div>
-    <div id="marineAlertBox" style="display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(255,92,92,0.12);border:1px solid rgba(255,92,92,0.35);font-size:13px;color:var(--red);font-weight:700;"></div>
-  </div>
 
   <details id="fieldContext" class="card disclosure"><summary>추가 해황·항행경보<span>너울 · 시정 · 일출몰</span></summary><p class="help">선택 좌표의 보조모델 예보와 전국 항행경보를 조회합니다. 아래 실측 관측 카드와 구분해서 확인하세요.</p><div class="button-row"><button id="loadContext">너울·시정·일출몰 조회</button><button id="loadNavWarnings">항행경보 조회</button><button id="loadRoms">ROMS·HF 비교</button></div><div id="contextStatus" role="status"></div><div id="contextValues" class="result-grid"></div><div id="contextForecast" class="table-scroll"></div><div id="romsInfo"></div><div id="navigationWarnings"></div><p class="help">Open-Meteo / DWD / Météo-France / Copernicus / ECMWF · CC BY 4.0. 너울·해류·해수면은 광역 모델 참고값이며 연안 국지현상·해도 기준 조위와 다릅니다. <a href="https://open-meteo.com/en/docs/marine-weather-api" target="_blank" rel="noopener">자료 설명</a></p></details>
 

@@ -170,12 +170,12 @@ export async function handler(event) {
           headers: corsHeaders,
           body: JSON.stringify({ error: "reqDate 필요" }),
         };
-      url = `https://apis.data.go.kr/1192136/surveySeafog/GetSurveySeafogApiService?serviceKey=${SERVICE_KEY}&type=json&obsCode=${obsCode}&reqDate=${reqDate}&pageNo=1&numOfRows=100`;
+      url = `https://apis.data.go.kr/1192136/surveySeafog/GetSurveySeafogApiService?serviceKey=${SERVICE_KEY}&type=json&obsCode=${obsCode}&reqDate=${reqDate}&min=10&pageNo=1&numOfRows=1500`;
     }
     // HF 레이더 표층 해수유동(실측 유향·유속) 관측 API
     else if (mode === "hfcurrent") {
       const obsCode = params.obsCode || "HF_0071"; // 포항항 기본값 (실제 관측소 위치 확인 필요)
-      url = `https://apis.data.go.kr/1192136/hfCurrent/GetHFCurrentApiService?serviceKey=${SERVICE_KEY}&type=json&obsCode=${obsCode}&pageNo=1&numOfRows=10&include=lot,lat,obsrvnDt,crdir,crsp`;
+      url = `https://apis.data.go.kr/1192136/hfCurrent/GetHFCurrentApiService?serviceKey=${SERVICE_KEY}&type=json&obsCode=${obsCode}&pageNo=1&numOfRows=1000&include=lot,lat,obsrvnDt,crdir,crsp`;
     } else if (mode === "scuba") {
       const placeCode = params.placeCode || "SS1";
       const reqDate = params.reqDate;
@@ -241,7 +241,7 @@ export async function handler(event) {
           body: JSON.stringify({ error: "obsCode/reqDate 필요" }),
         };
       }
-      url = `https://apis.data.go.kr/1192136/twRecent/GetTWRecentApiService?serviceKey=${TW_SERVICE_KEY}&type=json&obsCode=${obsCode}&reqDate=${reqDate}&min=${min}&numOfRows=10&pageNo=1`;
+      url = `https://apis.data.go.kr/1192136/twRecent/GetTWRecentApiService?serviceKey=${TW_SERVICE_KEY}&type=json&obsCode=${obsCode}&reqDate=${reqDate}&min=${min}&numOfRows=100&pageNo=1`;
     } else if (mode === "dtrecent") {
       const { obsCode } = params;
       const reqDate = params.reqDate;
@@ -253,7 +253,7 @@ export async function handler(event) {
           body: JSON.stringify({ error: "obsCode/reqDate 필요" }),
         };
       }
-      url = `https://apis.data.go.kr/1192136/dtRecent/GetDTRecentApiService?serviceKey=${TW_SERVICE_KEY}&type=json&obsCode=${obsCode}&reqDate=${reqDate}&min=${min}&numOfRows=10&pageNo=1`;
+      url = `https://apis.data.go.kr/1192136/dtRecent/GetDTRecentApiService?serviceKey=${TW_SERVICE_KEY}&type=json&obsCode=${obsCode}&reqDate=${reqDate}&min=${min}&numOfRows=100&pageNo=1`;
     } else if (mode === "khoacurrent") {
       const { date, hour, minute, minX, maxX, minY, maxY } = params;
       if (!date || !hour || !minute || !minX || !maxX || !minY || !maxY) {

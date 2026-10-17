@@ -15,7 +15,7 @@ import {
 import * as map from "./modules/map.js";
 import * as ui from "./modules/ui.js";
 import { runPrediction } from "./predict.js";
-import { loadMarineStatus } from "./modules/marine.js";
+import { loadMarineStatus, invalidateMarineStatus } from "./modules/marine.js";
 import {
   mountOperations,
   recordPrediction,
@@ -319,8 +319,13 @@ async function init() {
     $(id).addEventListener("input", () => {
       invalidate();
       ui.refreshInputCheckmarks();
-      if (id.startsWith("lat") || id.startsWith("lon")) resetIntelligence();
+      if (id.startsWith("lat") || id.startsWith("lon")) { resetIntelligence(); invalidateMarineStatus(); }
       ui.setStatus("warn", "입력이 변경됐습니다. 다시 계산하세요.");
+    });
+  }
+  for (const id of ["latD", "latM", "latS", "lonD", "lonM", "lonS"]) {
+    $(id).addEventListener("change", () => {
+      try { loadMarineStatus(coords()); } catch { /* Wait for valid coordinates. */ }
     });
   }
   $("runPredictionBtn").addEventListener("click", handleRunPrediction);

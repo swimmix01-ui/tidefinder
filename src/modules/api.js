@@ -22,6 +22,22 @@ export async function fetchWithTimeout(url, timeoutMs = 8000, options = {}) {
   }
 }
 
+// HTTP 200 can still carry an upstream observation or authorization error.
+export function extractItems(data) {
+  const root = data?.response || data;
+  const code = root?.header?.resultCode;
+  if (code !== undefined && !["00", "0"].includes(String(code))) {
+    const messages = { "40": "관측소 일시 이용 불가", "03": "자료 없음", "20": "API 이용 권한 확인 필요", "30": "인증키 확인 필요", "22": "일일 조회 한도 초과" };
+    throw new Error(messages[String(code)] || `제공기관 응답 오류 (${String(code).replace(/[^0-9A-Z_]/g, "").slice(0, 30)})`);
+  }
+  const body = root?.body;
+  const raw = body?.items?.item;
+  const items = Array.isArray(raw) ? raw : raw ? [raw] : [];
+  if (finite(body?.totalCount) && Number(body.totalCount) > items.length)
+    throw new Error("전체 자료 미수신 · 일부 표본으로 최신·최근접 값을 확정할 수 없음");
+  return items;
+}
+
 function getKmaBaseDateTime() {
   // Wait 15 minutes after a published cycle; never depend on the device timezone.
   const now = new Date(Date.now() - 15 * 60000),
@@ -136,7 +152,7 @@ export async function fetchHfCurrentByStation(stationCode) {
     8000,
   );
   const data = await res.json();
-  return data?.body?.items?.item || data?.response?.body?.items?.item || null;
+  return extractItems(data);
 }
 
 // ==========================================================================
@@ -202,7 +218,7 @@ export async function fetchTideData(
   );
   if (!res.ok) return null;
   const data = await res.json();
-  return data?.body?.items?.item || data?.response?.body?.items?.item || null;
+  return extractItems(data);
 }
 
 // 기상특보 조회
@@ -217,27 +233,17 @@ export async function fetchAlertData(stnId) {
 
 // 조위관측소 실측(수온/기온/기압) 조회 - 3개를 동시에
 export async function fetchMarineWeatherData(obsCode, reqDate) {
-  const [waterRes, airRes, pressRes] = await Promise.all([
-    fetchWithTimeout(
-      `/.netlify/functions/weather?mode=watertemp&obsCode=${obsCode}&reqDate=${reqDate}`,
-    ),
-    fetchWithTimeout(
-      `/.netlify/functions/weather?mode=airtemp&obsCode=${obsCode}&reqDate=${reqDate}`,
-    ),
-    fetchWithTimeout(
-      `/.netlify/functions/weather?mode=airpress&obsCode=${obsCode}&reqDate=${reqDate}`,
-    ),
-  ]);
-  const [wData, aData, pData] = await Promise.all([
-    waterRes.json(),
-    airRes.json(),
-    pressRes.json(),
-  ]);
-  return {
-    water: wData?.body?.items?.item || wData?.response?.body?.items?.item,
-    air: aData?.body?.items?.item || aData?.response?.body?.items?.item,
-    press: pData?.body?.items?.item || pData?.response?.body?.items?.item,
-  };
+  const kinds = ["watertemp", "airtemp", "airpress"];
+  const results = await Promise.allSettled(kinds.map(async (mode) => {
+    const res = await fetchWithTimeout(`/.netlify/functions/weather?mode=${mode}&obsCode=${obsCode}&reqDate=${reqDate}`);
+    return extractItems(await res.json());
+  }));
+  const data = { errors: {} };
+  ["water", "air", "press"].forEach((key, i) => {
+    if (results[i].status === "fulfilled") data[key] = results[i].value;
+    else { data[key] = []; data.errors[key] = results[i].reason.message; }
+  });
+  return data;
 }
 
 export async function fetchSeaFogData(obsCode, reqDate) {
@@ -246,7 +252,7 @@ export async function fetchSeaFogData(obsCode, reqDate) {
   );
   if (!res.ok) return null;
   const data = await res.json();
-  return data?.body?.items?.item || data?.response?.body?.items?.item || null;
+  return extractItems(data);
 }
 
 // 스킨스쿠버 예보 (국립해양조사원) - 다이빙 지점 전용 파고/수온/시정 예보.
@@ -282,7 +288,7 @@ export async function fetchTwRecent(obsCode, reqDate) {
   //   있었음(2026-09-08 실측으로 확인) - 두 경로 다 시도해서 안전하게 처리.
   const item =
     data?.body?.items?.item || data?.response?.body?.items?.item || null;
-  return Array.isArray(item) ? item[0] : item;
+  return extractItems(data);
 }
 
 // 조위관측소 최신 관측데이터 - 실측 풍속(wspd)/풍향(wndrct) 등. 파고는 없음(조위관측소는
@@ -297,7 +303,7 @@ export async function fetchDtRecent(obsCode, reqDate) {
   if (!res.ok) return null;
   const item =
     data?.body?.items?.item || data?.response?.body?.items?.item || null;
-  return Array.isArray(item) ? item[0] : item;
+  return extractItems(data);
 }
 
 export { bearingToXY }; // predict.js 등에서 재사용 편의를 위한 re-export
