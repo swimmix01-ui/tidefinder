@@ -26,10 +26,10 @@ export function download(name, content, type = "application/json") {
 }
 export function mountOperations(cbs) {
   callbacks = cbs;
-  const section = document.createElement("section");
-  section.className = "card";
+  const section = document.createElement("details");
+  section.className = "card disclosure";
   section.id = "operationsCard";
-  section.innerHTML = `<h2>현장 기록·인계</h2><p class="help">기록은 이 화면에서 관리합니다. 기기 저장을 누른 경우에만 이 브라우저에 보관됩니다. 서버 동기화는 하지 않습니다.</p>
+  section.innerHTML = `<summary>현장 기록·인계<span>목격 · 수색 · 보고서</span></summary><p class="help">기록은 이 화면에서 관리합니다. 기기 저장을 누른 경우에만 이 브라우저에 보관됩니다. 서버 동기화는 하지 않습니다.</p>
   <label>사건명·훈련명<input id="caseName" type="text" maxlength="80" value="현장 수색"></label>
   <div class="button-row"><button id="saveCase">이 기기에 저장</button><button id="restoreCase">저장 기록 불러오기</button><button id="newCase">새 사건</button><button id="resetOrigin">최초 사고 위치로 복귀</button></div><p id="caseStatus" role="status"></p>
   <details open><summary>목격·실제 표류위치 기록</summary><div class="two-col"><label>위도 (십진수)<input id="observationLat" type="number" step="any" min="0" max="90"></label><label>경도 (십진수)<input id="observationLon" type="number" step="any" min="0" max="180"></label></div>

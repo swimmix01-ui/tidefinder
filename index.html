@@ -194,7 +194,7 @@
 </header>
 
 <main>
-<nav class="section-nav"><a href="#inputCard">사고 입력</a><a href="#map">예측 지도</a><a href="#fieldContext">해황·경보</a><a href="#operationsCard">현장 기록</a></nav>
+
 
   <div class="card" id="inputCard">
     <div class="card-title">
@@ -300,12 +300,12 @@
   <p class="help">청록: 중심경로 · 빨강: 추정 확산범위 · 보라: 입자 시뮬레이션 외곽 · 녹색: 수색 기록. 범위별 발견 확률은 검증되지 않았습니다. 배경지도는 해도가 아닙니다.</p>
   <div id="timelineCard" class="card" hidden><label for="predictionTime">예측 시각 선택</label><input id="predictionTime" type="range" min="0" max="360" step="1" value="360"><output id="timePosition"></output><div class="button-row"><button id="showNow">현재 예상 위치</button><label>도착까지 (분)<input id="arrivalMinutes" type="number" min="0" max="1440" value="30"></label><button id="showArrival">도착 시각 위치</button></div><p id="timelineMessage" class="help" role="status"></p></div></section>
   <section id="dataQuality" class="card" hidden><h2>예측 근거·자료 상태</h2><div id="sourceSummary"></div><ul id="predictionWarnings"></ul><details><summary>구간별 자료 시각·조회 거리</summary><div id="sourceTable" class="table-scroll"></div></details></section>
-  <button class="run-btn" id="resetMapBtn" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px; margin-top:-4px;">↺ 지도 초기화</button>
+  <div class="map-tools"><button class="run-btn" id="resetMapBtn" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px; margin-top:-4px;">지도 초기화</button>
   <button class="run-btn" onclick="openCoastView()" type="button" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px;">
-    🗻 3D 지형 보기 (CoastView, 새 탭)
-  </button>
+    3D 지형 ↗
+  </button></div>
 
-  <section id="fieldContext" class="card"><h2>현장 대응 브리핑</h2><p class="help">선택 좌표의 보조모델 예보와 전국 항행경보를 조회합니다. 아래 실측 관측 카드와 구분해서 확인하세요.</p><div class="button-row"><button id="loadContext">너울·시정·일출몰 조회</button><button id="loadNavWarnings">항행경보 조회</button><button id="loadRoms">ROMS·HF 비교</button></div><div id="contextStatus" role="status"></div><div id="contextValues" class="result-grid"></div><div id="contextForecast" class="table-scroll"></div><div id="romsInfo"></div><div id="navigationWarnings"></div><p class="help">Open-Meteo / DWD / Météo-France / Copernicus / ECMWF · CC BY 4.0. 너울·해류·해수면은 광역 모델 참고값이며 연안 국지현상·해도 기준 조위와 다릅니다. <a href="https://open-meteo.com/en/docs/marine-weather-api" target="_blank" rel="noopener">자료 설명</a></p></section>
+
   <div id="marineCard" class="card">
     <div class="card-title">
       <svg class="icon-svg" viewBox="0 0 24 24" fill="none"><path d="M2 18c1.5 1.2 3 1.2 4.5 0s3-1.2 4.5 0 3 1.2 4.5 0 3-1.2 4.5 0" stroke="#22D3EE" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="9" r="3.5" stroke="#22D3EE" stroke-width="1.6"/></svg>
@@ -325,6 +325,8 @@
     </div>
     <div id="marineAlertBox" style="display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(255,92,92,0.12);border:1px solid rgba(255,92,92,0.35);font-size:13px;color:var(--red);font-weight:700;"></div>
   </div>
+
+  <details id="fieldContext" class="card disclosure"><summary>추가 해황·항행경보<span>너울 · 시정 · 일출몰</span></summary><p class="help">선택 좌표의 보조모델 예보와 전국 항행경보를 조회합니다. 아래 실측 관측 카드와 구분해서 확인하세요.</p><div class="button-row"><button id="loadContext">너울·시정·일출몰 조회</button><button id="loadNavWarnings">항행경보 조회</button><button id="loadRoms">ROMS·HF 비교</button></div><div id="contextStatus" role="status"></div><div id="contextValues" class="result-grid"></div><div id="contextForecast" class="table-scroll"></div><div id="romsInfo"></div><div id="navigationWarnings"></div><p class="help">Open-Meteo / DWD / Météo-France / Copernicus / ECMWF · CC BY 4.0. 너울·해류·해수면은 광역 모델 참고값이며 연안 국지현상·해도 기준 조위와 다릅니다. <a href="https://open-meteo.com/en/docs/marine-weather-api" target="_blank" rel="noopener">자료 설명</a></p></details>
 
   <div id="aiCard" class="card" style="display:none;">
     <div class="card-title">

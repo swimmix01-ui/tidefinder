@@ -260,11 +260,11 @@ export function mountIntelligence(getCoords) {
       );
     } else text("p", "HF 실측 미수신", box);
   });
-  const resources = document.createElement("section");
-  resources.className = "card";
+  const resources = document.createElement("details");
+  resources.className = "card disclosure";
   resources.id = "resourceHub";
   resources.innerHTML =
-    '<h2>공개 해양정보 바로가기</h2><p class="help">실측·예보·통계의 용도를 구분해 활용하세요. 아래 링크는 외부 자료이며 자동으로 수색 예측에 반영되지 않습니다.</p>';
+    '<summary>공개 해양정보<span>관측 · 자료 출처</span></summary><p class="help">실측·예보·통계의 용도를 구분해 활용하세요. 아래 링크는 외부 자료이며 자동으로 수색 예측에 반영되지 않습니다.</p>';
   for (const [name, url, note] of [
     [
       "기상청 해양기상부이",

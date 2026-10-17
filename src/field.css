@@ -224,32 +224,6 @@ ol {
   font-size: 12px;
   color: #b5cde5;
 }
-@media (min-width: 1100px) {
-  main {
-    max-width: 1450px;
-    display: grid;
-    grid-template-columns: 360px minmax(0, 1fr);
-    gap: 0 20px;
-    align-items: start;
-  }
-  .section-nav {
-    grid-column: 1/-1;
-  }
-  #inputCard {
-    grid-column: 1;
-    grid-row: 2 / span 4;
-    position: sticky;
-    top: 12px;
-    max-height: calc(100vh - 25px);
-    overflow: auto;
-  }
-  main > *:not(#inputCard):not(.section-nav) {
-    grid-column: 2;
-  }
-  #map {
-    height: 540px;
-  }
-}
 @media (max-width: 500px) {
   .two-col {
     gap: 7px;
@@ -291,4 +265,43 @@ ol {
   font-size: 13px;
   line-height: 1.7;
   overflow-wrap: anywhere;
+}
+
+/* A quiet, single-column workspace keeps the prediction flow familiar. */
+body { background: #0b2033; }
+header { max-width: 820px; margin: auto; padding: 22px 20px; }
+header .tagline2 { display: none; }
+main { display: block; max-width: 820px; padding: 20px; }
+.card { background: #102e48; box-shadow: none; border-radius: 14px; padding: 20px; margin-bottom: 16px; }
+.card-title { letter-spacing: 0; color: var(--text-hi); }
+.field-label .check-icon { display: none; }
+#inputCard { position: static; max-height: none; overflow: visible; }
+#status { background: transparent; border: 0; padding: 4px 2px; font-size: 12px; font-weight: 400; }
+#map { height: 420px; border-radius: 14px; }
+.run-btn { box-shadow: none; }
+#useLocationBtn { font-size: 13px; min-height: 40px; padding: 9px; }
+.map-tools { display: flex; gap: 10px; margin: 4px 0 20px; }
+.map-tools .run-btn { width: auto; flex: 1; margin: 0 !important; padding: 10px; font-size: 12px; border: 1px solid var(--border); }
+.disclosure { border-top: 1px solid var(--border); padding: 0 20px; }
+.disclosure > summary { list-style: none; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 18px 0; font-size: 14px; font-weight: 650; color: var(--text-hi); }
+.disclosure > summary::-webkit-details-marker { display: none; }
+.disclosure > summary::after { content: '+'; margin-left: auto; color: var(--cyan); font-size: 20px; font-weight: 400; }
+.disclosure[open] > summary::after { content: '−'; }
+.disclosure > summary span { font-size: 11px; color: var(--text-lo); font-weight: 400; }
+.disclosure[open] { padding-bottom: 20px; }
+.disclosure[open] > summary { border-bottom: 1px solid var(--border); margin-bottom: 14px; }
+#marineCard .result-grid { gap: 0; }
+#marineCard .stat-box { background: transparent; border: 0; border-bottom: 1px solid var(--border); border-radius: 0; padding: 12px 6px; }
+#marineCard .value.accent { color: var(--text-hi); }
+@media (min-width: 600px) {
+  #inputCard { display: grid; grid-template-columns: 1fr 1fr; column-gap: 24px; }
+  #inputCard > .card-title, #inputCard > details, #originNote, #runPredictionBtn, #useLocationBtn { grid-column: 1/-1; }
+}
+@media (max-width: 500px) {
+  header { padding: 18px 16px; }
+  main { padding: 14px; }
+  .card { padding: 16px; }
+  #map { height: 340px; }
+  .disclosure { padding: 0 16px; }
+  .disclosure > summary span { display: none; }
 }
