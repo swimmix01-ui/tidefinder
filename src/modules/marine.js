@@ -59,7 +59,7 @@ export async function loadMarineStatus(point = {lat:36.023,lon:129.419}) {
     const it=latestMeasurement(marine?.[key],keys,min,max,now);
     if(!show(id,it,dt,`${measurement(it,keys,min,max)} ${unit}`)) render(id,'미확보',marine?.errors?.[key] || error(0));
   }
-  const kma=val(8), kmaCandidates=rows(kma?.records).filter(r=>r.lat!==null&&r.lon!==null).map(r=>({item:{obsrvnDt:r.time,lat:r.lat,lot:r.lon,obsvtrNm:r.name,wspd:r.windMS,wndrct:r.windFromDeg,wvhgt:r.significantWaveM},station:{name:r.name,code:'KMA '+r.code,lat:r.lat,lon:r.lon}}));
+  const kma=val(8), kmaCandidates=rows(kma?.records).filter(r=>r.lat!==null&&r.lon!==null).map(r=>({item:{obsrvnDt:r.time,lat:r.lat,lot:r.lon,obsvtrNm:r.name,wspd:r.windMS,wndrct:r.windFromDeg,wvhgt:r.significantWaveM,wavePeriodS:r.wavePeriodS},station:{name:r.name,code:'KMA '+r.code,lat:r.lat,lon:r.lon}}));
   const kmaBox=document.getElementById('officialMarineStatus');
   if(kmaBox)kmaBox.textContent=kmaCandidates.length?`기상청 해양관측 ${kmaCandidates.length}개 지점 좌표 결합 · 가까운 유효 관측 비교`:'기상청 해양관측 미수신 · 인증·권한·응답 확인 필요';
   const candidates=[[val(1),dtr],[val(2),tw]].map(([data,station])=>({item:latestMeasurement(data,['wspd'],0,100,now),station})).concat(kmaCandidates).filter(v=>v.item && latestMeasurement([v.item],['wspd'],0,100,now));
@@ -73,9 +73,9 @@ export async function loadMarineStatus(point = {lat:36.023,lon:129.419}) {
   const waveCandidates=[{item:latestMeasurement(val(2),['wvhgt'],0,30,now),station:tw},...kmaCandidates].filter(v=>v.item&&latestMeasurement([v.item],['wvhgt'],0,30,now));
   waveCandidates.sort((a,b)=>{const qa=observationQuality(a.item,a.station,point,now),qb=observationQuality(b.item,b.station,point,now);return Number(qa.ageMinutes>90)-Number(qb.ageMinutes>90)||qa.distanceKm-qb.distanceKm;});
   const wave=waveCandidates[0];
-  if(!wave || !show('marineWaveHeight',wave.item,wave.station,`${measurement(wave.item,['wvhgt'],0,30)} m`,wave.station.code.startsWith('KMA')?'기상청 유의파고 실측':'부이 파고 실측 · 통계정의 미검증'))render('marineWaveHeight','미확보',error(2));
+  if(!wave || !show('marineWaveHeight',wave.item,wave.station,`${measurement(wave.item,['wvhgt'],0,30)} m`,wave.station.code.startsWith('KMA')?`기상청 유의파고 실측${wave.item.wavePeriodS!==null?' · 주기 '+wave.item.wavePeriodS+'s':''}`:'부이 파고 실측 · 통계정의 미검증'))render('marineWaveHeight','미확보',error(2));
   const compare=document.getElementById('kmaRegionalComparison');
-  if(compare){compare.replaceChildren();for(const r of rows(kma?.records).filter(r=>['22106','22453','22490'].includes(r.code))){const line=document.createElement('p');line.className='help';line.textContent=`${r.name} (${r.code}) · ${formatKst(r.time)} KST / 유의파고 ${r.significantWaveM??'미수신'}m / 풍속 ${r.windMS??'미수신'}m/s${r.lat===null?' / 관측좌표 미결합':''}`;compare.append(line);}}
+  if(compare){compare.replaceChildren();for(const r of rows(kma?.records).filter(r=>['22106','22453','22490'].includes(r.code))){const line=document.createElement('p');line.className='help';line.textContent=`${r.name} (${r.code}) · ${formatKst(r.time)} KST / 유의파고 ${r.significantWaveM??'미수신'}m / 풍속 ${r.windMS??'미수신'}m/s / 파주기 ${r.wavePeriodS??'미수신'}s${r.lat===null?' / 관측좌표 미결합':''}`;compare.append(line);}}
   const hfItems=rows(val(4)).filter(v=>latestMeasurement([v],['crsp'],0,1000,now)&&measurement(v,['crdir'],0,360)!==null&&measurement(v,['lat'],-90,90)!==null&&measurement(v,['lot'],-180,180)!==null);
   hfItems.sort((a,b)=>{
     const qa=observationQuality(a,hf,point,now),qb=observationQuality(b,hf,point,now);

@@ -39,7 +39,7 @@ export function mountWorkspace(getCoords) {
   const locationLink=document.querySelector('.location-link');locationLink.addEventListener('click',e=>{e.preventDefault();show('plan');});
   document.addEventListener('tidefinder:prediction-ready',()=>show('scene'));
   function selectionChanged(){clearReferenceLayers();bathyValues.replaceChildren();bathyStatus.textContent='선택 좌표의 수심자료 조회 대기';const kma=$('kmaRegionalComparison');if(kma)kma.replaceChildren();try{const p=getCoords();selected.textContent=`${p.lat.toFixed(5)}°N  ${p.lon.toFixed(5)}°E`;}catch{selected.textContent='좌표 입력 확인 필요';}}
-  document.addEventListener('tidefinder:location-changed',selectionChanged);selectionChanged();
+  document.addEventListener('tidefinder:location-changed',selectionChanged);selectionChanged();requestAnimationFrame(invalidateMapSize);
   let pending=false;
   bathyButton.addEventListener('click',async()=>{
     if(pending)return;pending=true;bathyButton.disabled=true;bathy.open=true;

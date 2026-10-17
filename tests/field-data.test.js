@@ -14,8 +14,8 @@ test('KMA parser requires named fields and never guesses positions from an unkno
 test('KMA schema fixtures join coordinates, preserve missing values, and do not leak the auth key',async()=>{
   const prior=process.env.KMA_AUTH_KEY, old=globalThis.fetch;process.env.KMA_AUTH_KEY='fixture-only-not-a-real-key';
   const tm=new Date(Date.now()+9*3600000).toISOString().slice(0,16).replace(/[-T:]/g,'');
-  globalThis.fetch=async url=>new Response(String(url).includes('stn_inf.php')?'# STN_ID LAT LON STN_KO\n22106 36.3 129.7 포항':`# TP STN_ID STN_KO TM WH WD WS WS_GST TW TA PA HM\nBUOY 22106 포항 ${tm} 0.5 270 4.2 -99 22 20 1025 80`);
-  try{const r=await handler(query('kma','36.024'));assert.equal(r.statusCode,200);const d=JSON.parse(r.body);assert.equal(d.records[0].lat,36.3);assert.equal(d.records[0].windMS,4.2);assert.equal(d.records[0].gustMS,null);assert.ok(!r.body.includes('fixture-only-not-a-real-key'));}finally{globalThis.fetch=old;if(prior===undefined)delete process.env.KMA_AUTH_KEY;else process.env.KMA_AUTH_KEY=prior;}
+  globalThis.fetch=async url=>new Response(String(url).includes('kma_buoy.php')?`# TM STN WH_SIG WP WH_MAX WO\n${tm} 22106 0.5 6.2 0.9 90`:String(url).includes('stn_inf.php')?'# STN_ID LAT LON STN_KO\n22106 36.3 129.7 포항':`# TP STN_ID STN_KO TM WH WD WS WS_GST TW TA PA HM\nBUOY 22106 포항 ${tm} 0.5 270 4.2 -99 22 20 1025 80`);
+  try{const r=await handler(query('kma','36.024'));assert.equal(r.statusCode,200);const d=JSON.parse(r.body);assert.equal(d.records[0].lat,36.3);assert.equal(d.records[0].windMS,4.2);assert.equal(d.records[0].gustMS,null);assert.equal(d.records[0].wavePeriodS,6.2);assert.ok(!r.body.includes('fixture-only-not-a-real-key'));}finally{globalThis.fetch=old;if(prior===undefined)delete process.env.KMA_AUTH_KEY;else process.env.KMA_AUTH_KEY=prior;}
 });
 test('bathymetry stays a raw 150m reference with an unverified datum and refuses incomplete results',async()=>{
   const prior=process.env.SERVICE_KEY, old=globalThis.fetch;process.env.SERVICE_KEY='fixture-key';

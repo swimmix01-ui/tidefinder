@@ -38,21 +38,25 @@ export async function handler(event) {
   if(!['kma','bathymetry'].includes(p.mode))return json(400,{error:'지원하지 않는 자료 종류'});
   const keyName=p.mode==='kma'?'KMA_AUTH_KEY':'SERVICE_KEY',key=process.env[keyName];
   if(!key)return json(503,{error:'활용신청·인증키 설정 대기',configuration:keyName,source:p.mode});
-  const cacheKey=`${p.mode}:${lat.toFixed(4)}:${lon.toFixed(4)}`;
+  const cacheKey=p.mode==='kma'?'kma:all':`${p.mode}:${lat.toFixed(4)}:${lon.toFixed(4)}`;
   const hit=cache.get(cacheKey);if(hit&&Date.now()-hit.time<120000)return json(200,{...hit.data,cached:true});
   try {
     let data;
     if(p.mode==='kma') {
       const urls=[`https://apihub.kma.go.kr/api/typ01/url/sea_obs.php?stn=0&help=1&authKey=${encodeURIComponent(key)}`,`https://apihub.kma.go.kr/api/typ01/url/stn_inf.php?inf=BUOY&stn=0&help=1&authKey=${encodeURIComponent(key)}`];
-      const [obs,stations]=await Promise.all(urls.map(textFetch));
+      const results=await Promise.allSettled([...urls,`https://apihub.kma.go.kr/api/typ01/url/kma_buoy.php?stn=0&help=1&authKey=${encodeURIComponent(key)}`].map(textFetch));
+      if(results[0].status!=='fulfilled'||results[1].status!=='fulfilled')throw new Error('기상청 관측·좌표 미수신');
+      const obs=results[0].value,stations=results[1].value;
+      let waveDetails=[];
+      try { waveDetails=parseKmaTable(results[2].status==='fulfilled'?results[2].value:'',['TM','STN','WH_SIG','WP']); } catch { /* Basic observations remain usable; detail fields stay missing. */ }
       const metadata=new Map(parseKmaTable(stations,['STN_ID','LAT','LON']).map(v=>[v.STN_ID,v]));
       const records=parseKmaTable(obs,['STN_ID','TM','WH','WD','WS']).flatMap(v=>{
         const t=kstTime(v.TM);if(!t || +new Date(t)>Date.now()+300000)return [];
-        const m=metadata.get(v.STN_ID);
+        const m=metadata.get(v.STN_ID), detail=waveDetails.find(w=>w.STN===v.STN_ID&&w.TM===v.TM);
         return [{code:v.STN_ID,name:v.STN_KO || m?.STN_KO || v.STN_ID,time:t,
           lat:number(m?.LAT,-90,90),lon:number(m?.LON,-180,180),
           windMS:number(v.WS,0,100),windFromDeg:number(v.WD,0,360),gustMS:number(v.WS_GST,0,150),
-          significantWaveM:number(v.WH,0,30),waterTempC:number(v.TW,-3,45),
+          significantWaveM:number(v.WH,0,30),wavePeriodS:number(detail?.WP,0,60),maximumWaveM:number(detail?.WH_MAX,0,40),waveDirectionDeg:number(detail?.WO,0,360),waterTempC:number(v.TW,-3,45),
           source:'기상청 해양종합관측',quality:'기관 QC 플래그 미검증'}];
       });
       if(!records.length)throw new Error('유효한 기상청 관측자료 미수신');
