@@ -23,7 +23,7 @@ export async function fetchWithTimeout(url, timeoutMs = 8000, options = {}) {
 }
 
 // HTTP 200 can still carry an upstream observation or authorization error.
-export function extractItems(data) {
+export function extractItems(data, allowPartial = false) {
   const root = data?.response || data;
   const code = root?.header?.resultCode;
   if (code !== undefined && !["00", "0"].includes(String(code))) {
@@ -33,7 +33,7 @@ export function extractItems(data) {
   const body = root?.body;
   const raw = body?.items?.item;
   const items = Array.isArray(raw) ? raw : raw ? [raw] : [];
-  if (finite(body?.totalCount) && Number(body.totalCount) > items.length)
+  if (!allowPartial && finite(body?.totalCount) && Number(body.totalCount) > items.length)
     throw new Error("전체 자료 미수신 · 일부 표본으로 최신·최근접 값을 확정할 수 없음");
   return items;
 }
@@ -247,12 +247,28 @@ export async function fetchMarineWeatherData(obsCode, reqDate) {
 }
 
 export async function fetchSeaFogData(obsCode, reqDate) {
-  const res = await fetchWithTimeout(
-    `/.netlify/functions/weather?mode=seafog&obsCode=${obsCode}&reqDate=${reqDate}`,
-  );
-  if (!res.ok) return null;
-  const data = await res.json();
-  return extractItems(data);
+  const base = `/.netlify/functions/weather?mode=seafog&obsCode=${obsCode}&reqDate=${reqDate}`;
+  const first = await (await fetchWithTimeout(base + "&pageNo=1")).json();
+  const items = extractItems(first, true), body = (first.response || first).body;
+  const count = Number(body?.totalCount ?? items.length);
+  const pageSize = Number(body?.numOfRows ?? 100);
+  if (!Number.isInteger(count) || count < 0 || !Number.isInteger(pageSize) || pageSize < 1)
+    throw new Error("시정 응답 페이지 정보 오류");
+  const pages = Math.ceil(count / pageSize);
+  if (pages > 30) throw new Error("시정 전체 자료 조회 범위 초과");
+  // Provider page limits are preserved. Fetch remaining pages in bounded batches.
+  for (let p = 2; p <= pages; p += 4) {
+    const batch = await Promise.all(Array.from({length: Math.min(4, pages-p+1)}, async (_,i) => {
+      const page = p+i, data = await (await fetchWithTimeout(base + "&pageNo=" + page)).json();
+      const result = extractItems(data, true), b = (data.response || data).body;
+      if (Number(b?.pageNo) !== page || Number(b?.totalCount) !== count)
+        throw new Error("시정 자료 갱신 중 · 다시 조회하세요");
+      return result;
+    }));
+    items.push(...batch.flat());
+  }
+  if (items.length < count) throw new Error("시정 전체 자료 미수신");
+  return items;
 }
 
 // 스킨스쿠버 예보 (국립해양조사원) - 다이빙 지점 전용 파고/수온/시정 예보.

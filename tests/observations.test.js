@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { latestMeasurement, measurement, observationQuality } from '../src/modules/observations.js';
-import { extractItems, fetchMarineWeatherData, fetchTwRecent } from '../src/modules/api.js';
+import { extractItems, fetchMarineWeatherData, fetchTwRecent, fetchSeaFogData } from '../src/modules/api.js';
 const now = +new Date('2026-10-17T10:10:00Z');
 test('latest usable observation is independent of response order and rejects sentinels/future timestamps',()=>{
   const sample=[{obsrvnDt:'2026-10-17 00:00',wspd:2},{obsrvnDt:'2026-10-17 19:00',wspd:5},{obsrvnDt:'2026-10-17 19:05',wspd:-99},{obsrvnDt:'2026-10-18 00:00',wspd:8}];
@@ -34,4 +34,14 @@ test('one failed weather measurement does not remove other received measurements
     assert.equal(r.water[0].wtem,22);assert.equal(r.press[0].atmpr,1025);assert.match(r.errors.air,/기온 장애/);
     assert.equal((await fetchTwRecent('TW_0095','20261017')).length,2);
   }finally{globalThis.fetch=old;}
+});
+
+test('visibility pagination respects provider row limits and collects the full series',async()=>{
+  const old=globalThis.fetch, seen=[];
+  globalThis.fetch=async url=>{
+    const page=Number(new URL(String(url),'http://test').searchParams.get('pageNo')); seen.push(page);
+    const item=Array.from({length:page===3?5:100},(_,i)=>({obsrvnDt:'2026-10-17 19:05',dtvsbV20kLen:10000,index:(page-1)*100+i}));
+    return new Response(JSON.stringify({header:{resultCode:'00'},body:{totalCount:205,numOfRows:100,pageNo:page,items:{item}}}));
+  };
+  try{const items=await fetchSeaFogData('SF_0011','20261017');assert.equal(items.length,205);assert.deepEqual(seen.sort(),[1,2,3]);}finally{globalThis.fetch=old;}
 });

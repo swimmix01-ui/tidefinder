@@ -98,6 +98,8 @@ export async function handler(event) {
         body: JSON.stringify({ error: "숫자 파라미터 필요" }),
       };
   }
+  if (params.pageNo && (!/^\d+$/.test(params.pageNo) || Number(params.pageNo) < 1 || Number(params.pageNo) > 30))
+    return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: "잘못된 페이지" }) };
   try {
     let url = "";
 
@@ -170,12 +172,12 @@ export async function handler(event) {
           headers: corsHeaders,
           body: JSON.stringify({ error: "reqDate 필요" }),
         };
-      url = `https://apis.data.go.kr/1192136/surveySeafog/GetSurveySeafogApiService?serviceKey=${SERVICE_KEY}&type=json&obsCode=${obsCode}&reqDate=${reqDate}&min=10&pageNo=1&numOfRows=1500`;
+      url = `https://apis.data.go.kr/1192136/surveySeafog/GetSurveySeafogApiService?serviceKey=${SERVICE_KEY}&type=json&obsCode=${obsCode}&reqDate=${reqDate}&pageNo=${params.pageNo || "1"}&numOfRows=100`;
     }
     // HF 레이더 표층 해수유동(실측 유향·유속) 관측 API
     else if (mode === "hfcurrent") {
       const obsCode = params.obsCode || "HF_0071"; // 포항항 기본값 (실제 관측소 위치 확인 필요)
-      url = `https://apis.data.go.kr/1192136/hfCurrent/GetHFCurrentApiService?serviceKey=${SERVICE_KEY}&type=json&obsCode=${obsCode}&pageNo=1&numOfRows=1000&include=lot,lat,obsrvnDt,crdir,crsp`;
+      url = `https://apis.data.go.kr/1192136/hfCurrent/GetHFCurrentApiService?serviceKey=${SERVICE_KEY}&type=json&obsCode=${obsCode}&pageNo=1&numOfRows=100&include=lot,lat,obsrvnDt,crdir,crsp`;
     } else if (mode === "scuba") {
       const placeCode = params.placeCode || "SS1";
       const reqDate = params.reqDate;
