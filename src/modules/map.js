@@ -152,7 +152,7 @@ export function renderObservationStations(stations) {
     for(const row of group){const p=document.createElement('p');p.textContent=`${row.label} / ${row.value} / ${row.time}`;label.append(p);}
     L.circleMarker([s.lat,s.lon],{radius:5,color:'#2a7896',fillColor:'#d8eff7',fillOpacity:1,weight:2}).addTo(observationStations).bindTooltip(label);
     const flow=group.find(v=>Number.isFinite(v.direction)&&v.direction!==null&&v.direction>=0&&v.direction<=360);
-    if(flow){const arrow=L.divIcon({className:'current-direction',iconSize:[44,44],iconAnchor:[22,22],html:`<svg width="44" height="44" viewBox="0 0 44 44" style="transform:rotate(${flow.direction}deg)" aria-label="표층 유향"><path d="M22 38V7m-8 9 8-9 8 9" fill="none" stroke="#007f91" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`});const tip=document.createElement('div');tip.textContent=`표층 유향 ${flow.direction}° · 화살표 길이는 유속 크기를 뜻하지 않습니다.`;L.marker([s.lat,s.lon],{icon:arrow}).addTo(observationStations).bindTooltip(tip);}
+    if(flow){const flowColor=flow.quality==='caution'?'#b07a29':'#007f91';const arrow=L.divIcon({className:'current-direction',iconSize:[44,44],iconAnchor:[22,22],html:`<svg width="44" height="44" viewBox="0 0 44 44" style="transform:rotate(${flow.direction}deg)" aria-label="표층 유향"><path d="M22 38V7m-8 9 8-9 8 9" fill="none" stroke="${flowColor}" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/></svg>`});const tip=document.createElement('div');tip.textContent=`표층 유향 ${flow.direction}°${flow.quality==='caution'?' · 지연·원거리 주의':''} · 화살표 길이는 유속 크기를 뜻하지 않습니다.`;L.marker([s.lat,s.lon],{icon:arrow}).addTo(observationStations).bindTooltip(tip);}
   }
 }
 export function renderBathymetryReference(points) {

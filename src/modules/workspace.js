@@ -13,9 +13,9 @@ export function mountWorkspace(getCoords) {
   const intro=node('div',null,scene,'scene-title');node('div','현장 상황판',intro,'scene-label');const selected=node('strong','사고 해역을 지도에서 선택하세요',intro);selected.id='selectedScenePoint';
   const quick=node('div',null,scene,'quick-strip');
   for(const [id,title]of [['marineHfCurrent','표층 흐름'],['marineWind','관측 바람'],['marineWaveHeight','관측 파고']]) {
-    const cell=node('div',null,quick);node('span',title,cell,'quick-label');const value=node('strong','조회 중',cell), source=$(id);
-    const sync=()=>{value.textContent=source.querySelector('.reading')?.textContent || source.textContent;};
-    new window.MutationObserver(sync).observe(source,{subtree:true,childList:true,characterData:true});sync();
+    const cell=node('div',null,quick);node('span',title,cell,'quick-label');const value=node('strong','조회 중',cell),meta=node('small','관측 근거 확인 중',cell,'quick-meta'), source=$(id);
+    const sync=()=>{value.textContent=source.querySelector('.reading')?.textContent || source.textContent;value.dataset.quality=source.dataset.quality;const detail=source.querySelector('.reading-meta')?.textContent||'';const flags=['과거 관측','원거리 참고','거리 근사'].filter(v=>detail.includes(v));meta.textContent=(flags.length?flags.join(' · ')+' / ':'')+(detail.split(' / ')[1]||detail||'관측 근거 확인 중');};
+    new window.MutationObserver(sync).observe(source,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['data-quality']});sync();
   }
   const sceneGrid=node('div',null,scene,'scene-grid'),mapColumn=node('section',null,sceneGrid,'map-column');
   const mapPanel=document.querySelector('.map-panel');mapColumn.append(mapPanel);

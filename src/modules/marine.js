@@ -48,7 +48,7 @@ export async function loadMarineStatus(point = {lat:36.023,lon:129.419}) {
   const show=(id,item,station,value,label='실측')=>{
     if(!item)return false;
     const q=observationQuality(item,station,point), name=item.obsvtrNm || station.name;
-    if(!q.location.approximate)stationMarkers.push({lat:q.location.lat,lon:q.location.lon,label:name+' · '+label,value,direction:id==='marineHfCurrent'?Number(item.crdir):null,time:formatKst(parseKst(observationTime(item)))});
+    if(!q.location.approximate)stationMarkers.push({lat:q.location.lat,lon:q.location.lon,label:name+' · '+label,value,quality:q.flags.length?'caution':'observed',direction:id==='marineHfCurrent'?Number(item.crdir):null,time:formatKst(parseKst(observationTime(item)))});
     render(id,value,`${label} · ${name} (${station.code}) · ${q.distanceKm.toFixed(1)}km${q.location.approximate?' 약':''} / ${formatKst(parseKst(observationTime(item)))} KST${q.flags.length?' / '+q.flags.join(' · '):''}`,q.flags.length?'caution':'observed');
     return true;
   };
