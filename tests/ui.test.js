@@ -117,6 +117,7 @@ test("field workflow: manual prediction, timeline, sighting, records, safe text 
     mapApi.resetMapView();
     $("pickObservationLocation").click();
     assert.equal($("view-scene").hidden, false);
+    assert.equal(document.querySelector(".start-guide").hidden, true);
     $("map").dispatchEvent(new dom.window.MouseEvent("click", {bubbles: true, clientX: 0, clientY: 0}));
     assert.equal($("view-records").hidden, false);
     assert.ok($("observationLat").value);

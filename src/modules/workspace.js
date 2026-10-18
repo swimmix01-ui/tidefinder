@@ -40,12 +40,12 @@ export function mountWorkspace(getCoords) {
   filter.addEventListener('input',renderSources);renderSources();
   catalog.append($('resourceHub'));const cctv=[...main.children].find(el=>el.classList.contains('card')&&el.textContent.includes('전국 CCTV'));if(cctv)catalog.append(cctv);
   main.replaceChildren(nav,$('status'),...panels.values());
-  function show(key){if(key!=='scene'){cancelLocationPick();pickBanner.hidden=true;}for(const [k,p]of panels){p.hidden=k!==key;buttons.get(k).setAttribute('aria-pressed',String(k===key));}if(key==='scene')requestAnimationFrame(invalidateMapSize);}
+  function show(key){if(key!=='scene'){cancelLocationPick();pickBanner.hidden=true;startGuide.hidden=false;}for(const [k,p]of panels){p.hidden=k!==key;buttons.get(k).setAttribute('aria-pressed',String(k===key));}if(key==='scene')requestAnimationFrame(invalidateMapSize);}
   for(const [key,b]of buttons)b.addEventListener('click',()=>show(key));
   enterCoordinates.addEventListener('click',()=>show('plan'));
-  cancelPick.addEventListener('click',()=>{cancelLocationPick();pickBanner.hidden=true;show('records');});
+  cancelPick.addEventListener('click',()=>{cancelLocationPick();pickBanner.hidden=true;startGuide.hidden=false;show('records');});
   document.addEventListener('tidefinder:record-map-pick',event=>{
-    show('scene');pickBanner.hidden=false;
+    show('scene');pickBanner.hidden=false;startGuide.hidden=true;
     pickMessage.textContent=event.detail.kind==='observation'?'목격·발견 위치를 지도에서 누르세요.':'수색한 구역의 중심을 지도에서 누르세요.';
     beginLocationPick(point=>{pickBanner.hidden=true;event.detail.onPick(point);show('records');});
     pickBanner.scrollIntoView?.({block:'center',behavior:'smooth'});
