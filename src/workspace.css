@@ -144,3 +144,9 @@ input::-webkit-date-and-time-value { min-width: 0; text-align: left; }
  .start-guide p { grid-column: 1/-1; grid-row: 2; }
  .map-pick-banner { align-items: flex-start; }
 }
+
+.record-dms { padding: 0; border: 0; min-width: 0; margin: 18px 0; }
+.record-dms legend { color: #a9c1d0; font-size: 14px; margin-bottom: 10px; }
+.record-dms .dms-row { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1.25fr) auto; gap: 6px; align-items: center; }
+.record-dms input { min-width: 0; padding: 12px 7px; }
+.official-chart-link { display: inline-flex; align-items: center; padding: 11px 14px; color: #b9dde8; border: 1px solid #36576b; border-radius: 8px; font-size: 13px; text-decoration: none; }

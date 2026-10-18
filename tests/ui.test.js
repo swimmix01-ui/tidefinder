@@ -120,12 +120,13 @@ test("field workflow: manual prediction, timeline, sighting, records, safe text 
     assert.equal(document.querySelector(".start-guide").hidden, true);
     $("map").dispatchEvent(new dom.window.MouseEvent("click", {bubbles: true, clientX: 0, clientY: 0}));
     assert.equal($("view-records").hidden, false);
-    assert.ok($("observationLat").value);
+    assert.ok($("observationLatD").value);
+    assert.match($("observationPosition").textContent, /°.*′.*″ N/);
     assert.deepEqual(["latD", "latM", "latS", "lonD", "lonM", "lonS"].map(id => $(id)?.value), incidentCoordinates, "Record selection must preserve the accident location");
     assert.equal($("timelineCard").hidden, false, "Record selection must preserve the prediction");
     $("observationNote").value = "<img src=x onerror=alert(1)>";
     $("addObservation").click();
-    assert.equal($("observationList").children.length, 1, $("caseStatus").textContent + " / " + $("observationTime").value + " / " + $("observationLat").value + "," + $("observationLon").value);
+    assert.equal($("observationList").children.length, 1, $("caseStatus").textContent + " / " + $("observationTime").value + " / " + $("observationLatD").value + "," + $("observationLonD").value);
     assert.equal($("observationList").querySelector("img"), null);
     assert.equal($("recordHome").hidden, false);
     assert.equal(JSON.parse(localStorage.getItem("tidefinder.case.v1")).observations.length, 1);

@@ -6,10 +6,10 @@
 // ==========================================================================
 
 export function decimalToDMS(val) {
-  const total = Math.round(val * 3600);
-  const d = Math.floor(total / 3600),
-    m = Math.floor((total - d * 3600) / 60),
-    s = total - d * 3600 - m * 60;
+  const total = Math.round(Math.abs(val) * 360000);
+  const d = Math.floor(total / 360000);
+  const m = Math.floor((total % 360000) / 6000);
+  const s = (total % 6000) / 100;
   return { d, m, s };
 }
 
@@ -18,9 +18,11 @@ export function dmsToDecimal(d, m, s) {
 }
 
 export function formatDMS(lat, lon) {
-  const la = decimalToDMS(lat);
-  const lo = decimalToDMS(lon);
-  return `${la.d}°${la.m}′${la.s}″N, ${lo.d}°${lo.m}′${lo.s}″E`;
+  const coordinate = (value, positive, negative) => {
+    const {d,m,s} = decimalToDMS(value);
+    return `${d}° ${String(m).padStart(2,"0")}′ ${s.toFixed(2).padStart(5,"0")}″ ${value < 0 ? negative : positive}`;
+  };
+  return `${coordinate(lat,"N","S")}, ${coordinate(lon,"E","W")}`;
 }
 
 export function bearingToCompass(deg) {

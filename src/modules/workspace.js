@@ -1,3 +1,4 @@
+import { formatDMS } from "./geo.js";
 import sources from '../data/sources.json';
 import { fetchWithTimeout } from './api.js';
 import { invalidateMapSize, clearReferenceLayers, renderBathymetryReference, beginLocationPick, cancelLocationPick } from './map.js';
@@ -26,6 +27,7 @@ export function mountWorkspace(getCoords) {
   const enterCoordinates=node('button','좌표로 입력',startGuide);scene.insertBefore(startGuide,sceneGrid);
 
   const tools=document.querySelector('.map-tools');mapColumn.append(tools);
+  const officialChart=node('a','공식 바다지도 ↗',tools,'official-chart-link');officialChart.href='https://www.khoa.go.kr/oceanmap/main.do';officialChart.target='_blank';officialChart.rel='noopener';
   const bathyButton=node('button','수심 격자 조회',tools);bathyButton.type='button';
   const bathy=node('details',null,mapColumn,'card terrain-reference');node('summary','수심자료 상태',bathy);const bathyStatus=node('p','150m 격자 참고자료 · 해저 장애물·잠수 깊이 판정용이 아닙니다.',bathy,'help');const bathyValues=node('div',null,bathy,'table-scroll');
   sceneGrid.append($('marineCard'));
@@ -53,7 +55,7 @@ export function mountWorkspace(getCoords) {
 
   const locationLink=document.querySelector('.location-link');locationLink.addEventListener('click',e=>{e.preventDefault();show('plan');});
   document.addEventListener('tidefinder:prediction-ready',()=>show('scene'));
-  function selectionChanged(){clearReferenceLayers();bathyValues.replaceChildren();bathyStatus.textContent='선택 좌표의 수심자료 조회 대기';const kma=$('kmaRegionalComparison');if(kma)kma.replaceChildren();try{const p=getCoords();selected.textContent=`${p.lat.toFixed(5)}°N  ${p.lon.toFixed(5)}°E`;}catch{selected.textContent='좌표 입력 확인 필요';}}
+  function selectionChanged(){clearReferenceLayers();bathyValues.replaceChildren();bathyStatus.textContent='선택 좌표의 수심자료 조회 대기';const kma=$('kmaRegionalComparison');if(kma)kma.replaceChildren();try{const p=getCoords();selected.textContent=`${formatDMS(p.lat,p.lon)}`;}catch{selected.textContent='좌표 입력 확인 필요';}}
   document.addEventListener('tidefinder:location-changed',selectionChanged);selectionChanged();requestAnimationFrame(invalidateMapSize);
   let pending=false;
   bathyButton.addEventListener('click',async()=>{
@@ -63,7 +65,7 @@ export function mountWorkspace(getCoords) {
       if(current.lat!==p.lat||current.lon!==p.lon)return;
       bathyStatus.textContent=`${data.source} · ${data.points.length}개 격자 · 간격 ${data.resolutionM}m / 수심 단위·수직기준 미검증. 원시 dpwt 값이며 잠수 깊이로 사용하지 않습니다.`;
       renderBathymetryReference(data.points);
-      const table=node('table',null,bathyValues),caption=node('caption','제공기관 원시 격자 · 보간 없음',table),head=node('tr',null,node('thead',null,table));for(const title of ['위도','경도','원시 수심값 dpwt'])node('th',title,head);const body=node('tbody',null,table);for(const pt of data.points){const row=node('tr',null,body);for(const v of [pt.lat,pt.lon,pt.rawDepth])node('td',String(v),row);}
+      const table=node('table',null,bathyValues),caption=node('caption','제공기관 원시 격자 · 보간 없음',table),head=node('tr',null,node('thead',null,table));for(const title of ['좌표 (도·분·초)','원시 수심값 dpwt'])node('th',title,head);const body=node('tbody',null,table);for(const pt of data.points){const row=node('tr',null,body);for(const v of [formatDMS(pt.lat,pt.lon),pt.rawDepth])node('td',String(v),row);}
     }catch(e){try{const current=getCoords();if(p&&(p.lat!==current.lat||p.lon!==current.lon))return;}catch{return;}bathyStatus.textContent=`수심자료 미확보 · ${e.message} / 자료연결 메뉴에서 활용신청 상태를 확인하세요.`;}finally{pending=false;bathyButton.disabled=false;}
   });
   return selectionChanged;

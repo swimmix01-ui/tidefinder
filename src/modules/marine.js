@@ -1,3 +1,4 @@
+import { formatDMS } from "./geo.js";
 import { renderObservationStations, clearReferenceLayers } from "./map.js";
 import * as api from './api.js';
 import { DT_STATIONS, DT_RECENT_STATIONS, HF_STATIONS, SF_STATIONS, TW_STATIONS, getKmaStnId } from './constants.js';
@@ -31,7 +32,7 @@ export async function loadMarineStatus(point = {lat:36.023,lon:129.419}) {
   const dt = nearest(DT_STATIONS,point), dtr=nearest(DT_RECENT_STATIONS,point), tw=nearest(TW_STATIONS,point), hf=nearest(HF_STATIONS,point), sf=nearest(SF_STATIONS,point);
   const date = kstParts(new Date()).compact;
   ids.forEach(id=>render(id,'—','조회 중…'));
-  document.getElementById('marineStationName').textContent = `${point.lat.toFixed(4)}°N, ${point.lon.toFixed(4)}°E`;
+  document.getElementById('marineStationName').textContent = `${formatDMS(point.lat,point.lon)}`;
   document.getElementById('marineFreshness').textContent = '공식 관측자료 조회 중';
   document.getElementById('marineObsTime').textContent = '각 항목의 관측시각을 확인하세요';
   const box=document.getElementById('marineAlertBox'); box.textContent='특보 발표자료 조회 중 · 발효 여부 미확인'; box.style.display='block';

@@ -1,3 +1,4 @@
+import { decimalToDMS, formatDMS } from "./geo.js";
 import {
   newCase,
   validateRecord,
@@ -10,6 +11,7 @@ import {
   formatKst,
   errorAtObservation,
   interpolatePath,
+  validateDms,
 } from "./model.js";
 import * as map from "./map.js";
 const $ = (id) => document.getElementById(id);
@@ -39,7 +41,7 @@ export function mountOperations(cbs) {
   <section id="observationForm" class="record-form" hidden>
     <button id="backFromObservation" class="text-button">← 기록 목록</button><h3>목격·발견 기록</h3>
     <p class="record-step">1. 확인한 위치</p><button id="pickObservationLocation" class="location-choice">지도에서 위치 선택</button><p id="observationPosition" class="help">위치를 먼저 선택하세요.</p>
-    <details class="manual-coordinates"><summary>좌표를 직접 입력하려면</summary><div class="two-col"><label>위도<input id="observationLat" type="number" step="any" min="0" max="90" placeholder="예: 36.023"></label><label>경도<input id="observationLon" type="number" step="any" min="0" max="180" placeholder="예: 129.419"></label></div><button id="useSelectedObservation">현재 지도 위치 사용</button></details>
+    <details class="manual-coordinates"><summary>좌표를 직접 입력하려면</summary><fieldset class="record-dms"><legend>위도 (N)</legend><div class="dms-row"><input id="observationLatD" aria-label="확인 위도 도" type="number" min="0" max="90" step="1" placeholder="도"><span class="unit-tag">°</span><input id="observationLatM" aria-label="확인 위도 분" type="number" min="0" max="59" step="1" placeholder="분"><span class="unit-tag">′</span><input id="observationLatS" aria-label="확인 위도 초" type="number" min="0" max="59.999" step="0.001" placeholder="초"><span class="unit-tag">″</span></div></fieldset><fieldset class="record-dms"><legend>경도 (E)</legend><div class="dms-row"><input id="observationLonD" aria-label="확인 경도 도" type="number" min="0" max="180" step="1" placeholder="도"><span class="unit-tag">°</span><input id="observationLonM" aria-label="확인 경도 분" type="number" min="0" max="59" step="1" placeholder="분"><span class="unit-tag">′</span><input id="observationLonS" aria-label="확인 경도 초" type="number" min="0" max="59.999" step="0.001" placeholder="초"><span class="unit-tag">″</span></div></fieldset><button id="useSelectedObservation">현재 지도 위치 사용</button></details>
     <p class="record-step">2. 확인한 내용</p>
     <label>확인 시각<input id="observationTime" type="datetime-local"></label><label>무엇을 확인했나요?<select id="observationKind"><option>목격</option><option>발견</option><option>훈련 검증</option></select></label><label>메모 (선택)<input id="observationNote" type="text" maxlength="300" placeholder="예: 신고자가 방파제 앞에서 목격"></label>
     <button id="addObservation" class="record-submit">목격 기록 저장</button>
@@ -71,10 +73,17 @@ export function mountOperations(cbs) {
     $("observationForm").hidden = kind !== "observation";
     $("searchForm").hidden = kind !== "search";
   };
-  const positionText = (id,p) => { $(id).textContent = `${p.lat.toFixed(5)}°N, ${p.lon.toFixed(5)}°E · 지도에서 변경할 수 있습니다.`; };
+  const positionText = (id,p) => { $(id).textContent = `${formatDMS(p.lat,p.lon)} · 지도에서 변경할 수 있습니다.`; };
+  const setObservationCoords = p => {
+    for(const [axis,value] of [["Lat",p.lat],["Lon",p.lon]]) {
+      const parts=decimalToDMS(value);
+      for(const [suffix,key] of [["D","d"],["M","m"],["S","s"]]) $("observation"+axis+suffix).value=parts[key];
+    }
+    positionText("observationPosition",p);
+  };
   const askMap = kind => {
     callbacks.pickLocation?.(kind, point => {
-      if (kind === "observation") { $("observationLat").value=point.lat;$("observationLon").value=point.lon;positionText("observationPosition",point); }
+      if (kind === "observation") { setObservationCoords(point); }
       else {searchPoint=point;positionText("searchPosition",point);}
       form(kind);
     });
@@ -82,7 +91,7 @@ export function mountOperations(cbs) {
   const begin = kind => {
     $("caseStatus").textContent = "";
     if (kind === "observation") {
-      $("observationLat").value="";$("observationLon").value="";$("observationNote").value="";
+      for(const axis of ["Lat","Lon"]) for(const part of ["D","M","S"]) $("observation"+axis+part).value="";$("observationNote").value="";
       $("observationPosition").textContent="확인한 위치를 지도에서 선택하세요.";
       $("observationTime").value=kstParts(new Date()).local;
     } else { searchPoint=null;$("searchPosition").textContent="수색한 구역의 중심을 지도에서 선택하세요.";$("searchNote").value="";$("searchTime").value=kstParts(new Date()).local; }
@@ -141,16 +150,14 @@ export function mountOperations(cbs) {
   });
   bind("useSelectedObservation", () => {
     const p = callbacks.coords();
-    $("observationLat").value = p.lat;
-    $("observationLon").value = p.lon;
-    positionText("observationPosition",p);
+    setObservationCoords(p);
   });
   bind("addObservation", () => {
     if (state.observations.length >= 500)
       throw new Error("기록이 500건입니다. 내보낸 후 새 사건을 시작하세요.");
-    if (!$("observationLat").value || !$("observationLon").value) throw new Error("지도에서 확인 위치를 먼저 선택하세요.");
-    const lat = $("observationLat").value,
-      lon = $("observationLon").value,
+    const readCoordinate = (axis,max,label) => validateDms(...["D","M","S"].map(part => $("observation"+axis+part).value),max,label);
+    const lat = readCoordinate("Lat",90,"위도"),
+      lon = readCoordinate("Lon",180,"경도"),
       date = parseKst($("observationTime").value);
     if (!Number.isFinite(+date)) throw new Error("확인 시각을 선택하세요.");
     const time=date.toISOString();
@@ -259,7 +266,7 @@ function showAt(date) {
   }
   $("predictionTime").value = (date - new Date(current.startDateTime)) / 60000;
   $("timePosition").textContent =
-    `${formatKst(date)} / ${p.lat.toFixed(6)}, ${p.lon.toFixed(6)} / 추정 반경 ${Math.round(p.radius)}m`;
+    `${formatKst(date)} / ${formatDMS(p.lat,p.lon)} / 추정 반경 ${Math.round(p.radius)}m`;
   $("timelineMessage").textContent = "";
   map.showTimePosition(p);
 }
@@ -301,13 +308,13 @@ function render() {
       "observationList",
       state.observations,
       (o) =>
-        `${formatKst(o.time)} / ${o.kind} / ${o.lat.toFixed(5)}, ${o.lon.toFixed(5)} / ${o.note}`,
+        `${formatKst(o.time)} / ${o.kind} / ${formatDMS(o.lat,o.lon)} / ${o.note}`,
     ],
     [
       "searchList",
       state.searches,
       (o) =>
-        `${formatKst(o.time)} / ${o.method} / ${o.radius}m / ${o.result} / ${o.note}`,
+        `${formatKst(o.time)} / ${o.method} / ${formatDMS(o.lat,o.lon)} / ${o.radius}m / ${o.result} / ${o.note}`,
     ],
   ]) {
     $(id).replaceChildren();

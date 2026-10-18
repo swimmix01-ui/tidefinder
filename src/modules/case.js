@@ -1,3 +1,4 @@
+import { formatDMS } from "./geo.js";
 import * as turf from "@turf/turf";
 import { formatKst, finite } from "./model.js";
 export const newCase = () => ({
@@ -79,7 +80,7 @@ export function operationReport(c, r) {
     `사건: ${c.name}`,
     `작성: ${formatKst(new Date())}`,
     r ? `계산 시각: ${formatKst(r.createdAt)} / 모델 ${r.modelVersion}` : null,
-    r ? `기준 위치: ${r.inputLat.toFixed(6)}, ${r.inputLon.toFixed(6)}` : null,
+    r ? `기준 위치: ${formatDMS(r.inputLat,r.inputLon)}` : null,
     r
       ? `기준 시각: ${formatKst(r.startDateTime)} / 예측 종료: ${formatKst(r.samples.at(-1).time)}`
       : null,
@@ -87,7 +88,7 @@ export function operationReport(c, r) {
       ? `입력 예측시간: ${r.ahead}h / 실제 계산: ${r.actualHours.toFixed(2)}h${r.strandedAt !== null ? " (해안 도달 시 정지)" : ""}`
       : null,
     r
-      ? `종료 위치: ${r.finalPoint.lat.toFixed(6)}, ${r.finalPoint.lon.toFixed(6)}`
+      ? `종료 위치: ${formatDMS(r.finalPoint.lat,r.finalPoint.lon)}`
       : null,
     r
       ? `직선거리: ${Math.round(r.netDistM)}m / 누적 경로: ${Math.round(r.totalPathM)}m`
@@ -110,12 +111,12 @@ export function operationReport(c, r) {
     "[목격·검증 기록]",
     ...c.observations.map(
       (o) =>
-        `${formatKst(o.time)} | ${o.lat}, ${o.lon} | ${o.kind} | ${o.note || "-"}`,
+        `${formatKst(o.time)} | ${formatDMS(o.lat,o.lon)} | ${o.kind} | ${o.note || "-"}`,
     ),
     "[수색 이력]",
     ...c.searches.map(
       (s) =>
-        `${formatKst(s.time)} | ${s.method} | 중심 ${s.lat}, ${s.lon} / 반경 ${s.radius}m | ${s.result} | ${s.note || "-"}`,
+        `${formatKst(s.time)} | ${s.method} | 중심 ${formatDMS(s.lat,s.lon)} / 반경 ${s.radius}m | ${s.result} | ${s.note || "-"}`,
     ),
     "※ 실측·예보·수동값을 구분한 참고 예측입니다. 확산반경과 입자 외곽은 발견 확률을 보장하지 않습니다. 수색 완료 표시는 확률을 자동으로 낮추지 않습니다.",
   ]

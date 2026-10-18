@@ -1,3 +1,4 @@
+import { formatDMS } from "./geo.js";
 import {
   fetchWithTimeout,
   fetchRomsData,
@@ -140,7 +141,7 @@ export function mountIntelligence(getCoords) {
     const sourceDetails = document.createElement("details");
     sourceDetails.className = "context-source-details";
     text("summary", "조회 위치·수신 시각", sourceDetails);
-    text("p", `선택 좌표 ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)} / 수신 ${formatKst(data.fetchedAt)} KST`, sourceDetails);
+    text("p", `선택 좌표 ${formatDMS(p.lat,p.lon)} / 수신 ${formatKst(data.fetchedAt)} KST`, sourceDetails);
     $("contextValues").append(sourceDetails);
     const table = document.createElement("table");
     table.innerHTML =
