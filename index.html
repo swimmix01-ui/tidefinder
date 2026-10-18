@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>AI 기반 해양 수색지원 시스템 - TideFinder</title>
-<meta property="og:title" content="AI 기반 해양 수색지원 시스템 - TideFinder" />
+<title>해양 수색·현장 대응지원 시스템 - TideFinder</title>
+<meta property="og:title" content="해양 수색·현장 대응지원 시스템 - TideFinder" />
 <meta property="og:description" content="실시간 조류·기상 데이터 기반 표류예측 시스템" />
 <meta property="og:type" content="website" />
 <meta name="description" content="실시간 조류·기상 데이터 기반 표류예측 시스템" />
@@ -184,7 +184,7 @@
     </div>
     <div>
       <h1>타이드파인더 <span style="color:var(--cyan);font-weight:700;">TideFinder</span></h1>
-      <p class="tagline">AI 기반 해양 수색지원 시스템</p>
+      <p class="tagline">해상정보 · 표류예측</p>
       <p class="tagline2">실시간 조류·기상 데이터 기반 표류예측</p>
     </div>
   </div>
@@ -194,8 +194,21 @@
 </header>
 
 <main>
+  <section id="marineCard" class="card marine-overview">
+    <div class="marine-heading"><div><p class="eyebrow">OBSERVATION BRIEF</p><h2>해상 관측정보</h2></div><a href="#inputCard" class="location-link">위치 변경 ↓</a></div>
+    <p class="selected-location">기준 좌표 <span id="marineStationName">조회 중</span></p>
+    <p id="officialMarineStatus" class="integration-note">기상청 해양관측 연결 상태 확인 중</p><div class="marine-health"><strong id="marineFreshness">공식 관측자료 조회 중</strong><span id="marineObsTime">항목별 관측시각 확인</span></div>
+    <div class="observation-grid"><div class="observation-cell"><div class="label">표층 유향·유속</div><div class="value" id="marineHfCurrent">—</div></div><div class="observation-cell"><div class="label">관측 풍향·풍속</div><div class="value" id="marineWind">—</div></div><div class="observation-cell"><div class="label">관측 파고</div><div class="value" id="marineWaveHeight">—</div></div><div class="observation-cell"><div class="label">관측 시정</div><div class="value" id="marineVisibility">—</div></div><div class="observation-cell"><div class="label">수온</div><div class="value" id="marineWaterTemp">—</div></div><div class="observation-cell"><div class="label">기온</div><div class="value" id="marineAirTemp">—</div></div><div class="observation-cell"><div class="label">기압</div><div class="value" id="marineAirPress">—</div></div><div class="observation-cell"><div class="label">다음 조석 극치</div><div class="value" id="marineNextTide">—</div></div></div><div id="waveStatusPill" hidden></div><div id="windStatusPill" hidden></div>
+    <div id="marineAlertBox" role="status"></div>
+    <details id="marineReferenceDetails" hidden><summary>원거리·과거·정의 미확인 참고자료</summary><p class="help">아래 값은 첫 화면의 주변 관측으로 채택하지 않은 자료입니다. 사고 위치의 현재 해상상태를 대신하지 않습니다.</p><ul id="marineReferenceList" class="marine-reference-list"></ul></details>
+    <div class="official-observation-links"><span>기상청 원문 확인</span><a href="https://www.weather.go.kr/w/weather/ocean/buoy-obs.do" target="_blank" rel="noopener">해양기상부이 ↗</a><a href="https://www.weather.go.kr/w/obs-climate/sea/buoy-cosmos.do" target="_blank" rel="noopener">연안 파고부이 ↗</a></div>
+    <details><summary>포항·구룡포·월포 관측 비교</summary><div id="kmaRegionalComparison"><p class="help">기상청 연결 후 비교합니다.</p></div></details><details class="forecast-disclosure"><summary>기상청 예보 별도 보기</summary><p class="help">관측값을 예보로 대체하지 않습니다. 단기예보 파고는 연안 격자 참고값입니다.</p><div class="observation-grid"><div class="observation-cell"><div class="label">예보 풍속</div><div class="value" id="marineForecastWind">—</div></div><div class="observation-cell"><div class="label">예보 파고</div><div class="value" id="marineForecastWave">—</div></div></div></details>
+    <details><summary>자료 출처·표시 기준</summary><p class="help">국립해양조사원 관측자료와 기상청 예보를 구분합니다. 관측점의 수치이며 선택 좌표의 직접 관측값이 아닙니다. 거리·시각은 항목별로 표시합니다. 90분 초과·30km 초과는 이 앱의 주의 표시 기준이며 기관 품질보증 기준이 아닙니다. 제공기관 품질 플래그를 검증하지 않은 자료입니다. 유향은 흘러가는 방향, 풍향은 불어오는 방향입니다.</p><p class="help"><a href="https://www.data.go.kr/data/15155531/openapi.do" target="_blank" rel="noopener">HF 실측 출처 ↗</a> · <a href="https://www.data.go.kr/data/15155516/openapi.do" target="_blank" rel="noopener">관측부이 출처 ↗</a> · <a href="https://www.data.go.kr/data/15156018/openapi.do" target="_blank" rel="noopener">조석예보 출처 ↗</a></p></details>
+  </section>
 
-  <div class="card">
+
+
+  <div class="card" id="inputCard">
     <div class="card-title">
       <svg class="icon-svg" viewBox="0 0 24 24" fill="none"><path d="M12 2 4 6v6c0 5 3.4 8.9 8 10 4.6-1.1 8-5 8-10V6l-8-4Z" stroke="#22D3EE" stroke-width="1.6" stroke-linejoin="round"/></svg>
       사고 발생 정보 입력
@@ -207,9 +220,9 @@
         <svg class="icon-svg check-icon" id="checkLat" viewBox="0 0 24 24" fill="none"><path d="M4 12.5 9.5 18 20 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </label>
       <div class="dms-row">
-        <input id="latD" type="number" value="36"><span class="unit-tag">°</span>
-        <input id="latM" type="number" value="1"><span class="unit-tag">′</span>
-        <input id="latS" type="number" value="23"><span class="unit-tag">″</span>
+        <input id="latD" aria-label="위도 도" type="number" min="0" max="90" step="1" value="36"><span class="unit-tag">°</span>
+        <input id="latM" aria-label="위도 분" type="number" min="0" max="59" step="1" value="1"><span class="unit-tag">′</span>
+        <input id="latS" aria-label="위도 초" type="number" min="0" max="59.999" step="0.001" value="23"><span class="unit-tag">″</span>
       </div>
     </div>
     <div class="field">
@@ -219,15 +232,15 @@
         <svg class="icon-svg check-icon" id="checkLon" viewBox="0 0 24 24" fill="none"><path d="M4 12.5 9.5 18 20 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </label>
       <div class="dms-row">
-        <input id="lonD" type="number" value="129"><span class="unit-tag">°</span>
-        <input id="lonM" type="number" value="25"><span class="unit-tag">′</span>
-        <input id="lonS" type="number" value="10"><span class="unit-tag">″</span>
+        <input id="lonD" aria-label="경도 도" type="number" min="0" max="180" step="1" value="129"><span class="unit-tag">°</span>
+        <input id="lonM" aria-label="경도 분" type="number" min="0" max="59" step="1" value="25"><span class="unit-tag">′</span>
+        <input id="lonS" aria-label="경도 초" type="number" min="0" max="59.999" step="0.001" value="10"><span class="unit-tag">″</span>
       </div>
     </div>
     <div class="field">
       <label class="field-label">
         <svg class="icon-svg" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.6"/><path d="M3 9h18M8 3v4M16 3v4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        사고 시간 (일자)
+        기준 일자 (한국시간)
         <svg class="icon-svg check-icon" id="checkDate" viewBox="0 0 24 24" fill="none"><path d="M4 12.5 9.5 18 20 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </label>
       <input id="dateInput" type="date">
@@ -235,12 +248,12 @@
     <div class="field">
       <label class="field-label">
         <svg class="icon-svg" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.6"/><path d="M12 7v5l3.5 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        사고 시간 (시각)
+        기준 시각 (한국시간)
         <svg class="icon-svg check-icon" id="checkTime" viewBox="0 0 24 24" fill="none"><path d="M4 12.5 9.5 18 20 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </label>
       <div class="inline-num">
-        <input id="hourInput" type="number" value="14"><span class="inline-suffix">시</span>
-        <input id="minuteInput" type="number" value="0"><span class="inline-suffix">분</span>
+        <input id="hourInput" aria-label="기준 시" type="number" min="0" max="23" step="1" value="14"><span class="inline-suffix">시</span>
+        <input id="minuteInput" aria-label="기준 분" type="number" min="0" max="59" step="1" value="0"><span class="inline-suffix">분</span>
       </div>
     </div>
     <div class="field">
@@ -250,7 +263,7 @@
         <svg class="icon-svg check-icon" id="checkHours" viewBox="0 0 24 24" fill="none"><path d="M4 12.5 9.5 18 20 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </label>
       <div class="inline-num">
-        <input id="hoursAhead" type="number" value="6"><span class="inline-suffix">시간 이내 수색구역 예측</span>
+        <input id="hoursAhead" aria-label="예측 시간" type="number" min="1" max="24" step="1" value="6"><span class="inline-suffix">시간 (기준 시각부터, 최대 24시간)</span>
       </div>
     </div>
     <div class="field">
@@ -262,79 +275,77 @@
       <select id="leewayCoef">
         <option value="0.027" data-cwangle="17.4" selected>일반 실종자 (구명복/구명조끼) — 2.7%</option>
         <option value="0.0226" data-cwangle="29.4">구명조끼 미착용 실종자 — 2.26%</option>
-        <option value="0.027" data-cwangle="17.4">스쿠버다이버 (수면 표류, 근사치) — 2.7%</option>
-        <option value="0" data-cwangle="0">스쿠버다이버 (수중 실종, 조류만 적용) — 0%</option>
+        <option value="0.027" data-cwangle="20">스쿠버다이버 (수면 표류, 근사치) — 2.7%</option>
+        <option value="0" data-cwangle="0">스쿠버다이버 (수중 실종 참고용·표층 조류만 적용) — 0%</option>
         <option value="0.04" data-cwangle="20">소형 고무보트 — 4%</option>
       </select>
-      <div style="font-size:11px;color:var(--text-lo);margin:8px 0 0;line-height:1.7;">
+      <details><summary>풍압계수·발산각 근거와 적용 한계</summary><div style="font-size:11px;color:var(--text-lo);margin:8px 0 0;line-height:1.7;">
         <p style="margin:0 0 10px;"><b style="color:var(--text-hi);">다운윈드(직진방향) 계수 출처</b><br>
         • Su·Robe·Finlayson(1998) 생존정장 실측 — 2.7%<br>
         • Allen·Roth·Maisondieu·Breivik·Forest(2010, MET Report No.17) 노르웨이 실측 "PIW deceased position"(구명조끼 미착용) — 2.26%<br>
         • 스쿠버다이버(수면 표류)는 별도 실측자료가 없어 일반 실종자 계수를 근사치로 사용<br>
         • 수중 실종은 바람 영향이 사실상 없으므로 조류(해류)만 반영</p>
-        <p style="margin:0;"><b style="color:var(--text-hi);">좌우발산각 출처</b> (오차반경 확장에 사용)<br>
+        <p style="margin:0;"><b style="color:var(--text-hi);">좌우발산각 출처</b> (추정 확산반경 확장에 사용)<br>
         • Allen &amp; Plourde(1999, CG-D-08-99) 실측 DWL/CWL 계수, OpenDrift OBJECTPROP.DAT(Art Allen 2010-11-15 SAROPS 목록 기반) 재계산<br>
         • 일반 실종자 = PIW-2(구명조끼·의식있음) 17.4°<br>
         • 구명조끼 미착용 = PIW-1(상태미상 평균) 29.4°<br>
         • 스쿠버다이버·소형 고무보트는 매칭되는 실측 카테고리를 확정하지 못해 SAR 실무 관행값(20°)을 근사치로 사용</p>
       </div>
-    </div>
+    </details></div>
+    <div class="field"><label for="initialErrorM">최초 위치 오차 반경 (m)</label><input id="initialErrorM" type="number" min="0" max="10000" value="100"></div>
+    <details><summary>현장 실측값·자료 미수신 대응</summary>
+      <p class="help">수동값은 예측 기간 전체에 고정됩니다. 측정 시각·장소는 현장 기록에 남기세요.</p>
+      <label><input type="checkbox" id="manualCurrentEnabled"> 유향·유속 수동 입력</label>
+      <div class="two-col"><label>유향 (흘러가는 방향 °)<input id="manualCurrentDir" type="number" min="0" max="359.9" step="0.1" placeholder="예: 250"></label><label>유속 (cm/s)<input id="manualCurrentSpeed" type="number" min="0" max="1000" step="0.1" placeholder="예: 15"></label></div>
+      <label><input type="checkbox" id="manualWindEnabled"> 풍향·풍속 수동 입력</label>
+      <div class="two-col"><label>풍향 (불어오는 방향 °)<input id="manualWindDir" type="number" min="0" max="359.9" step="0.1" placeholder="예: 90"></label><label>풍속 (m/s)<input id="manualWindSpeed" type="number" min="0" max="100" step="0.1" placeholder="예: 4"></label></div>
+      <label class="check-row"><input type="checkbox" id="allowCurrentOnly"> 바람 자료가 없는 구간은 조류만 계산하도록 허용</label>
+      <label class="check-row"><input type="checkbox" id="allowNoCoastline"> 해안선 자료 미수신 시 좌초 판정 없이 계산 허용</label>
+    </details>
+    <p class="help" id="originNote">최초 사고 위치·시각 기준. 지도 클릭으로 좌표를 입력할 수 있습니다.</p>
     <button class="run-btn" id="useLocationBtn" type="button" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px;">📍 현재 위치 사용</button>
     <button class="run-btn" id="runPredictionBtn">▶ 표류 예측구역 계산</button>
   </div>
 
-  <div id="status" class="warn">⏳ 지도를 클릭하면 좌표가 자동 입력됩니다. 대기 중...</div>
-  <div id="map"></div>
-  <button class="run-btn" id="resetMapBtn" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px; margin-top:-4px;">↺ 지도 초기화</button>
+  <div id="status" role="status" aria-live="polite" class="warn">⏳ 지도를 클릭하면 좌표가 자동 입력됩니다. 대기 중...</div>
+  <section class="map-panel"><div id="map" aria-label="해상정보·표류 예측 지도"></div>
+  <p class="help">청록: 중심경로 · 빨강: 추정 확산범위 · 보라: 입자 시뮬레이션 외곽. 범위별 발견 확률은 검증되지 않았습니다. 배경지도는 해도가 아닙니다.</p>
+  <div id="timelineCard" class="card" hidden><label for="predictionTime">예측 시각 선택</label><input id="predictionTime" type="range" min="0" max="360" step="1" value="360"><output id="timePosition"></output><div class="button-row"><button id="showNow">현재 예상 위치</button><label>도착까지 (분)<input id="arrivalMinutes" type="number" min="0" max="1440" value="30"></label><button id="showArrival">도착 시각 위치</button></div><p id="timelineMessage" class="help" role="status"></p></div></section>
+  <section id="dataQuality" class="card" hidden><h2>예측 근거·자료 상태</h2><div id="sourceSummary"></div><ul id="predictionWarnings"></ul><details><summary>구간별 자료 시각·조회 거리</summary><div id="sourceTable" class="table-scroll"></div></details></section>
+  <div class="map-tools"><button class="run-btn" id="resetMapBtn" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px; margin-top:-4px;">지도 초기화</button>
   <button class="run-btn" onclick="openCoastView()" type="button" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px;">
-    🗻 3D 지형 보기 (CoastView, 새 탭)
-  </button>
+    3D 지형 ↗
+  </button></div>
 
-  <div id="marineCard" class="card">
-    <div class="card-title">
-      <svg class="icon-svg" viewBox="0 0 24 24" fill="none"><path d="M2 18c1.5 1.2 3 1.2 4.5 0s3-1.2 4.5 0 3 1.2 4.5 0 3-1.2 4.5 0" stroke="#22D3EE" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="9" r="3.5" stroke="#22D3EE" stroke-width="1.6"/></svg>
-      현재 해상 상태 (<span id="marineStationName">포항</span>)
-    </div>
-    <div class="result-grid">
-      <div class="stat-box"><div class="label">수온</div><div class="value accent" id="marineWaterTemp">-</div></div>
-      <div class="stat-box"><div class="label">기온</div><div class="value accent" id="marineAirTemp">-</div></div>
-      <div class="stat-box"><div class="label">기압</div><div class="value accent" id="marineAirPress">-</div></div>
-      <div class="stat-box"><div class="label">파고 (참고용)</div><div class="value accent" id="marineWaveHeight">-</div><div id="waveStatusPill"></div></div>
-      <div class="stat-box"><div class="label">풍향/풍속</div><div class="value accent" id="marineWind">-</div><div id="windStatusPill"></div></div>
-      <div class="stat-box"><div class="label">시정</div><div class="value accent" id="marineVisibility">-</div></div>
-      <div class="stat-box"><div class="label">관측시각</div><div class="value" id="marineObsTime" style="font-size:13px;">-</div></div>
-      <div class="stat-box"><div class="label">관측정보 최신 여부</div><div class="value" id="marineFreshness" style="font-size:13px;">-</div></div>
-      <div class="stat-box"><div class="label">실측 유향/유속 (HF레이더)</div><div class="value accent" id="marineHfCurrent" style="font-size:13px;">-</div></div>
-      <div class="stat-box"><div class="label">다음 만조/간조</div><div class="value accent" id="marineNextTide" style="font-size:13px;">-</div></div>
-    </div>
-    <div id="marineAlertBox" style="display:none;margin-top:10px;padding:10px 12px;border-radius:10px;background:rgba(255,92,92,0.12);border:1px solid rgba(255,92,92,0.35);font-size:13px;color:var(--red);font-weight:700;"></div>
-  </div>
+
+
+  <details id="fieldContext" class="card disclosure"><summary>추가 해황·항행경보<span>너울 · 시정 · 일출몰</span></summary><p class="help">선택 좌표의 보조모델 예보와 전국 항행경보를 조회합니다. 아래 실측 관측 카드와 구분해서 확인하세요.</p><div class="button-row"><button id="loadContext">너울·시정·일출몰 조회</button><button id="loadNavWarnings">항행경보 조회</button><button id="loadRoms">ROMS·HF 비교</button></div><div id="contextStatus" role="status"></div><div id="contextValues" class="result-grid"></div><div id="contextForecast" class="table-scroll"></div><div id="romsInfo"></div><div id="navigationWarnings"></div><p class="help">Open-Meteo / DWD / Météo-France / Copernicus / ECMWF · CC BY 4.0. 너울·해류·해수면은 광역 모델 참고값이며 연안 국지현상·해도 기준 조위와 다릅니다. <a href="https://open-meteo.com/en/docs/marine-weather-api" target="_blank" rel="noopener">자료 설명</a></p></details>
 
   <div id="aiCard" class="card" style="display:none;">
     <div class="card-title">
       <svg class="icon-svg" viewBox="0 0 24 24" fill="none"><rect x="4" y="4" width="16" height="16" rx="3" stroke="#22D3EE" stroke-width="1.6"/><path d="M9 9h.01M15 9h.01M8 15c1.2 1 2.4 1.5 4 1.5s2.8-.5 4-1.5" stroke="#22D3EE" stroke-width="1.6" stroke-linecap="round"/></svg>
-      AI 기반 수색지원 분석
+      예측 자료·해황 분석
     </div>
 
     <div class="ai-confidence-row">
-      <span class="ai-confidence-label">예측 신뢰도</span>
+      <span class="ai-confidence-label">입력자료 상태</span>
       <span class="ai-confidence-value" id="aiConfidence">-</span>
     </div>
 
     <div class="factor-row">
-      <div class="factor-label-row"><span>조류 영향</span><span class="factor-pct" id="factorCurrentPct">-</span></div>
+      <div class="factor-label-row"><span>조류 이동량 비중</span><span class="factor-pct" id="factorCurrentPct">-</span></div>
       <div class="progress-track"><div class="progress-fill" id="factorCurrentBar"></div></div>
     </div>
     <div class="factor-row">
-      <div class="factor-label-row"><span>풍향 영향</span><span class="factor-pct" id="factorWindPct">-</span></div>
+      <div class="factor-label-row"><span>풍압 이동량 비중</span><span class="factor-pct" id="factorWindPct">-</span></div>
       <div class="progress-track"><div class="progress-fill" id="factorWindBar"></div></div>
     </div>
     <div class="factor-row">
-      <div class="factor-label-row"><span>풍속 영향</span><span class="factor-pct" id="factorWindSpeedPct">-</span></div>
+      <div class="factor-label-row"><span>풍속 수준 (15m/s 기준)</span><span class="factor-pct" id="factorWindSpeedPct">-</span></div>
       <div class="progress-track"><div class="progress-fill" id="factorWindSpeedBar"></div></div>
     </div>
     <div class="factor-row">
-      <div class="factor-label-row"><span>파고 영향</span><span class="factor-pct" id="factorWavePct">-</span></div>
+      <div class="factor-label-row"><span>파고 수준 (3m 기준)</span><span class="factor-pct" id="factorWavePct">-</span></div>
       <div class="progress-track"><div class="progress-fill" id="factorWaveBar"></div></div>
     </div>
 
@@ -356,10 +367,10 @@
     </div>
 
     <div class="stat-grid-4">
-      <div class="stat-box"><div class="label">예측 이동거리</div><div class="value accent" id="statDist">-</div></div>
+      <div class="stat-box"><div class="label">사고점 대비 직선거리</div><div class="value accent" id="statDist">-</div></div>
       <div class="stat-box"><div class="label">예측시간</div><div class="value accent" id="statHours">-</div></div>
-      <div class="stat-box"><div class="label">평균속도</div><div class="value accent" id="statAvgSpeed">-</div></div>
-      <div class="stat-box"><div class="label">오차반경</div><div class="value accent" id="statErrorRadius">-</div></div>
+      <div class="stat-box"><div class="label">순이동 평균속도</div><div class="value accent" id="statAvgSpeed">-</div></div>
+      <div class="stat-box"><div class="label">추정 확산반경</div><div class="value accent" id="statErrorRadius">-</div></div>
     </div>
 
     <div class="drift-summary" id="driftSummary" style="margin-top:14px;"></div>
@@ -367,12 +378,12 @@
       ⚠ 본 예측은 광역 조류 격자 데이터 기반으로, 갯바위·방파제 등 연안 인접 해역의 국지적 와류·이안류는 반영되지 않습니다.
       현지 어민·주민의 물길 정보를 함께 참고하시기 바랍니다.<br>
       ⚠ 동해는 계절 및 기상 조건에 따라 외해성 해류(동한난류 등)의 영향으로 유속이 급격히 강해질 수 있어 실제 이동이 예측치보다 빠를 수 있습니다.<br>
-      ⚠ 오차반경에는 바람에 의한 풍압 좌우발산(crosswind leeway) 여유폭이 표류물 종류별 실측/근사 발산각으로 포함되어 있으나, 좌우 어느 쪽으로 갈릴지는 예측하지 않고 원형으로 넓혀 반영한 것이므로 방향성 판단에는 사용하지 마시기 바랍니다.
+      ⚠ 추정 확산반경에는 바람에 의한 풍압 좌우발산(crosswind leeway) 여유폭이 표류물 종류별 실측/근사 발산각으로 포함되어 있으나, 좌우 어느 쪽으로 갈릴지는 예측하지 않고 원형으로 넓혀 반영한 것이므로 방향성 판단에는 사용하지 마시기 바랍니다.
     </div>
     <button class="run-btn" onclick="copyOperationReport()" style="background: linear-gradient(135deg, var(--green), #059669); color: #06131F; margin-top: 12px; box-shadow: 0 4px 14px rgba(52,211,153,0.25);">
       📋 상황 보고서 양식 복사
     </button>
-    <details><summary>디버그 정보</summary><div id="debugBox"></div></details>
+    <details><summary>계산 상세</summary><div id="debugBox"></div></details>
   </div>
 
   <div id="searchCard" class="card" style="display:none;">
@@ -381,32 +392,30 @@
       수색 권고
     </div>
     <ul class="search-list">
-      <li><span class="k">추천 수색 시작 위치</span><span class="v" id="searchStart">-</span></li>
-      <li><span class="k">추천 탐색 방향</span><span class="v" id="searchDir">-</span></li>
-      <li><span class="k">1차 탐색 반경</span><span class="v" id="searchR1">-</span></li>
-      <li><span class="k">2차 탐색 반경</span><span class="v" id="searchR2">-</span></li>
+      <li><span class="k">종료시각 기준 수색 중심</span><span class="v" id="searchStart">-</span></li>
+      <li><span class="k">사고점 대비 순이동 방향</span><span class="v" id="searchDir">-</span></li>
+      <li><span class="k">안쪽 참고 반경</span><span class="v" id="searchR1">-</span></li>
+      <li><span class="k">바깥 참고 반경</span><span class="v" id="searchR2">-</span></li>
       <li><span class="k">예상 도달 위치</span><span class="v" id="searchEnd">-</span></li>
     </ul>
     <div class="search-order" id="searchOrder">-</div>
   </div>
 
-  <div class="card">
-    <div class="card-title">
-      <svg class="icon-svg" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="#22D3EE" stroke-width="1.6"/><circle cx="12" cy="12" r="3" stroke="#22D3EE" stroke-width="1.6"/></svg>
-      전국 CCTV 현황 보기
+  <section id="cctvCard" class="card cctv-card" aria-labelledby="cctvTitle">
+    <div class="cctv-heading"><h2 id="cctvTitle" tabindex="-1">CCTV · 현장 영상</h2><span>외부 영상 페이지</span></div>
+    <p class="help">사고 해역의 파도·해안 상황을 영상으로 확인하세요. 각 사이트가 새 창으로 열립니다.</p>
+    <div class="cctv-links">
+      <a href="https://coast.mof.go.kr/coastScene/coastMediaService.do" target="_blank" rel="noopener"><strong>해수부 연안 CCTV <span aria-hidden="true">↗</span></strong><span>해수욕장·침식감시 영상</span></a>
+      <a href="https://www.badatime.com/cctv" target="_blank" rel="noopener"><strong>바다타임 CCTV <span aria-hidden="true">↗</span></strong><span>전국 바다 영상</span></a>
+      <a href="https://d.kbs.co.kr/special/cctv" target="_blank" rel="noopener"><strong>KBS 재난 CCTV <span aria-hidden="true">↗</span></strong><span>재난포털 영상</span></a>
+      <a href="https://www.ulleung.go.kr/live/index.do" target="_blank" rel="noopener"><strong>울릉·독도 영상 <span aria-hidden="true">↗</span></strong><span>울릉군 실시간영상</span></a>
     </div>
-    <ul class="search-list">
-      <li><a href="https://d.kbs.co.kr/special/cctv" target="_blank" rel="noopener" style="display:flex; justify-content:space-between; width:100%; text-decoration:none; color:inherit;"><span class="k">🌊 KBS 재난포털</span><span class="v" style="color:var(--cyan);">새 탭 ↗</span></a></li>
-      <li><a href="https://coast.mof.go.kr/coastScene/coastMediaService.do" target="_blank" rel="noopener" style="display:flex; justify-content:space-between; width:100%; text-decoration:none; color:inherit;"><span class="k">🌊 해양수산부 연안(해수욕장·침식감시) 포털</span><span class="v" style="color:var(--cyan);">새 탭 ↗</span></a></li>
-      <li><a href="https://www.ulleung.go.kr/live/index.do" target="_blank" rel="noopener" style="display:flex; justify-content:space-between; width:100%; text-decoration:none; color:inherit;"><span class="k">🌊 울릉군청 실시간영상(독도·전망대)</span><span class="v" style="color:var(--cyan);">새 탭 ↗</span></a></li>
-      <li><a href="https://www.badatime.com/cctv" target="_blank" rel="noopener" style="display:flex; justify-content:space-between; width:100%; text-decoration:none; color:inherit;"><span class="k">🌊 바다타임(전국 실시간 바다영상)</span><span class="v" style="color:var(--cyan);">새 탭 ↗</span></a></li>
-    </ul>
-  </div>
+  </section>
 </main>
 
 <footer>국립해양조사원(KHOA·HF레이더) 조류 + 기상청 기상 데이터 기반</footer>
 
-<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=7cf14f6520831fe7a42b307b25e72103&libraries=services"></script>
+
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>

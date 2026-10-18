@@ -1,180 +1,345 @@
-// ==========================================================================
-// TideFinder 앱 진입점
-// ※ index.html에 <script type="module" src="/src/main.js"> 한 줄만 있으면
-//   Vite가 이 파일부터 시작해서 import 트리를 전부 번들링한다.
-// ==========================================================================
-import { dmsToDecimal, decimalToDMS } from './modules/geo.js';
-import { loadCoastlineGeoJSON, loadSetnetGeoJSON } from './modules/coastline.js';
-import * as mapModule from './modules/map.js';
-import * as ui from './modules/ui.js';
-import { runPrediction } from './predict.js';
-import { loadMarineStatus } from './modules/marine.js';
-
-let lastPredictionResult = null;
-
-function getCoordsFromInputs() {
-  const lat = dmsToDecimal(
-    parseFloat(document.getElementById('latD').value),
-    parseFloat(document.getElementById('latM').value),
-    parseFloat(document.getElementById('latS').value)
-  );
-  const lon = dmsToDecimal(
-    parseFloat(document.getElementById('lonD').value),
-    parseFloat(document.getElementById('lonM').value),
-    parseFloat(document.getElementById('lonS').value)
-  );
-  return { lat, lon };
+import "./field.css";
+import "./workspace.css";
+import { mountWorkspace } from "./modules/workspace.js";
+import { decimalToDMS } from "./modules/geo.js";
+import {
+  validateDms,
+  validateInput,
+  parseKst,
+  kstParts,
+  formatKst,
+  finite,
+} from "./modules/model.js";
+import {
+  ensureCoastlineReady,
+  loadSetnetGeoJSON,
+} from "./modules/coastline.js";
+import * as map from "./modules/map.js";
+import * as ui from "./modules/ui.js";
+import { runPrediction } from "./predict.js";
+import { loadMarineStatus, invalidateMarineStatus } from "./modules/marine.js";
+import { mountTimeline, showPredictionTimeline, clearTimeline } from "./modules/timeline.js";
+import { operationReport } from "./modules/case.js";
+import { mountIntelligence } from "./modules/intelligence.js";
+const $ = (id) => document.getElementById(id);
+let running = false,
+  lastResult = null,
+  resetIntelligence = () => {};
+function coords() {
+  return {
+    lat: validateDms(
+      $("latD").value,
+      $("latM").value,
+      $("latS").value,
+      90,
+      "위도",
+    ),
+    lon: validateDms(
+      $("lonD").value,
+      $("lonM").value,
+      $("lonS").value,
+      180,
+      "경도",
+    ),
+  };
 }
-
-function setCoordsToInputs(lat, lon) {
-  const latDMS = decimalToDMS(lat), lonDMS = decimalToDMS(lon);
-  document.getElementById('latD').value = latDMS.d;
-  document.getElementById('latM').value = latDMS.m;
-  document.getElementById('latS').value = latDMS.s;
-  document.getElementById('lonD').value = lonDMS.d;
-  document.getElementById('lonM').value = lonDMS.m;
-  document.getElementById('lonS').value = lonDMS.s;
+function setCoords(lat, lon) {
+  for (const [prefix, n] of [
+    ["lat", lat],
+    ["lon", lon],
+  ]) {
+    const p = decimalToDMS(n);
+    $(prefix + "D").value = p.d;
+    $(prefix + "M").value = p.m;
+    $(prefix + "S").value = p.s;
+  }
+  map.setMarkerPosition(lat, lon);
+  document.dispatchEvent(new window.Event("tidefinder:location-changed"));
   ui.refreshInputCheckmarks();
 }
-
-async function handleRunPrediction() {
-  const { lat, lon } = getCoordsFromInputs();
-  const ahead = parseInt(document.getElementById('hoursAhead').value, 10);
-  const hour = document.getElementById('hourInput').value.padStart(2, '0');
-  const minute = document.getElementById('minuteInput').value.padStart(2, '0');
-  const dateInputVal = document.getElementById('dateInput').value;
-  const startDateTime = new Date(`${dateInputVal}T${hour}:${minute}:00`);
-  const leewaySelect = document.getElementById('leewayCoef');
-  const leewayCoefVal = parseFloat(leewaySelect.value);
-  const selectedOption = leewaySelect.options[leewaySelect.selectedIndex];
-  const cwAngleAttr = selectedOption?.dataset?.cwangle;
-  const crosswindAngleDeg = cwAngleAttr ? parseFloat(cwAngleAttr) : undefined; // 없으면 predict.js 기본값(20°) 사용
-
-  ui.showLoading('조류 분석 중...');
-  ui.setStatus('busy', '⏳ 조류 연산 수행 중...');
-
-  try {
-    const result = await runPrediction(
-      { lat, lon, ahead, startDateTime, leewayCoefVal, crosswindAngleDeg },
-      {
-        onStatus: ui.setStatus,
-        onProgress: (done, total) => ui.setStatus('busy', `🎲 몬테카를로 시뮬레이션 중... (${done}/${total})`),
-      }
-    );
-    ui.hideLoading();
-    ui.setStatus('ok', '✅ 예측 완료');
-    ui.renderResultCard(result);
-    lastPredictionResult = { ...result, inputLat: lat, inputLon: lon, startDateTime, ahead };
-    console.log('예측 결과:', result);
-  } catch (err) {
-    ui.hideLoading();
-    ui.setStatus('warn', `⚠ 예측 실패: ${err.message}`);
-    console.error(err);
-  }
+function invalidate() {
+  lastResult = null;
+  clearTimeline();
+  map.clearPrediction();
+  for (const id of ["aiCard", "resultCard", "searchCard"])
+    $(id).style.display = "none";
+  $("dataQuality").hidden = true;
+  $("timelineMessage").textContent = "";
 }
-
-// "🗻 3D 지형 보기" 버튼 - 현재 입력된 좌표를 붙여서 coastview.html을 새 탭으로 연다.
-// (index.html에 onclick="openCoastView()"로 이미 연결돼 있어 전역에 노출해야 한다)
-window.openCoastView = function openCoastView() {
-  const { lat, lon } = getCoordsFromInputs();
-  if (Number.isNaN(lat) || Number.isNaN(lon)) {
-    window.open('/coastview.html', '_blank', 'noopener');
-    return;
-  }
-  window.open(`/coastview.html?lat=${lat}&lon=${lon}`, '_blank', 'noopener');
-};
-
-// "📋 상황 보고서 양식 복사" 버튼 - 가장 최근 예측 결과를 텍스트 양식으로 복사한다.
-window.copyOperationReport = function copyOperationReport() {
-  if (!lastPredictionResult) {
-    ui.setStatus('warn', '⚠ 먼저 표류 예측을 실행해주세요.');
-    return;
-  }
-  const r = lastPredictionResult;
-  const fmt = (n, digits = 4) => (typeof n === 'number' ? n.toFixed(digits) : '-');
-  const text = [
-    '[해양 수색지원 상황 보고서 - TideFinder]',
-    `사고 발생 좌표: ${fmt(r.inputLat)}, ${fmt(r.inputLon)}`,
-    `사고 발생 시각: ${r.startDateTime instanceof Date ? r.startDateTime.toLocaleString('ko-KR') : '-'}`,
-    `예측 시간: ${r.ahead}시간`,
-    r.finalPoint ? `예상 도달 위치: ${fmt(r.finalPoint.lat)}, ${fmt(r.finalPoint.lon)}` : null,
-    typeof r.finalErrorRadius === 'number' ? `오차반경: 약 ${Math.round(r.finalErrorRadius)}m` : null,
-    typeof r.combBrng === 'number' ? `추천 탐색 방향: ${Math.round(r.combBrng)}°` : null,
-    typeof r.combSpeed === 'number' ? `평균 이동속도: ${(r.combSpeed / 1852).toFixed(2)}kn` : null,
-    '',
-    '※ 본 보고서는 광역 조류 격자 데이터 기반 예측치이며, 현장 상황과 다를 수 있습니다.',
-  ].filter(Boolean).join('\n');
-
-  if (navigator.clipboard && navigator.clipboard.writeText) {
-    navigator.clipboard.writeText(text)
-      .then(() => ui.setStatus('ok', '📋 상황 보고서가 클립보드에 복사되었습니다.'))
-      .catch(() => ui.setStatus('warn', '⚠ 클립보드 복사에 실패했습니다.'));
-  } else {
-    ui.setStatus('warn', '⚠ 이 브라우저는 클립보드 복사를 지원하지 않습니다.');
-  }
-};
-
-async function init() {
-  const today = new Date();
-  document.getElementById('dateInput').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  document.getElementById('hourInput').value = today.getHours();
-  document.getElementById('minuteInput').value = today.getMinutes();
-
-  // 비차단 로드 - 실패해도 페이지 동작에 영향 없음
-  loadCoastlineGeoJSON();
-  loadSetnetGeoJSON();
-  loadMarineStatus();
-
-  ['latD', 'latM', 'latS', 'lonD', 'lonM', 'lonS', 'dateInput', 'hourInput', 'minuteInput', 'hoursAhead'].forEach((id) => {
-    document.getElementById(id).addEventListener('input', ui.refreshInputCheckmarks);
-  });
-  ui.refreshInputCheckmarks();
-
-  document.getElementById('runPredictionBtn').addEventListener('click', handleRunPrediction);
-
-  document.getElementById('headerRefreshBtn').addEventListener('click', async (e) => {
-    const btn = e.currentTarget;
-    if (btn.classList.contains('spinning')) return; // 중복 클릭 방지
-    btn.classList.add('spinning');
-    ui.setStatus('busy', '⏳ 해상상태 갱신 중...');
-    try {
-      const { lat, lon } = getCoordsFromInputs();
-      await loadMarineStatus(Number.isNaN(lat) || Number.isNaN(lon) ? {} : { lat, lon });
-      ui.setStatus('ok', '✅ 해상상태 갱신 완료');
-    } catch (err) {
-      ui.setStatus('warn', '⚠ 해상상태 갱신 실패');
-    } finally {
-      btn.classList.remove('spinning');
+function readInput() {
+  const p = coords(),
+    hour = $("hourInput").value,
+    minute = $("minuteInput").value,
+    date = $("dateInput").value;
+  if (
+    !finite(hour) ||
+    !finite(minute) ||
+    !Number.isInteger(Number(hour)) ||
+    !Number.isInteger(Number(minute)) ||
+    hour < 0 ||
+    hour > 23 ||
+    minute < 0 ||
+    minute > 59 ||
+    !/^\d{4}-\d{2}-\d{2}$/.test(date)
+  )
+    throw new Error("기준 날짜·시·분을 확인하세요.");
+  const startDateTime = parseKst(
+    `${date}T${hour.padStart(2, "0")}:${minute.padStart(2, "0")}:00`,
+  );
+  if (!Number.isFinite(startDateTime.getTime()))
+    throw new Error("기준 날짜가 올바르지 않습니다.");
+  if (kstParts(startDateTime).date !== date)
+    throw new Error("존재하지 않는 날짜입니다.");
+  const selected = $("leewayCoef").selectedOptions[0];
+  const input = {
+    ...p,
+    ahead: Number($("hoursAhead").value),
+    startDateTime,
+    leewayCoefVal: Number(selected.value),
+    crosswindAngleDeg: Number(selected.dataset.cwangle),
+    allowNoCoastline: $("allowNoCoastline").checked,
+    allowCurrentOnly: $("allowCurrentOnly").checked,
+    initialErrorM: Number($("initialErrorM").value),
+  };
+  if (
+    !finite($("initialErrorM").value) ||
+    input.initialErrorM < 0 ||
+    input.initialErrorM > 10000
+  )
+    throw new Error("초기 위치 오차는 0~10,000m입니다.");
+  for (const [kind, id] of [
+    ["manualCurrent", "manualCurrent"],
+    ["manualWind", "manualWind"],
+  ])
+    if ($(id + "Enabled").checked) {
+      if (!finite($(id + "Speed").value) || !finite($(id + "Dir").value))
+        throw new Error("수동 속도·방향을 입력하세요.");
+      input[kind] = {
+        speed: Number($(id + "Speed").value),
+        dir: Number($(id + "Dir").value),
+      };
     }
-  });
-
-  document.getElementById('resetMapBtn').addEventListener('click', () => {
-    mapModule.resetMapView();
-    ui.setStatus('warn', '↺ 지도가 초기화되었습니다.');
-  });
-
-  document.getElementById('useLocationBtn').addEventListener('click', () => {
-    if (!navigator.geolocation) { ui.setStatus('warn', '⚠ 이 브라우저는 위치 정보를 지원하지 않습니다.'); return; }
-    ui.setStatus('busy', '⏳ 현재 위치 확인 중...');
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setCoordsToInputs(pos.coords.latitude, pos.coords.longitude);
-        mapModule.setMarkerPosition(pos.coords.latitude, pos.coords.longitude);
-        mapModule.centerMap(pos.coords.latitude, pos.coords.longitude);
-        ui.setStatus('ok', `📍 현재 위치 적용 완료 (오차 ±${Math.round(pos.coords.accuracy)}m)`);
-        loadMarineStatus({ lat: pos.coords.latitude, lon: pos.coords.longitude });
+  return validateInput(input);
+}
+function showSources(r) {
+  $("dataQuality").hidden = false;
+  $("sourceSummary").textContent =
+    `기준 ${formatKst(r.startDateTime)} → 종료 ${formatKst(r.samples.at(-1).time)} / 계산 ${formatKst(r.createdAt)} / ${r.currentSource} / 해안선 ${r.coastlineStatus.loaded ? "적용" : "미적용"}`;
+  $("predictionWarnings").replaceChildren();
+  for (const note of [
+    ...r.warnings,
+    "추정 확산반경은 경험식입니다. 보라색 500입자 외곽도 90%·95% 발견구역을 의미하지 않습니다.",
+  ]) {
+    const li = document.createElement("li");
+    li.textContent = note;
+    $("predictionWarnings").append(li);
+  }
+  const table = document.createElement("table");
+  table.innerHTML =
+    "<thead><tr><th>구간</th><th>조류 시각</th><th>자료</th><th>조회 거리</th><th>바람</th></tr></thead><tbody></tbody>";
+  for (const step of r.sourceSteps) {
+    const row = document.createElement("tr");
+    for (const v of [
+      step.hour,
+      formatKst(step.current.time),
+      step.current.source,
+      `${(step.current.distanceKm ?? 0).toFixed(1)}km`,
+      step.wind
+        ? `${step.wind.source} / ${formatKst(step.wind.time)}`
+        : "미반영",
+    ]) {
+      const td = document.createElement("td");
+      td.textContent = v;
+      row.append(td);
+    }
+    table.tBodies[0].append(row);
+  }
+  $("sourceTable").replaceChildren(table);
+  $("debugBox").textContent = JSON.stringify(
+    {
+      modelVersion: r.modelVersion,
+      totalPathM: r.totalPathM,
+      netDistM: r.netDistM,
+      actualHours: r.actualHours,
+      coastlineStatus: r.coastlineStatus,
+      setnetWarnings: r.setnetWarnings,
+    },
+    null,
+    2,
+  );
+  if (r.setnetWarnings.length) {
+    const p = document.createElement("p");
+    p.textContent = `정치망 300m 이내 접근 예상 ${r.setnetWarnings.length}건. 현장 위치와 일치 여부를 확인하세요.`;
+    $("sourceSummary").append(p);
+  }
+}
+async function handleRunPrediction() {
+  if (running) return;
+  let input;
+  try {
+    input = readInput();
+  } catch (e) {
+    ui.setStatus("warn", e.message);
+    return;
+  }
+  running = true;
+  invalidate();
+  ui.showLoading("자료·경로 분석 중…");
+  document.querySelector("main").inert = true;
+  $("runPredictionBtn").disabled = true;
+  try {
+    const r = await runPrediction(input, {
+      onStatus: (kind, text) => {
+        ui.setStatus(kind, text);
+        $("loadingText").textContent = text;
       },
-      (err) => ui.setStatus('warn', `⚠ 위치 확인 실패: ${err.message}`)
+      onProgress: (done, total) => {
+        ui.setStatus("busy", `입자 시뮬레이션 ${done}/${total}`);
+        $("loadingText").textContent = `입자 시뮬레이션 ${done}/${total}`;
+      },
+    });
+    lastResult = r;
+    document.dispatchEvent(new window.Event("tidefinder:prediction-ready"));
+    ui.renderResultCard(r);
+    showSources(r);
+    showPredictionTimeline(r);
+    ui.setStatus(
+      r.manual || r.windMissing || !r.coastlineStatus.loaded ? "warn" : "ok",
+      r.manual
+        ? "수동 가정 포함 예측 완료 — 적용 조건을 확인하세요."
+        : r.windMissing || !r.coastlineStatus.loaded
+          ? "제한 조건 포함 예측 완료 — 자료 상태를 확인하세요."
+          : "예측 완료 — 확산범위는 확률 미검증 참고값입니다.",
     );
-  });
-
-  await mapModule.initMap('map', (lat, lon) => {
-    setCoordsToInputs(lat, lon);
-    mapModule.setMarkerPosition(lat, lon);
-    ui.setStatus('ok', '🎯 좌표 자동 입력 완료');
+  } catch (e) {
+    invalidate();
+    ui.setStatus("warn", `예측 중단: ${e.message}`);
+  } finally {
+    running = false;
+    ui.hideLoading();
+    document.querySelector("main").inert = false;
+    $("runPredictionBtn").disabled = false;
+  }
+}
+window.copyOperationReport = async () => {
+  if (!lastResult) {
+    ui.setStatus("warn", "현재 입력으로 예측을 실행하세요.");
+    return;
+  }
+  try {
+    await navigator.clipboard.writeText(operationReport({name:"표류 예측",observations:[],searches:[]},lastResult));
+    ui.setStatus("ok", "자료 출처·제한 조건을 포함한 보고서를 복사했습니다.");
+  } catch (e) {
+    ui.setStatus("warn", "복사할 수 없습니다. 브라우저의 클립보드 권한을 확인하세요.");
+  }
+};
+window.openCoastView = () => {
+  try {
+    const p = coords();
+    window.open(
+      `/coastview.html?lat=${p.lat}&lon=${p.lon}`,
+      "_blank",
+      "noopener",
+    );
+  } catch (e) {
+    ui.setStatus("warn", e.message);
+  }
+};
+async function init() {
+  const p = kstParts(new Date());
+  $("dateInput").value = p.date;
+  $("hourInput").value = Number(p.hour);
+  $("minuteInput").value = Number(p.minute);
+  await map.initMap("map", (lat, lon) => {
+    invalidate();
+    setCoords(lat, lon);
+    resetIntelligence();
+    ui.setStatus("ok", "선택 좌표를 입력했습니다. 예측을 다시 실행하세요.");
     loadMarineStatus({ lat, lon });
   });
-  ui.setStatus('ok', '✅ 지도 연동 완료');
+  mountTimeline();
+  resetIntelligence = mountIntelligence(coords);
+  mountWorkspace(coords);
+  ensureCoastlineReady();
+  loadSetnetGeoJSON();
+  loadMarineStatus(coords());
+  for (const id of [
+    "latD",
+    "latM",
+    "latS",
+    "lonD",
+    "lonM",
+    "lonS",
+    "dateInput",
+    "hourInput",
+    "minuteInput",
+    "hoursAhead",
+    "leewayCoef",
+    "initialErrorM",
+    "manualCurrentEnabled",
+    "manualWindEnabled",
+    "manualCurrentDir",
+    "manualCurrentSpeed",
+    "manualWindDir",
+    "manualWindSpeed",
+    "allowNoCoastline",
+    "allowCurrentOnly",
+  ]) {
+    $(id).addEventListener("input", () => {
+      invalidate();
+      ui.refreshInputCheckmarks();
+      if (id.startsWith("lat") || id.startsWith("lon")) { resetIntelligence(); invalidateMarineStatus(); document.dispatchEvent(new window.Event("tidefinder:location-changed")); }
+      ui.setStatus("warn", "입력이 변경됐습니다. 다시 계산하세요.");
+    });
+  }
+  for (const id of ["latD", "latM", "latS", "lonD", "lonM", "lonS"]) {
+    $(id).addEventListener("change", () => {
+      try { loadMarineStatus(coords()); } catch { /* Wait for valid coordinates. */ }
+    });
+  }
+  $("runPredictionBtn").addEventListener("click", handleRunPrediction);
+  $("headerRefreshBtn").addEventListener("click", async () => {
+    try {
+      await loadMarineStatus(coords());
+      ui.setStatus(
+        "ok",
+        "현재 관측자료 조회 완료. 미수신 항목은 별도 확인하세요.",
+      );
+    } catch (e) {
+      ui.setStatus("warn", e.message);
+    }
+  });
+  $("resetMapBtn").addEventListener("click", () => {
+    invalidate();
+    map.resetMapView();
+    ui.setStatus("warn", "예측 표시를 지웠습니다. 입력 좌표는 유지됩니다.");
+  });
+  $("useLocationBtn").addEventListener("click", () => {
+    if (!navigator.geolocation) {
+      ui.setStatus("warn", "위치 기능을 지원하지 않습니다.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        invalidate();
+        setCoords(pos.coords.latitude, pos.coords.longitude);
+        $("initialErrorM").value = Math.min(
+          10000,
+          Math.max(1, Math.round(pos.coords.accuracy)),
+        );
+        map.centerMap(pos.coords.latitude, pos.coords.longitude);
+        resetIntelligence();
+        loadMarineStatus(coords());
+        ui.setStatus(
+          "ok",
+          `현재 위치 입력 (오차 약 ${Math.round(pos.coords.accuracy)}m). 사고 위치가 맞는지 확인하세요.`,
+        );
+      },
+      (e) => ui.setStatus("warn", `위치 확인 실패: ${e.message}`),
+      { timeout: 10000 },
+    );
+  });
+  ui.refreshInputCheckmarks();
+  ui.setStatus("ok", "지도 준비 완료 · 실측·예보·수동값을 구분해 사용하세요.");
 }
-
-init();
+init().catch((e) => ui.setStatus("warn", `초기화 오류: ${e.message}`));

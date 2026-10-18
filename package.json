@@ -1,17 +1,23 @@
 {
   "name": "tidefinder",
-  "version": "2.0.0",
-  "description": "AI 기반 해양 수색지원 시스템 - TideFinder",
+  "version": "3.0.0",
+  "description": "해양 수색·현장 대응지원 시스템 - TideFinder",
   "type": "module",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "node --experimental-test-module-mocks --test tests/*.test.js"
   },
   "dependencies": {
-    "@turf/turf": "^6.5.0"
+    "@turf/turf": "^6.5.0",
+    "leaflet": "1.9.4"
   },
   "devDependencies": {
+    "jsdom": "26.1.0",
     "vite": "^5.4.0"
+  },
+  "engines": {
+    "node": ">=22.3.0"
   }
 }
