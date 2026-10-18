@@ -3,6 +3,44 @@ import "leaflet/dist/leaflet.css";
 import { formatDMS } from "./geo.js";
 let map, clickMarker, prediction, hull, comparisons, selection, records, recordPointLayer;
 let pendingLocationPick = null;
+let seamarks, seamarkTimer, seamarkStatus = () => {}, seamarkReceived = 0, seamarkErrors = 0;
+const seamarkMessage = (state, text) => seamarkStatus({state,text});
+export function setOpenSeaMapEnabled(enabled, onStatus) {
+  if (onStatus) seamarkStatus = onStatus;
+  clearTimeout(seamarkTimer);
+  if (!enabled) {
+    if (seamarks && map?.hasLayer(seamarks)) map.removeLayer(seamarks);
+    seamarkMessage("off", "일반지도 · 해상표지 꺼짐");
+    return;
+  }
+  if (!map) return;
+  if (seamarks && map.hasLayer(seamarks)) return;
+  if (!seamarks) {
+    map.createPane("seamarks").style.zIndex = 350;
+    map.getPane("seamarks").style.pointerEvents = "none";
+    seamarks = L.tileLayer("https://t1.openseamap.org/seamark/{z}/{x}/{y}.png", {
+      pane: "seamarks", maxNativeZoom: 18, maxZoom: 19, keepBuffer: 1, updateWhenIdle: true,
+      attribution: '<a href="https://www.openseamap.org/" target="_blank" rel="noopener">OpenSeaMap</a> · <a href="https://creativecommons.org/licenses/by-sa/2.0/" target="_blank" rel="noopener">CC BY-SA 2.0</a>',
+    });
+    seamarks.on("loading", () => {
+      seamarkReceived=0;seamarkErrors=0;
+      seamarkMessage("loading", "공개 해상표지 수신 중…");
+      clearTimeout(seamarkTimer);
+      seamarkTimer=setTimeout(()=>{if(map.hasLayer(seamarks)) seamarkMessage("error", "해상표지 응답 지연 · 일반지도만 참고하세요.");},12000);
+    });
+    seamarks.on("tileload",()=>{seamarkReceived++;});
+    seamarks.on("tileerror",()=>{seamarkErrors++;if(map.hasLayer(seamarks))seamarkMessage("error", "해상표지 일부 또는 전체 미수신 · 표시 공백을 주의하세요.");});
+    seamarks.on("load",()=>{
+      clearTimeout(seamarkTimer);
+      if (!map.hasLayer(seamarks)) return;
+      if(seamarkErrors || !seamarkReceived) seamarkMessage("error", "해상표지 일부 또는 전체 미수신 · 표시 공백을 주의하세요.");
+      else seamarkMessage("received", "공개 해상표지 타일 수신 · 미등록·누락 가능");
+    });
+  }
+  seamarkMessage("loading", "공개 해상표지 수신 중…");
+  seamarks.addTo(map);
+}
+
 const icon = (text, color = "#22d3ee") =>
   L.divIcon({
     className: "map-label",

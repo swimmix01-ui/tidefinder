@@ -83,6 +83,17 @@ test("field workflow: manual prediction, timeline, sighting, records, safe text 
     const tabs=[...document.querySelectorAll('.workspace-tabs button')];
     assert.equal(tabs.length,4);
     const mapNode=$("map");
+    assert.equal($("showOpenSeaMap").checked, false);
+    assert.match($("chartStatus").textContent,/꺼짐/);
+    $("showOpenSeaMap").checked=true;$("showOpenSeaMap").dispatchEvent(new dom.window.Event("change"));
+    assert.match($("chartStatus").textContent,/수신 중/);
+    assert.equal($("map"),mapNode);
+    const chartTile=document.querySelector('.leaflet-seamarks-pane img');
+    assert.ok(chartTile,"The optional seamark layer must request image tiles");
+    chartTile.dispatchEvent(new dom.window.Event("error"));
+    assert.match($("chartStatus").textContent,/미수신/);
+    $("showOpenSeaMap").checked=false;$("showOpenSeaMap").dispatchEvent(new dom.window.Event("change"));
+    assert.match($("chartStatus").textContent,/꺼짐/);
     tabs[3].click();assert.equal($("view-sources").hidden,false);assert.equal(document.querySelectorAll('.source-row').length,20);
     const filter=document.querySelector('input[type="search"]');filter.value='자연과학';filter.dispatchEvent(new dom.window.Event('input'));
     assert.equal(document.querySelectorAll('.source-row').length,1);

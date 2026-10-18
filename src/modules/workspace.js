@@ -1,7 +1,7 @@
 import { formatDMS } from "./geo.js";
 import sources from '../data/sources.json';
 import { fetchWithTimeout } from './api.js';
-import { invalidateMapSize, clearReferenceLayers, renderBathymetryReference, beginLocationPick, cancelLocationPick } from './map.js';
+import { invalidateMapSize, clearReferenceLayers, renderBathymetryReference, beginLocationPick, cancelLocationPick, setOpenSeaMapEnabled } from './map.js';
 const $=id=>document.getElementById(id);
 function node(tag,text,parent,className) {const n=document.createElement(tag);if(text)n.textContent=text;if(className)n.className=className;parent?.append(n);return n;}
 export function mountWorkspace(getCoords) {
@@ -21,7 +21,15 @@ export function mountWorkspace(getCoords) {
   const sceneGrid=node('div',null,scene,'scene-grid'),mapColumn=node('section',null,sceneGrid,'map-column');
   const pickBanner=node('div',null,mapColumn,'map-pick-banner');pickBanner.hidden=true;
   const pickMessage=node('strong',null,pickBanner);const cancelPick=node('button','선택 취소',pickBanner);
-  const mapPanel=document.querySelector('.map-panel');mapColumn.append(mapPanel);
+  const mapPanel=document.querySelector('.map-panel');
+  const chartTools=node('div',null,mapPanel,'chart-tools');mapPanel.prepend(chartTools);
+  const chartLabel=node('label',null,chartTools,'chart-toggle');
+  const chartToggle=node('input',null,chartLabel);chartToggle.type='checkbox';chartToggle.id='showOpenSeaMap';
+  node('span','공개 해상표지 보기',chartLabel);
+  const chartStatus=node('span','일반지도 · 해상표지 꺼짐',chartTools,'chart-status');chartStatus.id='chartStatus';chartStatus.setAttribute('role','status');chartStatus.setAttribute('aria-live','polite');
+  node('p','OpenSeaMap 참고자료 · 공식 해도·수심 미연결 · 표지가 없어도 장애물이 없다는 뜻은 아닙니다.',chartTools,'chart-note');
+  chartToggle.addEventListener('change',()=>setOpenSeaMapEnabled(chartToggle.checked,status=>{chartStatus.textContent=status.text;chartStatus.dataset.state=status.state;}));
+  mapColumn.append(mapPanel);
   const startGuide=node('div',null,scene,'start-guide');
   node('strong','1. 사고 위치 선택',startGuide);node('p','지도에서 사고 지점을 누르면 그 해역의 정보를 조회합니다.',startGuide);
   const enterCoordinates=node('button','좌표로 입력',startGuide);scene.insertBefore(startGuide,sceneGrid);
