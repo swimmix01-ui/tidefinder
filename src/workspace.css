@@ -131,3 +131,13 @@ input::-webkit-date-and-time-value { min-width: 0; text-align: left; }
 .cctv-links a > span { margin-top: 5px; font-size: 11px; color: #9bb8c9; }
 @media (max-width: 760px) { .scene-title .cctv-shortcut { padding: 10px 12px; } .cctv-card { padding: 18px 14px; } .cctv-links a { padding: 12px 10px; } .cctv-links strong { font-size: 13px; } }
 @media (max-width: 360px) { .cctv-links { grid-template-columns: 1fr; } }
+
+.quick-strip strong[data-quality="reference"] { color: #d4b784; font-size: 16px; }
+#marineReferenceDetails { border-top: 1px solid #375264; margin-top: 14px; }
+.marine-reference-list { padding-left: 18px; }
+.marine-reference-list li { padding: 10px 0; border-bottom: 1px solid #294455; }
+.marine-reference-list small { display: block; margin-top: 5px; color: #a2b9c9; font-size: 11px; line-height: 1.8; }
+.official-observation-links { display: flex; flex-wrap: wrap; gap: 8px 14px; margin: 16px 0; font-size: 12px; }
+.official-observation-links span { color: #9eb7c8; }
+.official-observation-links a { color: #a9dce6; }
+@media (max-width:760px) { .quick-strip { gap: 12px; } .quick-strip strong[data-quality="reference"] { font-size: 14px; line-height: 1.6; } .quick-strip .quick-meta { line-height: 1.7; } }

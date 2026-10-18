@@ -13,6 +13,19 @@
     "checkedAt": "2026-10-17"
   },
   {
+    "id": "kma-agency-wave",
+    "agency": "기상청",
+    "name": "해양기상관측자료 · 연안 파고부이",
+    "category": "파고·파주기",
+    "format": "API",
+    "state": "공공기관 심의·실응답 검증 대기",
+    "environment": "SERVICE_KEY",
+    "url": "https://www.data.go.kr/data/15043550/openapi.do",
+    "use": "OceanInfoService/getWhBuoy. 공공기관 방재업무용. 응답 좌표·관측시각·유의파고를 사용하며 기존 서비스키의 해당 API 이용승인 필요. 풍속 자료는 포함하지 않음.",
+    "license": "공공누리 1유형 · 공공기관 제공·심의승인",
+    "checkedAt": "2026-10-18"
+  },
+  {
     "id": "kma-stations",
     "agency": "기상청",
     "name": "해양관측 지점정보 BUOY",

@@ -35,14 +35,30 @@ const cache=new Map();
 export async function handler(event) {
   const p=event.queryStringParameters||{}, lat=number(p.lat,-90,90),lon=number(p.lon,-180,180);
   if(lat===null||lon===null)return json(400,{error:'유효한 위도·경도가 필요합니다.'});
-  if(!['kma','bathymetry'].includes(p.mode))return json(400,{error:'지원하지 않는 자료 종류'});
+  if(!['kma','kmawave','bathymetry'].includes(p.mode))return json(400,{error:'지원하지 않는 자료 종류'});
   const keyName=p.mode==='kma'?'KMA_AUTH_KEY':'SERVICE_KEY',key=process.env[keyName];
   if(!key)return json(503,{error:'활용신청·인증키 설정 대기',configuration:keyName,source:p.mode});
   const cacheKey=p.mode==='kma'?'kma:all':`${p.mode}:${lat.toFixed(4)}:${lon.toFixed(4)}`;
   const hit=cache.get(cacheKey);if(hit&&Date.now()-hit.time<120000)return json(200,{...hit.data,cached:true});
   try {
     let data;
-    if(p.mode==='kma') {
+    if(p.mode==='kmawave') {
+      // Official OceanInfoService/getWhBuoy: tm4=KST yyyyMMddHH, whSig=m, wp=seconds.
+      // Coordinates come from each observation, not a place-name estimate.
+      const target=new Date(Date.now()-15*60000);
+      const hour=new Date(+target+9*3600000).toISOString().slice(0,13).replace(/[-T]/g,'');
+      const u=new URL('https://apis.data.go.kr/1360000/OceanInfoService/getWhBuoy');
+      u.search=new URLSearchParams({ServiceKey:decodeURIComponent(key),dataType:'JSON',searchTime:hour,pageNo:'1',numOfRows:'1000'});
+      const parsed=items(JSON.parse(await textFetch(u)));
+      if(parsed.total>parsed.rows.length)throw new Error('파고부이 전체 자료 미수신');
+      const records=parsed.rows.flatMap(v=>{
+        const time=/^\d{10}$/.test(v.tm4||'')?kstTime(String(v.tm4)+'00'):null;
+        const lat=number(v.lat,-90,90),lon=number(v.lon,-180,180),wave=number(v.whSig,0,30);
+        if(!time||+new Date(time)>Date.now()+300000||lat===null||lon===null||wave===null)return [];
+        return [{code:String(v.stnId),name:v.name||String(v.stnId),time,lat,lon,significantWaveM:wave,wavePeriodS:number(v.wp,0,60),maximumWaveM:number(v.whMax,0,40),windMS:null,windFromDeg:null,source:'기상청 파고부이',quality:'기관 QC 플래그 미검증'}];
+      });
+      data={source:'KMA OceanInfoService',fetchedAt:new Date().toISOString(),requestedHourKst:hour,records,limitations:['요청 시각과 실제 관측시각은 다를 수 있음','관측 좌표·관측시각·유의파고 원문 대조 필요','연안·외해 대표성은 현장 확인 필요']};
+    } else if(p.mode==='kma') {
       const urls=[`https://apihub.kma.go.kr/api/typ01/url/sea_obs.php?stn=0&help=1&authKey=${encodeURIComponent(key)}`,`https://apihub.kma.go.kr/api/typ01/url/stn_inf.php?inf=BUOY&stn=0&help=1&authKey=${encodeURIComponent(key)}`];
       const results=await Promise.allSettled([...urls,`https://apihub.kma.go.kr/api/typ01/url/kma_buoy.php?stn=0&help=1&authKey=${encodeURIComponent(key)}`].map(textFetch));
       if(results[0].status!=='fulfilled'||results[1].status!=='fulfilled')throw new Error('기상청 관측·좌표 미수신');

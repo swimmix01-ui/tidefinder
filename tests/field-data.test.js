@@ -22,3 +22,18 @@ test('bathymetry stays a raw 150m reference with an unverified datum and refuses
   let count=1;globalThis.fetch=async url=>{const u=new URL(url);assert.equal(u.pathname,'/1192136/waterDepth/GetWaterDepthApiService');assert.equal(u.searchParams.get('numOfRows'),'300');return new Response(JSON.stringify({header:{resultCode:'00'},body:{totalCount:count,items:{item:[{lat:36.02,lot:129.42,dpwt:12}]}}}));};
   try{const r=await handler(query('bathymetry','36.025'));assert.equal(r.statusCode,200);const d=JSON.parse(r.body);assert.equal(d.resolutionM,150);assert.equal(d.verticalDatum,'미검증');assert.equal(d.points[0].rawDepth,12);assert.equal(d.points[0].depthM,undefined);count=400;assert.equal((await handler(query('bathymetry','36.026'))).statusCode,502);}finally{globalThis.fetch=old;if(prior===undefined)delete process.env.SERVICE_KEY;else process.env.SERVICE_KEY=prior;}
 });
+
+test('public-agency wave API uses documented KST hour and original coordinates, rejecting partial data and missing sentinels',async()=>{
+  const prior=process.env.SERVICE_KEY,old=globalThis.fetch;process.env.SERVICE_KEY='fixture-ocean-key';
+  const tm=new Date(Date.now()-15*60000+9*3600000).toISOString().slice(0,13).replace(/[-T]/g,'');
+  let count=3;
+  globalThis.fetch=async url=>{
+    const u=new URL(url);assert.equal(u.pathname,'/1360000/OceanInfoService/getWhBuoy');assert.equal(u.searchParams.get('searchTime'),tm);assert.equal(u.searchParams.get('dataType'),'JSON');
+    return new Response(JSON.stringify({response:{header:{resultCode:'00'},body:{totalCount:count,items:{item:[{stnId:'22453',name:'구룡포',tm4:tm,lat:35.99,lon:129.56,whSig:0.8,wp:6.1},{stnId:'22490',name:'월포',tm4:tm,lat:36.2,lon:129.4,whSig:-99},{stnId:'22491',name:'좌표없음',tm4:tm,lat:null,lon:null,whSig:1}]}}}}));
+  };
+  try {
+    const r=await handler(query('kmawave','36.001'));assert.equal(r.statusCode,200);
+    const d=JSON.parse(r.body);assert.equal(d.records.length,1);assert.equal(d.records[0].significantWaveM,0.8);assert.equal(d.records[0].lon,129.56);assert.equal(d.records[0].windMS,null);assert.ok(!r.body.includes('fixture-ocean-key'));
+    count=1001;assert.equal((await handler(query('kmawave','36.002'))).statusCode,502);
+  }finally{globalThis.fetch=old;if(prior===undefined)delete process.env.SERVICE_KEY;else process.env.SERVICE_KEY=prior;}
+});

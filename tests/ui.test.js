@@ -103,7 +103,7 @@ test("field workflow: marine dashboard, CCTV, prediction timeline without record
     assert.match($("chartStatus").textContent,/미수신/);
     $("showOpenSeaMap").checked=false;$("showOpenSeaMap").dispatchEvent(new dom.window.Event("change"));
     assert.match($("chartStatus").textContent,/꺼짐/);
-    tabs[2].click();assert.equal($("view-sources").hidden,false);assert.equal(document.querySelectorAll('.source-row').length,20);
+    tabs[2].click();assert.equal($("view-sources").hidden,false);assert.equal(document.querySelectorAll('.source-row').length,21);
     const filter=document.querySelector('input[type="search"]');filter.value='자연과학';filter.dispatchEvent(new dom.window.Event('input'));
     assert.equal(document.querySelectorAll('.source-row').length,1);
     tabs[1].click();assert.equal($("view-plan").hidden,false);assert.equal($("status").closest('.workspace-panel'),null);

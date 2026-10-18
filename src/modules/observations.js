@@ -32,3 +32,12 @@ export function observationQuality(item, station, point, now = Date.now()) {
   if (location.approximate) flags.push('관측좌표 미수신 · 거리 근사');
   return { distanceKm, ageMinutes, flags, location };
 }
+
+// Display selection: fresh, positioned observations within the app's 30km threshold
+// come first. This does not establish coastal representativeness or agency QC.
+export function rankObservationCandidates(candidates, point, now=Date.now()) {
+  const ranked=candidates.map(candidate=>({...candidate,quality:observationQuality(candidate.item,candidate.station,point,now)}))
+    .filter(c=>Number.isFinite(c.quality.distanceKm)&&Number.isFinite(c.quality.ageMinutes)&&c.quality.ageMinutes>=-5);
+  const tier=c=>!c.quality.flags.length&&c.definitionKnown!==false?0:c.quality.ageMinutes<=90?1:2;
+  return ranked.sort((a,b)=>tier(a)-tier(b)||a.quality.distanceKm-b.quality.distanceKm||a.quality.ageMinutes-b.quality.ageMinutes);
+}

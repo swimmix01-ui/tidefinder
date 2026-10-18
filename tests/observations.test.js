@@ -45,3 +45,11 @@ test('visibility pagination respects provider row limits and collects the full s
   };
   try{const items=await fetchSeaFogData('SF_0011','20261017');assert.equal(items.length,205);assert.deepEqual(seen.sort(),[1,2,3]);}finally{globalThis.fetch=old;}
 });
+
+test('nearby, fresh, defined observations outrank closer undefined-wave data and distant fresh or nearby stale samples',async()=>{
+  const {rankObservationCandidates}=await import('../src/modules/observations.js');
+  const candidate=(name,lat,time,definitionKnown=true)=>({station:{name,code:name,lat,lon:129.419},item:{lat,lot:129.419,obsrvnDt:time},definitionKnown});
+  const input=[candidate('unknown-wave',36.024,'2026-10-17 19:00',false),candidate('remote',36.58,'2026-10-17 19:05'),candidate('stale',36.023,'2026-10-17 15:00'),candidate('valid',36.05,'2026-10-17 19:00'),candidate('future',36.023,'2026-10-18 19:00')];
+  const ranked=rankObservationCandidates(input,{lat:36.023,lon:129.419},now);
+  assert.equal(ranked[0].station.name,'valid');assert.equal(ranked.length,4);assert.equal(ranked.at(-1).station.name,'stale');
+});
