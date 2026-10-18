@@ -87,3 +87,13 @@ input[type="search"] { width: 100%; border: 1px solid #375367; border-radius: 7p
 
 .quick-meta { display: block; color: #91adbf; font-size: 10px; line-height: 1.7; margin-top: 6px; }
 .quick-strip strong[data-quality="caution"] { color: #dfb97a; }
+
+#contextValues .context-time-heading { grid-column: 1/-1; margin: 4px 0 8px; color: #a5c5d7; font-size: 12px; line-height: 1.7; }
+#contextValues .context-source-details { grid-column: 1/-1; font-size: 11px; }
+#contextValues .context-source-details p { font-size: 11px; line-height: 1.7; color: #91adbf; }
+#contextValues .stat-box .value { font-size: 20px; font-weight: 650; line-height: 1.5; }
+@media (max-width: 760px) {
+ #contextValues { gap: 10px; }
+ #contextValues .stat-box { padding: 14px 12px; border-radius: 9px; }
+ #contextValues .stat-box .value { font-size: 20px; }
+}

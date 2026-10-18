@@ -7,6 +7,11 @@ import { HF_STATIONS } from "./constants.js";
 import { parseKst, formatKst, kstParts, finite } from "./model.js";
 import { distanceBetween } from "./geo.js";
 const $ = (id) => document.getElementById(id);
+export const clockKst = value => new Intl.DateTimeFormat("ko-KR", {timeZone:"Asia/Seoul",hour:"2-digit",minute:"2-digit",hourCycle:"h23"}).format(new Date(value));
+export function forecastClock(value, reference) {
+  const sameDay = kstParts(new Date(value)).date === kstParts(new Date(reference)).date;
+  return sameDay ? clockKst(value) : `${kstParts(new Date(value)).date.slice(5).replace("-", "/")} ${clockKst(value)}`;
+}
 function text(tag, value, parent) {
   const el = document.createElement(tag);
   el.textContent = value;
@@ -91,37 +96,34 @@ export function mountIntelligence(getCoords) {
       w = data.weather,
       mi = nearIndex(m),
       wi = nearIndex(w);
-    text(
-      "p",
-      `기준 좌표 ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)} / 수신 ${formatKst(data.fetchedAt)} / 보조 수치모델 예보`,
-      $("contextValues"),
-    );
-    for (const [d, i, label, key] of [
-      [m, mi, "유의파고", "wave_height"],
-      [m, mi, "파주기", "wave_period"],
-      [m, mi, "너울 높이", "swell_wave_height"],
-      [m, mi, "너울 주기", "swell_wave_period"],
-      [m, mi, "너울 방향 (오는 방향)", "swell_wave_direction"],
-      [m, mi, "표층 수온", "sea_surface_temperature"],
-      [m, mi, "해류 속도 (모델)", "ocean_current_velocity"],
-      [m, mi, "해류 방향 (가는 방향)", "ocean_current_direction"],
-      [m, mi, "평균해수면 기준 높이", "sea_level_height_msl"],
-      [w, wi, "시정 (모델)", "visibility"],
-      [w, wi, "돌풍", "wind_gusts_10m"],
-      [w, wi, "강수량", "precipitation"],
-    ]) {
-      const box = document.createElement("div");
-      box.className = "stat-box";
-      text("div", label, box).className = "label";
-      const v = i >= 0 ? at(d, key, i) : null;
-      text(
-        "div",
-        v === null
-          ? "미수신"
-          : `${v} ${unit(d, key)} / ${formatKst(d.hourly.time[i] * 1000)}`,
-        box,
-      ).className = "value";
-      $("contextValues").append(box);
+    const groups = [
+      { name: "해양모델", data: m, index: mi, fields: [
+        ["유의파고", "wave_height"], ["파주기", "wave_period"],
+        ["너울 높이", "swell_wave_height"], ["너울 주기", "swell_wave_period"],
+        ["너울 방향 (오는 방향)", "swell_wave_direction"], ["표층 수온", "sea_surface_temperature"],
+        ["해류 속도 (모델)", "ocean_current_velocity"], ["해류 방향 (가는 방향)", "ocean_current_direction"],
+        ["평균해수면 기준 높이", "sea_level_height_msl"],
+      ] },
+      { name: "기상모델", data: w, index: wi, fields: [
+        ["시정 (모델)", "visibility"], ["돌풍", "wind_gusts_10m"], ["강수량", "precipitation"],
+      ] },
+    ];
+    const times = groups.map(group => group.index >= 0 ? group.data?.hourly?.time?.[group.index] : null);
+    const commonTime = times.every(t => Number.isFinite(t) && t === times[0]) ? times[0] : null;
+    text("p", commonTime !== null
+      ? `보조모델 예보 · 기준 ${formatKst(commonTime * 1000)} KST`
+      : "보조모델 예보 · 자료별 기준 시각 확인", $("contextValues")).className = "context-time-heading";
+    for (const [gi, group] of groups.entries()) {
+      if (commonTime === null)
+        text("p", `${group.name} · ${times[gi] === null ? "해당 시각 자료 미수신" : formatKst(times[gi] * 1000) + " KST"}`, $("contextValues")).className = "context-time-heading";
+      for (const [label, key] of group.fields) {
+        const box = document.createElement("div");
+        box.className = "stat-box";
+        text("div", label, box).className = "label";
+        const v = group.index >= 0 ? at(group.data, key, group.index) : null;
+        text("div", v === null ? "미수신" : `${v} ${unit(group.data, key)}`, box).className = "value";
+        $("contextValues").append(box);
+      }
     }
     if (w?.daily?.time) {
       const today = kstParts(new Date()).date;
@@ -131,20 +133,25 @@ export function mountIntelligence(getCoords) {
       if (i >= 0)
         text(
           "p",
-          `오늘 일출 ${formatKst(w.daily.sunrise[i] * 1000)} / 일몰 ${formatKst(w.daily.sunset[i] * 1000)}`,
+          `오늘 일출 ${clockKst(w.daily.sunrise[i] * 1000)} · 일몰 ${clockKst(w.daily.sunset[i] * 1000)} (KST)`,
           $("contextValues"),
         );
     }
+    const sourceDetails = document.createElement("details");
+    sourceDetails.className = "context-source-details";
+    text("summary", "조회 위치·수신 시각", sourceDetails);
+    text("p", `선택 좌표 ${p.lat.toFixed(5)}, ${p.lon.toFixed(5)} / 수신 ${formatKst(data.fetchedAt)} KST`, sourceDetails);
+    $("contextValues").append(sourceDetails);
     const table = document.createElement("table");
     table.innerHTML =
-      "<caption>향후 12시간 보조모델 변화</caption><thead><tr><th>시각</th><th>파고 m</th><th>너울 m</th><th>파주기 s</th></tr></thead><tbody></tbody>";
+      "<caption>향후 12시간 보조모델 변화 · 한국시간</caption><thead><tr><th>시각</th><th>파고 m</th><th>너울 m</th><th>파주기 s</th></tr></thead><tbody></tbody>";
     for (
       let j = Math.max(0, mi);
       j < Math.min((m?.hourly?.time || []).length, Math.max(0, mi) + 13);
       j += 2
     ) {
       const row = document.createElement("tr");
-      text("td", formatKst(m.hourly.time[j] * 1000), row);
+      text("td", forecastClock(m.hourly.time[j] * 1000, m.hourly.time[Math.max(0, mi)] * 1000), row);
       for (const key of ["wave_height", "swell_wave_height", "wave_period"])
         text("td", at(m, key, j) ?? "미수신", row);
       table.tBodies[0].append(row);
@@ -160,7 +167,7 @@ export function mountIntelligence(getCoords) {
         text(
           "p",
           `${label} 모델 격자 ${d.latitude}, ${d.longitude} / 선택점 거리 ${(distanceBetween(p.lat, p.lon, d.latitude, d.longitude) / 1000).toFixed(1)}km`,
-          $("contextValues"),
+          sourceDetails,
         );
   });
   run("loadNavWarnings", async (p, g) => {
