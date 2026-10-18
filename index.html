@@ -306,8 +306,8 @@
   </div>
 
   <div id="status" role="status" aria-live="polite" class="warn">⏳ 지도를 클릭하면 좌표가 자동 입력됩니다. 대기 중...</div>
-  <section class="map-panel"><div id="map" aria-label="표류 예측·현장 기록 지도"></div>
-  <p class="help">청록: 중심경로 · 빨강: 추정 확산범위 · 보라: 입자 시뮬레이션 외곽 · 녹색: 수색 기록. 범위별 발견 확률은 검증되지 않았습니다. 배경지도는 해도가 아닙니다.</p>
+  <section class="map-panel"><div id="map" aria-label="해상정보·표류 예측 지도"></div>
+  <p class="help">청록: 중심경로 · 빨강: 추정 확산범위 · 보라: 입자 시뮬레이션 외곽. 범위별 발견 확률은 검증되지 않았습니다. 배경지도는 해도가 아닙니다.</p>
   <div id="timelineCard" class="card" hidden><label for="predictionTime">예측 시각 선택</label><input id="predictionTime" type="range" min="0" max="360" step="1" value="360"><output id="timePosition"></output><div class="button-row"><button id="showNow">현재 예상 위치</button><label>도착까지 (분)<input id="arrivalMinutes" type="number" min="0" max="1440" value="30"></label><button id="showArrival">도착 시각 위치</button></div><p id="timelineMessage" class="help" role="status"></p></div></section>
   <section id="dataQuality" class="card" hidden><h2>예측 근거·자료 상태</h2><div id="sourceSummary"></div><ul id="predictionWarnings"></ul><details><summary>구간별 자료 시각·조회 거리</summary><div id="sourceTable" class="table-scroll"></div></details></section>
   <div class="map-tools"><button class="run-btn" id="resetMapBtn" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px; margin-top:-4px;">지도 초기화</button>

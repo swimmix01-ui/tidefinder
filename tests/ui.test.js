@@ -10,7 +10,7 @@ const waitUntil = async (fn) => {
   }
   throw new Error("UI state timeout");
 };
-test("field workflow: manual prediction, timeline, sighting, records, safe text and invalidation", async () => {
+test("field workflow: marine dashboard, CCTV, prediction timeline without record UI or storage", async () => {
   const html = await readFile(
     new URL("../index.html", import.meta.url),
     "utf8",
@@ -73,7 +73,8 @@ test("field workflow: manual prediction, timeline, sighting, records, safe text 
   try {
     await server.ssrLoadModule("/src/main.js");
     const $ = (id) => document.getElementById(id);
-    await waitUntil(() => $("operationsCard"));
+    await waitUntil(() => $("view-scene") || $("status").textContent.includes("초기화 오류"));
+    assert.ok($("view-scene"),$("status").textContent);
     assert.equal($("runPredictionBtn").closest("#inputCard")?.id, "inputCard");
     assert.equal(
       new Set([...document.querySelectorAll("[id]")].map((n) => n.id)).size,
@@ -81,7 +82,10 @@ test("field workflow: manual prediction, timeline, sighting, records, safe text 
       "IDs must be unique",
     );
     const tabs=[...document.querySelectorAll('.workspace-tabs button')];
-    assert.equal(tabs.length,4);
+    assert.equal(tabs.length,3);
+    assert.deepEqual(tabs.map(t=>t.textContent),["해상정보","표류예측","자료안내"]);
+    assert.equal($("operationsCard"),null);
+    assert.equal($("view-records"),null);
     const mapNode=$("map");
     assert.equal($("cctvCard").closest("#view-scene")?.id,"view-scene");
     assert.equal(document.querySelector(".map-panel").nextElementSibling,$("cctvCard"));
@@ -99,7 +103,7 @@ test("field workflow: manual prediction, timeline, sighting, records, safe text 
     assert.match($("chartStatus").textContent,/미수신/);
     $("showOpenSeaMap").checked=false;$("showOpenSeaMap").dispatchEvent(new dom.window.Event("change"));
     assert.match($("chartStatus").textContent,/꺼짐/);
-    tabs[3].click();assert.equal($("view-sources").hidden,false);assert.equal(document.querySelectorAll('.source-row').length,20);
+    tabs[2].click();assert.equal($("view-sources").hidden,false);assert.equal(document.querySelectorAll('.source-row').length,20);
     const filter=document.querySelector('input[type="search"]');filter.value='자연과학';filter.dispatchEvent(new dom.window.Event('input'));
     assert.equal(document.querySelectorAll('.source-row').length,1);
     tabs[1].click();assert.equal($("view-plan").hidden,false);assert.equal($("status").closest('.workspace-panel'),null);
@@ -122,48 +126,9 @@ test("field workflow: manual prediction, timeline, sighting, records, safe text 
     assert.equal($("aiConfidence").textContent, "수동 가정 포함");
     $("showArrival").click();
     assert.ok($("timePosition").textContent.includes("추정 반경"));
-    tabs[2].click();
-    assert.equal($("recordHome").hidden, false);
-    assert.equal($("observationForm").hidden, true);
-    const incidentCoordinates = ["latD", "latM", "latS", "lonD", "lonM", "lonS"].map(id => $(id)?.value);
-    $("startObservation").click();
-    $("addObservation").click();
-    assert.equal($("observationList").children.length, 0, "A record requires a location");
-    const mapApi = await server.ssrLoadModule("/src/modules/map.js");
-    mapApi.resetMapView();
-    $("pickObservationLocation").click();
-    assert.equal($("view-scene").hidden, false);
-    assert.equal(document.querySelector(".start-guide").hidden, true);
-    $("map").dispatchEvent(new dom.window.MouseEvent("click", {bubbles: true, clientX: 0, clientY: 0}));
-    assert.equal($("view-records").hidden, false);
-    assert.ok($("observationLatD").value);
-    assert.match($("observationPosition").textContent, /°.*′.*″ N/);
-    assert.deepEqual(["latD", "latM", "latS", "lonD", "lonM", "lonS"].map(id => $(id)?.value), incidentCoordinates, "Record selection must preserve the accident location");
-    assert.equal($("timelineCard").hidden, false, "Record selection must preserve the prediction");
-    $("observationNote").value = "<img src=x onerror=alert(1)>";
-    $("addObservation").click();
-    assert.equal($("observationList").children.length, 1, $("caseStatus").textContent + " / " + $("observationTime").value + " / " + $("observationLatD").value + "," + $("observationLonD").value);
-    assert.equal($("observationList").querySelector("img"), null);
-    assert.equal($("recordHome").hidden, false);
-    assert.equal(JSON.parse(localStorage.getItem("tidefinder.case.v1")).observations.length, 1);
-    $("startSearch").click();
-    $("addSearch").click();
-    assert.equal($("searchList").children.length, 0);
-    $("pickSearchLocation").click();
-    $("map").dispatchEvent(new dom.window.MouseEvent("click", {bubbles: true, clientX: 0, clientY: 0}));
-    assert.equal($("view-records").hidden, false);
-    $("addSearch").click();
-    assert.equal($("searchList").children.length, 1);
-    assert.equal(JSON.parse(localStorage.getItem("tidefinder.case.v1")).searches.length, 1);
-    $("saveCase").click();
-    assert.ok(
-      JSON.parse(localStorage.getItem("tidefinder.case.v1")).predictions
-        .length === 1,
-    );
-    $("useLatestObservation").click();
-    assert.ok($("timelineCard").hidden);
-    assert.ok($("caseStatus").textContent.includes("最後") === false);
-    assert.ok($("caseStatus").textContent.includes("마지막 확인"));
+    assert.equal(localStorage.getItem("tidefinder.case.v1"),null,"Prediction must not create case records");
+    $("latS").dispatchEvent(new dom.window.Event("input"));
+    assert.equal($("timelineCard").hidden,true,"Changing the incident location invalidates the timeline");
     $("hoursAhead").value = "0";
     $("runPredictionBtn").click();
     assert.ok($("status").textContent.includes("1~24"));

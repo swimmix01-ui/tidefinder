@@ -39,11 +39,8 @@ main.workspace { max-width: 1480px; padding: 0 28px 32px; }
 .workspace #fieldContext { margin-top: 24px; background: #102637; border-radius: 9px; }
 .workspace-note { color: #8ba5b8; font-size: 11px; line-height: 1.8; margin: 14px 0; }
 .workspace #view-plan { max-width: 860px; margin: auto; }
-.workspace #view-records { max-width: 920px; margin: auto; }
 .workspace #view-sources { max-width: 1100px; margin: auto; }
 .workspace-panel > h2 { font-size: 22px; margin: 26px 0 10px; }
-.workspace #operationsCard { background: #102637; }
-.workspace #operationsCard > summary { display: none; }
 .workspace #inputCard { background: #102b40; }
 .workspace #resourceHub { margin-top: 24px; }
 .application-link { display: inline-block; margin: 10px 0 22px; font-size: 13px; color: #71c5d3; }
@@ -97,58 +94,20 @@ input[type="search"] { width: 100%; border: 1px solid #375367; border-radius: 7p
  #contextValues .stat-box { padding: 14px 12px; border-radius: 9px; }
  #contextValues .stat-box .value { font-size: 20px; }
 }
-/* Records start with an action, followed by one short form. */
-.record-intro { font-size: 19px; color: #e3edf3; margin: 0 0 18px; }
-.record-actions { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.record-actions button { text-align: left; min-height: 104px; padding: 20px; background: #12364b; border: 1px solid #3c6075; }
-.record-actions strong { display: block; font-size: 17px; color: #ebf6fb; }
-.record-actions span { display: block; margin-top: 9px; font-size: 12px; font-weight: 400; color: #a9c1d0; line-height: 1.6; }
-.record-storage-note { color: #8faabd; font-size: 11px; margin: 16px 0 24px; }
-.record-form { max-width: 600px; margin: 0 auto; }
-.record-form h3 { font-size: 21px; margin: 18px 0 26px; }
-.record-step { font-size: 14px; font-weight: 650; color: #d6e6ef; margin: 26px 0 12px; }
-.text-button { background: none; border: 0; padding: 6px 0; color: #a5c8da; font-size: 13px; }
-.location-choice { width: 100%; text-align: left; padding: 15px; background: #153c50; border-color: #467386; color: #e8f6fc; }
-.manual-coordinates { margin: 14px 0 24px; }
-.manual-coordinates summary { font-size: 12px; }
-.record-submit { display: block; width: 100%; padding: 15px; background: #4ec5cc; color: #08212a; border: 0; font-size: 16px; margin: 25px 0 8px; }
-.record-list-heading { display: flex; align-items: center; justify-content: space-between; border-top: 1px solid #294555; padding-top: 18px; }
-.record-list-heading h3 { font-size: 15px; }
-.record-list-heading span { color: #8faabd; font-size: 12px; }
-#recordLists ol { max-height: none; margin: 0; padding-left: 22px; }
-#recordLists ol li { padding: 14px 0; border-bottom: 1px solid #294555; overflow-wrap: anywhere; }
-#recordTools .button-row { display: grid; grid-template-columns: 1fr 1fr; }
-#recordAnalysis .button-row { display: grid; grid-template-columns: 1fr; }
-#operationsCard #caseStatus:not(:empty) { padding: 12px; margin: 14px 0; border: 1px solid #56604d; border-radius: 7px; }
-.map-pick-banner { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 16px; background: #4b3b22; color: #fff0cf; margin-bottom: 12px; border-radius: 8px; }
-.map-pick-banner strong { font-size: 14px; }
-.map-pick-banner button { background: transparent; min-width: 80px; font-size: 12px; }
 .start-guide { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; padding: 14px 16px; margin: 0 0 18px; background: #102b3f; border-radius: 8px; border: 1px solid #27495e; }
 .start-guide strong { font-size: 13px; }
 .start-guide p { flex: 1; color: #9fb9cb; font-size: 12px; line-height: 1.7; margin: 0; min-width: 180px; }
 .start-guide button { font-size: 12px; background: transparent; }
 /* Safari date/time controls must be allowed to shrink inside the mobile grid. */
-.workspace-panel, .record-form, #operationsCard, .two-col > *, .button-row > * { min-width: 0; max-width: 100%; }
+.workspace-panel, .two-col > *, .button-row > * { min-width: 0; max-width: 100%; }
 input[type="datetime-local"], input[type="date"], input[type="time"] { display: block; min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; -webkit-appearance: none; appearance: none; }
 input::-webkit-date-and-time-value { min-width: 0; text-align: left; }
-.record-form input,.record-form select { font-size: 16px; }
 @media (max-width: 760px) {
- .record-actions { grid-template-columns: 1fr; gap: 12px; }
- .record-actions button { min-height: 96px; padding: 18px; }
- .record-form .two-col { grid-template-columns: 1fr; }
- .record-form label { margin: 16px 0; }
- .record-form input[type="datetime-local"] { padding: 12px; font-size: 16px; }
- #operationsCard { padding: 18px 16px; }
  .workspace-tabs button { padding-left: 8px; padding-right: 8px; }
  .start-guide { display: grid; grid-template-columns: 1fr auto; padding: 14px; }
  .start-guide p { grid-column: 1/-1; grid-row: 2; }
- .map-pick-banner { align-items: flex-start; }
 }
 
-.record-dms { padding: 0; border: 0; min-width: 0; margin: 18px 0; }
-.record-dms legend { color: #a9c1d0; font-size: 14px; margin-bottom: 10px; }
-.record-dms .dms-row { display: grid; grid-template-columns: minmax(0,1fr) auto minmax(0,1fr) auto minmax(0,1.25fr) auto; gap: 6px; align-items: center; }
-.record-dms input { min-width: 0; padding: 12px 7px; }
 .official-chart-link { display: inline-flex; align-items: center; padding: 11px 14px; color: #b9dde8; border: 1px solid #36576b; border-radius: 8px; font-size: 13px; text-decoration: none; }
 
 .chart-tools { padding: 12px 14px; background: #102c3e; border: 1px solid #315369; border-radius: 8px 8px 0 0; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 18px; }

@@ -18,12 +18,8 @@ import * as map from "./modules/map.js";
 import * as ui from "./modules/ui.js";
 import { runPrediction } from "./predict.js";
 import { loadMarineStatus, invalidateMarineStatus } from "./modules/marine.js";
-import {
-  mountOperations,
-  recordPrediction,
-  invalidateOperationalResult,
-  getOperationReport,
-} from "./modules/operations.js";
+import { mountTimeline, showPredictionTimeline, clearTimeline } from "./modules/timeline.js";
+import { operationReport } from "./modules/case.js";
 import { mountIntelligence } from "./modules/intelligence.js";
 const $ = (id) => document.getElementById(id);
 let running = false,
@@ -63,25 +59,12 @@ function setCoords(lat, lon) {
 }
 function invalidate() {
   lastResult = null;
-  invalidateOperationalResult();
+  clearTimeline();
   map.clearPrediction();
   for (const id of ["aiCard", "resultCard", "searchCard"])
     $(id).style.display = "none";
   $("dataQuality").hidden = true;
   $("timelineMessage").textContent = "";
-}
-function applyOrigin(o) {
-  invalidate();
-  setCoords(o.lat, o.lon);
-  const p = kstParts(parseKst(o.time));
-  $("dateInput").value = p.date;
-  $("hourInput").value = Number(p.hour);
-  $("minuteInput").value = Number(p.minute);
-  $("originNote").textContent =
-    `기준 위치 갱신: ${formatKst(o.time)} / ${o.kind || "최초 사고"}. 다시 계산하세요.`;
-  map.centerMap(o.lat, o.lon);
-  resetIntelligence();
-  loadMarineStatus({ lat: o.lat, lon: o.lon });
 }
 function readInput() {
   const p = coords(),
@@ -219,12 +202,7 @@ async function handleRunPrediction() {
     document.dispatchEvent(new window.Event("tidefinder:prediction-ready"));
     ui.renderResultCard(r);
     showSources(r);
-    recordPrediction(r, {
-      lat: input.lat,
-      lon: input.lon,
-      time: input.startDateTime.toISOString(),
-      kind: "최초 사고",
-    });
+    showPredictionTimeline(r);
     ui.setStatus(
       r.manual || r.windMissing || !r.coastlineStatus.loaded ? "warn" : "ok",
       r.manual
@@ -249,10 +227,10 @@ window.copyOperationReport = async () => {
     return;
   }
   try {
-    await navigator.clipboard.writeText(getOperationReport());
+    await navigator.clipboard.writeText(operationReport({name:"표류 예측",observations:[],searches:[]},lastResult));
     ui.setStatus("ok", "자료 출처·제한 조건을 포함한 보고서를 복사했습니다.");
   } catch (e) {
-    ui.setStatus("warn", "복사할 수 없습니다. 보고서 TXT 저장을 이용하세요.");
+    ui.setStatus("warn", "복사할 수 없습니다. 브라우저의 클립보드 권한을 확인하세요.");
   }
 };
 window.openCoastView = () => {
@@ -279,24 +257,7 @@ async function init() {
     ui.setStatus("ok", "선택 좌표를 입력했습니다. 예측을 다시 실행하세요.");
     loadMarineStatus({ lat, lon });
   });
-  mountOperations({
-    pickLocation: (kind,onPick) => {
-      document.dispatchEvent(new window.CustomEvent("tidefinder:record-map-pick",{detail:{kind,onPick}}));
-    },
-    coords,
-    applyOrigin,
-    invalidate,
-    resetOrigin: () => {
-      const p = kstParts(new Date());
-      setCoords(36.023, 129.419);
-      $("dateInput").value = p.date;
-      $("hourInput").value = Number(p.hour);
-      $("minuteInput").value = Number(p.minute);
-      $("originNote").textContent = "최초 사고 위치·시각 기준";
-      resetIntelligence();
-      loadMarineStatus(coords());
-    },
-  });
+  mountTimeline();
   resetIntelligence = mountIntelligence(coords);
   mountWorkspace(coords);
   ensureCoastlineReady();

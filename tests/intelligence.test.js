@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { JSDOM } from 'jsdom';
 import { mountIntelligence, forecastClock } from '../src/modules/intelligence.js';
 async function render(marineTime, weatherTime) {
-  const dom=new JSDOM('<button id="loadContext"></button><button id="loadNavWarnings"></button><button id="loadRoms"></button><div id="contextStatus"></div><div id="contextValues"></div><div id="contextForecast"></div><div id="operationsCard"></div>');
+  const dom=new JSDOM('<button id="loadContext"></button><button id="loadNavWarnings"></button><button id="loadRoms"></button><div id="contextStatus"></div><div id="contextValues"></div><div id="contextForecast"></div><div id="searchCard"></div>');
   const priorDocument=globalThis.document,priorFetch=globalThis.fetch;globalThis.document=dom.window.document;
   const fields={wave_height:[.88],wave_period:[4.25],swell_wave_height:[.48],swell_wave_period:[4.3],swell_wave_direction:[90],sea_surface_temperature:[21.5],ocean_current_velocity:[.5],ocean_current_direction:[0],sea_level_height_msl:[-.01],visibility:[28940],wind_gusts_10m:[9.1],precipitation:[0]};
   const model=time=>({latitude:36,longitude:129,hourly:{time:[time],...fields},hourly_units:{wave_height:'m',wave_period:'s'}});

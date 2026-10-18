@@ -1,8 +1,7 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatDMS } from "./geo.js";
-let map, clickMarker, prediction, hull, comparisons, selection, records, recordPointLayer;
-let pendingLocationPick = null;
+let map, clickMarker, prediction, hull, comparisons, selection;
 let seamarks, seamarkTimer, seamarkStatus = () => {}, seamarkReceived = 0, seamarkErrors = 0;
 const seamarkMessage = (state, text) => seamarkStatus({state,text});
 export function setOpenSeaMapEnabled(enabled, onStatus) {
@@ -64,20 +63,12 @@ export async function initMap(id, onMapClick) {
   hull = L.layerGroup().addTo(map);
   comparisons = L.layerGroup().addTo(map);
   selection = L.layerGroup().addTo(map);
-  records = L.layerGroup().addTo(map);
-  recordPointLayer = L.layerGroup().addTo(map);
   clickMarker = L.circleMarker([36.023, 129.419], {
     radius: 7,
     color: "#22d3ee",
     fillOpacity: 1,
   }).addTo(map);
-  map.on("click", (e) => {
-    if (pendingLocationPick) {
-      const done=pendingLocationPick;pendingLocationPick=null;recordPointLayer.clearLayers();
-      L.circleMarker(e.latlng,{radius:8,color:"#d4a34b",fillOpacity:.9}).addTo(recordPointLayer);
-      done({lat:e.latlng.lat,lon:e.latlng.lng});
-    } else onMapClick(e.latlng.lat,e.latlng.lng);
-  });
+  map.on("click", e => onMapClick(e.latlng.lat,e.latlng.lng));
   return map;
 }
 export function setMarkerPosition(lat, lon) {
@@ -152,26 +143,6 @@ export function showTimePosition(p) {
     .bindTooltip(formatDMS(p.lat, p.lon));
   map.panTo([p.lat, p.lon]);
 }
-export function renderRecords(observations, searches) {
-  records.clearLayers();
-  for (const r of observations)
-    L.circleMarker([r.lat, r.lon], {
-      radius: 6,
-      color: "#ffbf47",
-      fillOpacity: 1,
-    })
-      .addTo(records)
-      .bindTooltip(document.createTextNode(`목격 ${formatDMS(r.lat, r.lon)}`));
-  for (const r of searches)
-    L.circle([r.lat, r.lon], {
-      radius: r.radius,
-      color: "#25b389",
-      dashArray: "6 4",
-      fillOpacity: 0.12,
-    })
-      .addTo(records)
-      .bindTooltip(document.createTextNode(`${r.method} / ${r.result}`));
-}
 export function clearPrediction() {
   prediction?.clearLayers();
   hull?.clearLayers();
@@ -209,6 +180,3 @@ export function renderBathymetryReference(points) {
     L.circleMarker([p.lat,p.lon],{radius:3,color:'#806f91',fillOpacity:.35,weight:1}).addTo(bathymetryReference).bindTooltip(tip);
   }
 }
-
-export function beginLocationPick(done) { pendingLocationPick=done;recordPointLayer?.clearLayers(); }
-export function cancelLocationPick() { pendingLocationPick=null;recordPointLayer?.clearLayers(); }

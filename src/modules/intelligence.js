@@ -318,7 +318,7 @@ export function mountIntelligence(getCoords) {
     text("small", " — " + note, line);
     resources.append(line);
   }
-  $("operationsCard").after(resources);
+  $("searchCard").after(resources);
   return () => {
     generation++;
     for (const id of [
