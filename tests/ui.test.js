@@ -83,6 +83,11 @@ test("field workflow: manual prediction, timeline, sighting, records, safe text 
     const tabs=[...document.querySelectorAll('.workspace-tabs button')];
     assert.equal(tabs.length,4);
     const mapNode=$("map");
+    assert.equal($("cctvCard").closest("#view-scene")?.id,"view-scene");
+    assert.equal(document.querySelector(".map-panel").nextElementSibling,$("cctvCard"));
+    assert.equal($("cctvCard").querySelectorAll('a[target="_blank"]').length,4);
+    $("openCctv").click();
+    assert.equal(document.activeElement,$("cctvTitle"));
     assert.equal($("showOpenSeaMap").checked, false);
     assert.match($("chartStatus").textContent,/꺼짐/);
     $("showOpenSeaMap").checked=true;$("showOpenSeaMap").dispatchEvent(new dom.window.Event("change"));

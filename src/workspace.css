@@ -157,3 +157,18 @@ input::-webkit-date-and-time-value { min-width: 0; text-align: left; }
 .chart-status { color: #91b0c4; font-size: 12px; }
 .chart-status[data-state="error"] { color: #edc48b; }
 .chart-note { flex-basis: 100%; font-size: 11px; color: #9cb1bf; line-height: 1.7; margin: 0; }
+
+.scene-title .cctv-shortcut { margin-left: auto; padding: 10px 16px; min-height: 44px; font-size: 14px; color: #d5f3f5; border: 1px solid #427d89; background: #133e4a; border-radius: 8px; }
+.cctv-card { margin: 14px 0; scroll-margin-top: 80px; }
+.cctv-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 14px; }
+.cctv-heading h2 { margin: 0; font-size: 17px; color: #e2eff6; }
+.cctv-heading > span { color: #8ba8ba; font-size: 11px; }
+.cctv-links { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 10px; margin-top: 16px; }
+.cctv-links a { display: flex; flex-direction: column; justify-content: center; min-height: 82px; padding: 14px; border: 1px solid #35576b; background: #123448; border-radius: 8px; text-decoration: none; color: #d3e9f3; }
+.cctv-links a:hover { border-color: #63b2bf; background: #174458; }
+.cctv-links a:focus-visible,.cctv-shortcut:focus-visible { outline: 2px solid #66d2d6; outline-offset: 3px; }
+.cctv-links strong { font-size: 14px; line-height: 1.6; }
+.cctv-links strong span { color: #6ac8d0; }
+.cctv-links a > span { margin-top: 5px; font-size: 11px; color: #9bb8c9; }
+@media (max-width: 760px) { .scene-title .cctv-shortcut { padding: 10px 12px; } .cctv-card { padding: 18px 14px; } .cctv-links a { padding: 12px 10px; } .cctv-links strong { font-size: 13px; } }
+@media (max-width: 360px) { .cctv-links { grid-template-columns: 1fr; } }

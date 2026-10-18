@@ -18,6 +18,8 @@ export function mountWorkspace(getCoords) {
     const sync=()=>{value.textContent=source.querySelector('.reading')?.textContent || source.textContent;value.dataset.quality=source.dataset.quality;const detail=source.querySelector('.reading-meta')?.textContent||'';const flags=['과거 관측','원거리 참고','거리 근사'].filter(v=>detail.includes(v));meta.textContent=(flags.length?flags.join(' · ')+' / ':'')+(detail.split(' / ')[1]||detail||'관측 근거 확인 중');};
     new window.MutationObserver(sync).observe(source,{subtree:true,childList:true,characterData:true,attributes:true,attributeFilter:['data-quality']});sync();
   }
+  const cctv=$('cctvCard');
+  const cctvShortcut=node('button','CCTV 보기',intro,'cctv-shortcut');cctvShortcut.id='openCctv';cctvShortcut.type='button';cctvShortcut.setAttribute('aria-controls','cctvCard');
   const sceneGrid=node('div',null,scene,'scene-grid'),mapColumn=node('section',null,sceneGrid,'map-column');
   const pickBanner=node('div',null,mapColumn,'map-pick-banner');pickBanner.hidden=true;
   const pickMessage=node('strong',null,pickBanner);const cancelPick=node('button','선택 취소',pickBanner);
@@ -29,7 +31,7 @@ export function mountWorkspace(getCoords) {
   const chartStatus=node('span','일반지도 · 해상표지 꺼짐',chartTools,'chart-status');chartStatus.id='chartStatus';chartStatus.setAttribute('role','status');chartStatus.setAttribute('aria-live','polite');
   node('p','OpenSeaMap 참고자료 · 공식 해도·수심 미연결 · 표지가 없어도 장애물이 없다는 뜻은 아닙니다.',chartTools,'chart-note');
   chartToggle.addEventListener('change',()=>setOpenSeaMapEnabled(chartToggle.checked,status=>{chartStatus.textContent=status.text;chartStatus.dataset.state=status.state;}));
-  mapColumn.append(mapPanel);
+  mapColumn.append(mapPanel,cctv);
   const startGuide=node('div',null,scene,'start-guide');
   node('strong','1. 사고 위치 선택',startGuide);node('p','지도에서 사고 지점을 누르면 그 해역의 정보를 조회합니다.',startGuide);
   const enterCoordinates=node('button','좌표로 입력',startGuide);scene.insertBefore(startGuide,sceneGrid);
@@ -48,11 +50,12 @@ export function mountWorkspace(getCoords) {
   const filter=node('input',null,catalog);filter.type='search';filter.placeholder='기관·자료 검색';filter.setAttribute('aria-label','자료 검색');const list=node('div',null,catalog,'source-catalog');
   function renderSources(){list.replaceChildren();const q=filter.value.trim().toLowerCase();for(const s of sources.filter(s=>[s.agency,s.name,s.category,s.state].join(' ').toLowerCase().includes(q))){const row=node('article',null,list,'source-row');node('span',s.agency,row,'source-agency');const info=node('div',null,row);const a=node('a',s.name,info);a.href=s.url;a.target='_blank';a.rel='noopener';node('p',s.use,info);node('small',`${s.format} · ${s.license}`,info);node('span',s.state,row,'source-state');}}
   filter.addEventListener('input',renderSources);renderSources();
-  catalog.append($('resourceHub'));const cctv=[...main.children].find(el=>el.classList.contains('card')&&el.textContent.includes('전국 CCTV'));if(cctv)catalog.append(cctv);
+  catalog.append($('resourceHub'));
   main.replaceChildren(nav,$('status'),...panels.values());
   function show(key){if(key!=='scene'){cancelLocationPick();pickBanner.hidden=true;startGuide.hidden=false;}for(const [k,p]of panels){p.hidden=k!==key;buttons.get(k).setAttribute('aria-pressed',String(k===key));}if(key==='scene')requestAnimationFrame(invalidateMapSize);}
   for(const [key,b]of buttons)b.addEventListener('click',()=>show(key));
   enterCoordinates.addEventListener('click',()=>show('plan'));
+  cctvShortcut.addEventListener('click',()=>{show('scene');cctv.scrollIntoView?.({block:'start',behavior:'auto'});$('cctvTitle').focus({preventScroll:true});});
   cancelPick.addEventListener('click',()=>{cancelLocationPick();pickBanner.hidden=true;startGuide.hidden=false;show('records');});
   document.addEventListener('tidefinder:record-map-pick',event=>{
     show('scene');pickBanner.hidden=false;startGuide.hidden=true;

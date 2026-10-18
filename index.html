@@ -399,18 +399,16 @@
     <div class="search-order" id="searchOrder">-</div>
   </div>
 
-  <div class="card">
-    <div class="card-title">
-      <svg class="icon-svg" viewBox="0 0 24 24" fill="none"><rect x="3" y="5" width="18" height="14" rx="2" stroke="#22D3EE" stroke-width="1.6"/><circle cx="12" cy="12" r="3" stroke="#22D3EE" stroke-width="1.6"/></svg>
-      전국 CCTV 현황 보기
+  <section id="cctvCard" class="card cctv-card" aria-labelledby="cctvTitle">
+    <div class="cctv-heading"><h2 id="cctvTitle" tabindex="-1">CCTV · 현장 영상</h2><span>외부 영상 페이지</span></div>
+    <p class="help">사고 해역의 파도·해안 상황을 영상으로 확인하세요. 각 사이트가 새 창으로 열립니다.</p>
+    <div class="cctv-links">
+      <a href="https://coast.mof.go.kr/coastScene/coastMediaService.do" target="_blank" rel="noopener"><strong>해수부 연안 CCTV <span aria-hidden="true">↗</span></strong><span>해수욕장·침식감시 영상</span></a>
+      <a href="https://www.badatime.com/cctv" target="_blank" rel="noopener"><strong>바다타임 CCTV <span aria-hidden="true">↗</span></strong><span>전국 바다 영상</span></a>
+      <a href="https://d.kbs.co.kr/special/cctv" target="_blank" rel="noopener"><strong>KBS 재난 CCTV <span aria-hidden="true">↗</span></strong><span>재난포털 영상</span></a>
+      <a href="https://www.ulleung.go.kr/live/index.do" target="_blank" rel="noopener"><strong>울릉·독도 영상 <span aria-hidden="true">↗</span></strong><span>울릉군 실시간영상</span></a>
     </div>
-    <ul class="search-list">
-      <li><a href="https://d.kbs.co.kr/special/cctv" target="_blank" rel="noopener" style="display:flex; justify-content:space-between; width:100%; text-decoration:none; color:inherit;"><span class="k">🌊 KBS 재난포털</span><span class="v" style="color:var(--cyan);">새 탭 ↗</span></a></li>
-      <li><a href="https://coast.mof.go.kr/coastScene/coastMediaService.do" target="_blank" rel="noopener" style="display:flex; justify-content:space-between; width:100%; text-decoration:none; color:inherit;"><span class="k">🌊 해양수산부 연안(해수욕장·침식감시) 포털</span><span class="v" style="color:var(--cyan);">새 탭 ↗</span></a></li>
-      <li><a href="https://www.ulleung.go.kr/live/index.do" target="_blank" rel="noopener" style="display:flex; justify-content:space-between; width:100%; text-decoration:none; color:inherit;"><span class="k">🌊 울릉군청 실시간영상(독도·전망대)</span><span class="v" style="color:var(--cyan);">새 탭 ↗</span></a></li>
-      <li><a href="https://www.badatime.com/cctv" target="_blank" rel="noopener" style="display:flex; justify-content:space-between; width:100%; text-decoration:none; color:inherit;"><span class="k">🌊 바다타임(전국 실시간 바다영상)</span><span class="v" style="color:var(--cyan);">새 탭 ↗</span></a></li>
-    </ul>
-  </div>
+  </section>
 </main>
 
 <footer>국립해양조사원(KHOA·HF레이더) 조류 + 기상청 기상 데이터 기반</footer>
