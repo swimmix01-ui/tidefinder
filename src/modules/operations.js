@@ -29,15 +29,30 @@ export function mountOperations(cbs) {
   const section = document.createElement("details");
   section.className = "card disclosure";
   section.id = "operationsCard";
-  section.innerHTML = `<summary>현장 기록·인계<span>목격 · 수색 · 보고서</span></summary><p class="help">기록은 이 화면에서 관리합니다. 기기 저장을 누른 경우에만 이 브라우저에 보관됩니다. 서버 동기화는 하지 않습니다.</p>
-  <label>사건명·훈련명<input id="caseName" type="text" maxlength="80" value="현장 수색"></label>
-  <div class="button-row"><button id="saveCase">이 기기에 저장</button><button id="restoreCase">저장 기록 불러오기</button><button id="newCase">새 사건</button><button id="resetOrigin">최초 사고 위치로 복귀</button></div><p id="caseStatus" role="status"></p>
-  <details open><summary>목격·실제 표류위치 기록</summary><div class="two-col"><label>위도 (십진수)<input id="observationLat" type="number" step="any" min="0" max="90"></label><label>경도 (십진수)<input id="observationLon" type="number" step="any" min="0" max="180"></label></div>
-  <label>확인 시각 (한국시간)<input id="observationTime" type="datetime-local"></label><label>기록 구분<select id="observationKind"><option>목격</option><option>훈련 검증</option><option>발견</option></select></label><label>출처·확인사항<input id="observationNote" type="text" maxlength="300" placeholder="예: 구조정 현장 확인, 신고자 목격"></label>
-  <div class="button-row"><button id="useSelectedObservation">선택 좌표 사용</button><button id="addObservation">기록 추가</button><button id="useLatestObservation">마지막 확인 위치로 재예측 준비</button></div><ol id="observationList"></ol></details>
-  <details><summary>수색 완료 구역 기록</summary><p class="help">현재 입력 좌표를 원형 수색구역 중심으로 기록합니다. 구역은 수색 실적 표시이며 탐지확률·미발견 확률을 계산하지 않습니다.</p><div class="two-col"><label>수색 반경 (m)<input id="searchRadius" type="number" min="1" max="20000" value="300"></label><label>수색 종료시각 (한국시간)<input id="searchTime" type="datetime-local"></label></div><div class="two-col"><label>수단<select id="searchMethod"><option>구조정</option><option>도보</option><option>드론</option><option>잠수</option><option>항공</option><option>기타</option></select></label><label>결과<select id="searchResult"><option>미발견</option><option>단서 발견</option><option>대상 발견</option><option>중단</option></select></label></div><label>현장 메모<input id="searchNote" maxlength="300" type="text"></label><button id="addSearch">현재 좌표 중심 수색 기록</button><ol id="searchList"></ol></details>
-  <details><summary>예측 검증·이력</summary><label>비교할 예측<select id="validationPrediction"></select></label><div id="validationResults"></div><p class="help">관측 시각의 예측 위치와 비교합니다. 두 예측점 사이 위치는 시간 비례 보간값입니다. 표본이 적을 때 포함률을 시스템 신뢰도로 해석하지 마세요.</p></details>
-  <div class="button-row"><button id="exportCase">사건 JSON 저장</button><button id="exportGeoJSON">지도 GeoJSON 저장</button><button id="exportReport">보고서 TXT 저장</button><button id="printReport">인쇄·PDF</button></div>`;
+  section.innerHTML = `<summary>현장 기록</summary>
+  <div id="recordHome">
+    <p class="record-intro">무엇을 기록할까요?</p>
+    <div class="record-actions"><button id="startObservation"><strong>목격·발견 기록</strong><span>사람이나 단서를 확인한 위치</span></button><button id="startSearch"><strong>수색한 구역 기록</strong><span>수색 위치·범위·결과</span></button></div>
+    <p class="record-storage-note">기록은 이 기기에 저장됩니다.</p>
+  </div>
+  <p id="caseStatus" role="status" aria-live="polite"></p>
+  <section id="observationForm" class="record-form" hidden>
+    <button id="backFromObservation" class="text-button">← 기록 목록</button><h3>목격·발견 기록</h3>
+    <p class="record-step">1. 확인한 위치</p><button id="pickObservationLocation" class="location-choice">지도에서 위치 선택</button><p id="observationPosition" class="help">위치를 먼저 선택하세요.</p>
+    <details class="manual-coordinates"><summary>좌표를 직접 입력하려면</summary><div class="two-col"><label>위도<input id="observationLat" type="number" step="any" min="0" max="90" placeholder="예: 36.023"></label><label>경도<input id="observationLon" type="number" step="any" min="0" max="180" placeholder="예: 129.419"></label></div><button id="useSelectedObservation">현재 지도 위치 사용</button></details>
+    <p class="record-step">2. 확인한 내용</p>
+    <label>확인 시각<input id="observationTime" type="datetime-local"></label><label>무엇을 확인했나요?<select id="observationKind"><option>목격</option><option>발견</option><option>훈련 검증</option></select></label><label>메모 (선택)<input id="observationNote" type="text" maxlength="300" placeholder="예: 신고자가 방파제 앞에서 목격"></label>
+    <button id="addObservation" class="record-submit">목격 기록 저장</button>
+  </section>
+  <section id="searchForm" class="record-form" hidden>
+    <button id="backFromSearch" class="text-button">← 기록 목록</button><h3>수색한 구역 기록</h3>
+    <p class="record-step">1. 수색한 위치</p><button id="pickSearchLocation" class="location-choice">지도에서 수색 중심 선택</button><p id="searchPosition" class="help">위치를 먼저 선택하세요.</p>
+    <label>수색 범위 · 반경 (m)<input id="searchRadius" type="number" min="1" max="20000" value="300"></label><p class="help">선택한 위치 주변을 원으로 표시합니다. 실제 이동 경로와는 다를 수 있습니다.</p>
+    <p class="record-step">2. 수색 결과</p><label>수색 종료 시각<input id="searchTime" type="datetime-local"></label><div class="two-col"><label>수색 수단<select id="searchMethod"><option>구조정</option><option>도보</option><option>드론</option><option>잠수</option><option>항공</option><option>기타</option></select></label><label>결과<select id="searchResult"><option>미발견</option><option>단서 발견</option><option>대상 발견</option><option>중단</option></select></label></div><label>메모 (선택)<input id="searchNote" maxlength="300" type="text" placeholder="예: 방파제 외측 수색 완료"></label><button id="addSearch" class="record-submit">수색 기록 저장</button>
+  </section>
+  <div id="recordLists"><div class="record-list-heading"><h3>저장한 기록</h3><span id="recordCount">0건</span></div><p id="recordEmpty" class="help">아직 기록이 없습니다. 위에서 기록할 항목을 선택하세요.</p><ol id="observationList"></ol><ol id="searchList"></ol></div>
+  <details id="recordTools"><summary>사건 관리·보고서</summary><label>사건명 (선택)<input id="caseName" type="text" maxlength="80" value="현장 수색"></label><div class="button-row"><button id="saveCase">지금 저장</button><button id="restoreCase">저장 기록 불러오기</button><button id="newCase">새 사건 시작</button></div><details><summary>보고서·파일 내보내기</summary><div class="button-row"><button id="printReport">인쇄·PDF</button><button id="exportReport">보고서 TXT</button><button id="exportCase">사건 JSON</button><button id="exportGeoJSON">지도 GeoJSON</button></div></details></details>
+  <details id="recordAnalysis"><summary>기록으로 표류예측 갱신·검증</summary><p class="help">확인한 위치를 기준으로 다시 계산하려면 사용하세요.</p><div class="button-row"><button id="useLatestObservation">최근 확인 위치로 예측 준비</button><button id="resetOrigin">최초 사고 위치로 돌아가기</button></div><label>비교할 예측<select id="validationPrediction"></select></label><div id="validationResults"></div></details>`;
   $("searchCard").after(section);
   const bind = (id, fn) =>
     $(id).addEventListener("click", () => {
@@ -47,9 +62,38 @@ export function mountOperations(cbs) {
         $("caseStatus").textContent = e.message;
       }
     });
+  let searchPoint = null;
+  const form = kind => {
+    $("recordHome").hidden = Boolean(kind);
+    $("recordLists").hidden = Boolean(kind);
+    $("recordTools").hidden = Boolean(kind);
+    $("recordAnalysis").hidden = Boolean(kind);
+    $("observationForm").hidden = kind !== "observation";
+    $("searchForm").hidden = kind !== "search";
+  };
+  const positionText = (id,p) => { $(id).textContent = `${p.lat.toFixed(5)}°N, ${p.lon.toFixed(5)}°E · 지도에서 변경할 수 있습니다.`; };
+  const askMap = kind => {
+    callbacks.pickLocation?.(kind, point => {
+      if (kind === "observation") { $("observationLat").value=point.lat;$("observationLon").value=point.lon;positionText("observationPosition",point); }
+      else {searchPoint=point;positionText("searchPosition",point);}
+      form(kind);
+    });
+  };
+  const begin = kind => {
+    $("caseStatus").textContent = "";
+    if (kind === "observation") {
+      $("observationLat").value="";$("observationLon").value="";$("observationNote").value="";
+      $("observationPosition").textContent="확인한 위치를 지도에서 선택하세요.";
+      $("observationTime").value=kstParts(new Date()).local;
+    } else { searchPoint=null;$("searchPosition").textContent="수색한 구역의 중심을 지도에서 선택하세요.";$("searchNote").value="";$("searchTime").value=kstParts(new Date()).local; }
+    form(kind);
+  };
+  bind("startObservation",()=>begin("observation"));bind("startSearch",()=>begin("search"));
+  bind("pickObservationLocation",()=>askMap("observation"));bind("pickSearchLocation",()=>askMap("search"));
+  bind("backFromObservation",()=>form(null));bind("backFromSearch",()=>form(null));
+  const persist = next => { localStorage.setItem("tidefinder.case.v1",JSON.stringify(next)); state=next; };
   const now = kstParts(new Date()).local;
-  $("observationTime").value = now;
-  $("searchTime").value = now;
+  $("observationTime").value=now;$("searchTime").value=now;
   $("caseName").addEventListener("input", () => {
     state.name = $("caseName").value.trim() || "현장 수색";
   });
@@ -99,23 +143,28 @@ export function mountOperations(cbs) {
     const p = callbacks.coords();
     $("observationLat").value = p.lat;
     $("observationLon").value = p.lon;
+    positionText("observationPosition",p);
   });
   bind("addObservation", () => {
     if (state.observations.length >= 500)
       throw new Error("기록이 500건입니다. 내보낸 후 새 사건을 시작하세요.");
+    if (!$("observationLat").value || !$("observationLon").value) throw new Error("지도에서 확인 위치를 먼저 선택하세요.");
     const lat = $("observationLat").value,
       lon = $("observationLon").value,
-      time = parseKst($("observationTime").value).toISOString();
+      date = parseKst($("observationTime").value);
+    if (!Number.isFinite(+date)) throw new Error("확인 시각을 선택하세요.");
+    const time=date.toISOString();
     validateRecord(lat, lon, time);
-    state.observations.push({
+    const observation = {
       lat: Number(lat),
       lon: Number(lon),
       time,
       kind: $("observationKind").value,
       note: $("observationNote").value.trim(),
       id: crypto.randomUUID(),
-    });
-    render();
+    };
+    persist({...state,observations:[...state.observations,observation]});
+    render();form(null);$("caseStatus").textContent="목격 기록을 이 기기에 저장했습니다.";
   });
   bind("useLatestObservation", () => {
     const o = [...state.observations]
@@ -127,9 +176,12 @@ export function mountOperations(cbs) {
       "마지막 확인 위치·시각을 적용했습니다. 표류 예측을 다시 실행하세요.";
   });
   bind("addSearch", () => {
-    const { lat, lon } = callbacks.coords(),
-      time = parseKst($("searchTime").value).toISOString(),
+    if (!searchPoint) throw new Error("지도에서 수색한 위치를 먼저 선택하세요.");
+    const { lat, lon } = searchPoint,
+      date = parseKst($("searchTime").value),
       radius = Number($("searchRadius").value);
+    if (!Number.isFinite(+date)) throw new Error("수색 종료 시각을 선택하세요.");
+    const time=date.toISOString();
     validateRecord(lat, lon, time);
     if (!Number.isFinite(radius) || radius < 1 || radius > 20000)
       throw new Error("반경은 1~20,000m입니다.");
@@ -137,7 +189,7 @@ export function mountOperations(cbs) {
       throw new Error(
         "수색 기록이 500건입니다. 내보낸 후 새 사건을 시작하세요.",
       );
-    state.searches.push({
+    const search = {
       lat,
       lon,
       time,
@@ -145,8 +197,9 @@ export function mountOperations(cbs) {
       method: $("searchMethod").value,
       result: $("searchResult").value,
       note: $("searchNote").value.trim(),
-    });
-    render();
+    };
+    persist({...state,searches:[...state.searches,search]});
+    render();form(null);$("caseStatus").textContent="수색 기록을 이 기기에 저장했습니다.";
   });
   bind("exportCase", () =>
     download("tidefinder-case.json", JSON.stringify(state, null, 2)),
@@ -241,6 +294,8 @@ function renderValidation() {
 }
 function render() {
   $("caseName").value = state.name;
+  const count=state.observations.length+state.searches.length;
+  $("recordCount").textContent=`${count}건`;$("recordEmpty").hidden=count>0;
   for (const [id, items, fmt] of [
     [
       "observationList",

@@ -1,7 +1,8 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { formatDMS } from "./geo.js";
-let map, clickMarker, prediction, hull, comparisons, selection, records;
+let map, clickMarker, prediction, hull, comparisons, selection, records, recordPointLayer;
+let pendingLocationPick = null;
 const icon = (text, color = "#22d3ee") =>
   L.divIcon({
     className: "map-label",
@@ -26,12 +27,19 @@ export async function initMap(id, onMapClick) {
   comparisons = L.layerGroup().addTo(map);
   selection = L.layerGroup().addTo(map);
   records = L.layerGroup().addTo(map);
+  recordPointLayer = L.layerGroup().addTo(map);
   clickMarker = L.circleMarker([36.023, 129.419], {
     radius: 7,
     color: "#22d3ee",
     fillOpacity: 1,
   }).addTo(map);
-  map.on("click", (e) => onMapClick(e.latlng.lat, e.latlng.lng));
+  map.on("click", (e) => {
+    if (pendingLocationPick) {
+      const done=pendingLocationPick;pendingLocationPick=null;recordPointLayer.clearLayers();
+      L.circleMarker(e.latlng,{radius:8,color:"#d4a34b",fillOpacity:.9}).addTo(recordPointLayer);
+      done({lat:e.latlng.lat,lon:e.latlng.lng});
+    } else onMapClick(e.latlng.lat,e.latlng.lng);
+  });
   return map;
 }
 export function setMarkerPosition(lat, lon) {
@@ -163,3 +171,6 @@ export function renderBathymetryReference(points) {
     L.circleMarker([p.lat,p.lon],{radius:3,color:'#806f91',fillOpacity:.35,weight:1}).addTo(bathymetryReference).bindTooltip(tip);
   }
 }
+
+export function beginLocationPick(done) { pendingLocationPick=done;recordPointLayer?.clearLayers(); }
+export function cancelLocationPick() { pendingLocationPick=null;recordPointLayer?.clearLayers(); }

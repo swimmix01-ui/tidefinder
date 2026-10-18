@@ -280,6 +280,9 @@ async function init() {
     loadMarineStatus({ lat, lon });
   });
   mountOperations({
+    pickLocation: (kind,onPick) => {
+      document.dispatchEvent(new window.CustomEvent("tidefinder:record-map-pick",{detail:{kind,onPick}}));
+    },
     coords,
     applyOrigin,
     invalidate,
