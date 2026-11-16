@@ -126,7 +126,7 @@ export async function planSeaRoute(from, to, opts = {}) {
     let depth = { pts: null, reason: '' };
     if (opts.minDepth > 0) {
       const b = gridBounds(from, to, scale);
-      try { depth = await getShallowPoints(b.latMin, b.latMax, b.lonMin, b.lonMax, 30); } catch { depth = { pts: null, reason: '수심 불러오기 실패' }; }
+      try { depth = await getShallowPoints(b.latMin, b.latMax, b.lonMin, b.lonMax, 80); } catch { depth = { pts: null, reason: '수심 불러오기 실패' }; }
     }
     const r = planOnce(from, to, opts, scale, depth.pts);
     r.depthUsed = !!depth.pts;

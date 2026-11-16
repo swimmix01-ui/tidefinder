@@ -6,7 +6,7 @@
 //    저조 때는 표시값보다 조금(동해안 약 0.1~0.3m) 더 얕다.
 // ==========================================================================
 
-const TILE = 0.1;
+const TILE = 0.05;
 const MAX_DEPTH = 10;
 const tiles = new Map(); // "tx,ty" -> Promise<[[lat, lon, d], ...]>
 
@@ -24,7 +24,7 @@ function fetchTile(tx, ty) {
 }
 
 // 범위 안의 얕은 점들. 타일이 너무 많으면(넓은 범위) null - 호출부는 수심 없이 진행한다.
-export async function getShallowPoints(latMin, latMax, lonMin, lonMax, maxTiles = 30) {
+export async function getShallowPoints(latMin, latMax, lonMin, lonMax, maxTiles = 80) {
   const tx0 = Math.floor(lonMin / TILE), tx1 = Math.floor(lonMax / TILE);
   const ty0 = Math.floor(latMin / TILE), ty1 = Math.floor(latMax / TILE);
   if ((tx1 - tx0 + 1) * (ty1 - ty0 + 1) > maxTiles) return { pts: null, reason: '범위가 넓어 수심 생략' };
@@ -66,7 +66,7 @@ async function redraw() {
   const b = map.getBounds();
   const sw = b.getSouthWest(), ne = b.getNorthEast();
   if (note) note.textContent = '수심 불러오는 중…';
-  const { pts, failed } = await getShallowPoints(sw.getLat(), ne.getLat(), sw.getLng(), ne.getLng(), 12);
+  const { pts, failed } = await getShallowPoints(sw.getLat(), ne.getLat(), sw.getLng(), ne.getLng(), 40);
   if (seq !== drawSeq) return; // 그 사이 지도가 또 움직였음
   clearShapes();
   if (!pts) { if (note) note.textContent = '수심: 더 확대해 주세요'; return; }
@@ -80,7 +80,7 @@ async function redraw() {
     r.setMap(map);
     shapes.push(r);
   });
-  if (note) note.textContent = failed ? `수심: 일부 구역 불러오기 실패(${failed})` : '수심(평균해면 기준): 빨강 2m 미만 · 주황 2~5m · 노랑 5~10m';
+  if (note) note.textContent = `수심(평균해면 기준): 빨강 2m 미만 · 주황 2~5m · 노랑 5~10m · 이 화면 ${pts.length}칸${failed ? ` · ${failed}개 구역 불러오기 실패` : ''}`;
 }
 
 export function initDepthLayer(kakaoMap) {
