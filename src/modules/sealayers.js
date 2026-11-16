@@ -125,12 +125,15 @@ function drawFishery() {
 }
 
 function rockInfoHtml(p) {
-  const h = p.height ?? p.depth;
+  // 전자해도 수심값(VALSOU): 음수 = 기본수준면(약최저저조면) 위로 드러나는 높이, 양수 = 그 아래 수심
+  const v = typeof p.valsou === 'number' ? p.valsou : null;
+  let line = '저조 때 수면 근처로 드러나는 바위';
+  if (v !== null && v < 0) line = `저조 때 약 ${Math.abs(v).toFixed(1)}m 드러남`;
+  else if (v !== null && v > 0) line = `기본수준면 아래 ${v.toFixed(1)}m · 저조에도 얕게 잠김`;
   return `<div class="sea-info">
     <div class="sea-info-head" style="color:#FF8A3D">간출암</div>
-    ${p.name ? `<div>${esc(p.name)}</div>` : ''}
-    ${h !== undefined && h !== null && h !== '' ? `<div>기본수준면 위 ${esc(h)}m (저조 때 드러남)</div>` : '<div>저조 때 드러나는 바위</div>'}
-    <div class="sea-info-sub">전자해도 기준 · 고조 때는 물에 잠겨 안 보임</div>
+    <div>${line}</div>
+    <div class="sea-info-sub">전자해도 ${esc(p.chart || '')} · 고조 때는 물에 잠겨 안 보임</div>
   </div>`;
 }
 

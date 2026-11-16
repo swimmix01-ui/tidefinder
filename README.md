@@ -20,7 +20,7 @@ npm run build     # dist/ 에 프로덕션 빌드
 - `src/worker.js` - 몬테카를로 500입자 시뮬레이션(Web Worker)
 - `netlify/functions/weather.cjs` - 공공 API 프록시(서비스키는 Netlify 환경변수 `SERVICE_KEY`, `KHOA_SERVICE_KEY`, `TW_SERVICE_KEY`, `KMA_APIHUB_KEY`)
 - `public/` - 해안선(`coastline-korea.geojson.gz`), 정치망(`setnet-korea.geojson`, 표류 경고용 전국),
-  어장(`fishery-pohang.geojson`, 지도 표시용 포항·경주·영덕 정치망·양식·마을어업 면허구역), 간출암(`rocks-pohang.geojson`, 추가 예정), 아이콘, 매니페스트, 서비스워커(`sw.js`)
+  어장(`fishery-pohang.geojson`, 지도 표시용 포항·경주·영덕 정치망·양식·마을어업 면허구역), 간출암(`rocks-pohang.geojson`, 해양수산부 간출암 2025-01 배포본 포항~영덕 23개), 아이콘, 매니페스트, 서비스워커(`sw.js`)
 
 ## 예측 방식 요약
 1. 해류: HF 레이더 실측(커버리지 안) → 없으면 KHOA 조류예측 격자
