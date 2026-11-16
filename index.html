@@ -178,6 +178,37 @@
   @media (min-width: 769px) {
     main { max-width: 700px; }
   }
+
+  .map-wrap { position: relative; }
+  .map-wrap #map { margin-bottom: 6px; }
+  .layer-chips { position: absolute; top: 8px; left: 8px; right: 8px; z-index: 5; display: flex; flex-wrap: wrap; gap: 6px; pointer-events: none; }
+  .chip { pointer-events: auto; display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px; border-radius: 999px; border: 1px solid rgba(255,255,255,0.18); background: rgba(8,24,38,0.78); color: var(--text-lo); font-size: 12.5px; font-weight: 700; cursor: pointer; backdrop-filter: blur(4px); }
+  .chip.on { color: var(--text-hi); border-color: rgba(34,211,238,0.6); background: rgba(14,42,68,0.92); }
+  .chip i { width: 10px; height: 10px; border-radius: 3px; display: inline-block; opacity: .45; }
+  .chip.on i { opacity: 1; }
+  .chip .rock-dot { background: #FF8A3D; border-radius: 50%; }
+  .map-src { font-size: 11px; color: var(--text-lo); margin: 0 4px 12px; }
+  .sea-info { background: rgba(8,24,38,0.95); color: var(--text-hi); border: 1px solid rgba(255,255,255,0.18); border-radius: 10px; padding: 8px 10px; font-size: 12px; line-height: 1.5; max-width: 230px; white-space: normal; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
+  .sea-info-head { font-weight: 800; font-size: 13px; margin-bottom: 2px; }
+  .sea-info-sub { color: var(--text-lo); font-size: 10.5px; margin-top: 3px; }
+  .rock-mark { width: 14px; height: 14px; border-radius: 50%; background: #FF8A3D; border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(255,138,61,.45); cursor: pointer; }
+  .boat-mark { font-size: 20px; transform: translate(-50%, -50%); position: relative; left: 50%; }
+  .hazard-ping { width: 20px; height: 20px; border-radius: 50%; background: #FF4D4D; color: #fff; font-weight: 900; font-size: 13px; display: flex; align-items: center; justify-content: center; border: 2px solid #fff; box-shadow: 0 0 10px rgba(255,77,77,.8); }
+  .eta-row { display: flex; gap: 8px; }
+  .eta-btn { flex: 1; padding: 11px 8px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,0.07); color: var(--text-hi); font-size: 14px; font-weight: 700; cursor: pointer; }
+  .eta-btn.active { border-color: var(--cyan); background: rgba(34,211,238,0.18); color: var(--cyan); }
+  .eta-speed { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; color: var(--text-lo); }
+  .eta-speed input { width: 80px !important; text-align: center; }
+  .eta-note { font-size: 12.5px; color: var(--text-lo); margin-top: 8px; min-height: 16px; }
+  .eta-grid { margin-top: 10px; }
+  .eta-from { font-size: 12px; color: var(--text-lo); margin-top: 8px; }
+  .eta-hazards { margin-top: 10px; border-radius: 12px; padding: 11px 12px; font-size: 13px; line-height: 1.55; }
+  .eta-hazards.ok { background: rgba(52,211,153,0.10); border: 1px solid rgba(52,211,153,0.35); color: var(--green); }
+  .eta-hazards.none { background: rgba(255,255,255,0.05); border: 1px solid var(--border); color: var(--text-lo); }
+  .eta-hazards.warn { background: rgba(255,77,77,0.12); border: 1px solid rgba(255,77,77,0.45); color: var(--text-hi); }
+  .eta-hazards.warn b { color: #FF8A8A; }
+  .eta-hazards ul { margin: 6px 0 0; padding-left: 16px; }
+  .eta-hazards li span { color: #FFB4A1; font-weight: 700; }
 </style>
 </head>
 <body>
@@ -302,11 +333,42 @@
   </div>
 
   <div id="status" class="warn">⏳ 지도를 클릭하면 좌표가 자동 입력됩니다. 대기 중...</div>
-  <div id="map"></div>
+  <div class="map-wrap">
+    <div id="map"></div>
+    <div class="layer-chips" id="layerChips">
+      <button type="button" class="chip on" data-layer="set"><i style="background:#FF4D4D"></i>정치망</button>
+      <button type="button" class="chip on" data-layer="farm"><i style="background:#FBBF24"></i>양식장</button>
+      <button type="button" class="chip" data-layer="village"><i style="background:#34D399"></i>마을어업</button>
+      <button type="button" class="chip on" data-layer="rock" id="rockChip" style="display:none"><i class="rock-dot"></i>간출암</button>
+      <button type="button" class="chip" data-maptype="sat">🛰 위성</button>
+    </div>
+  </div>
+  <div class="map-src">어장: 국립해양조사원 어장정보(포항·경주·영덕, 면허 구역도) · 도형을 누르면 상세 정보</div>
+
   <button class="run-btn" id="resetMapBtn" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px; margin-top:-4px;">↺ 지도 초기화</button>
   <button class="run-btn" onclick="openCoastView()" type="button" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px;">
     🗻 3D 지형 보기 (CoastView, 새 탭)
   </button>
+
+  <div id="etaCard" class="card">
+    <div class="card-title">🚤 출동 거리 · 도착 예정</div>
+    <div class="eta-row">
+      <button type="button" class="eta-btn" id="etaGpsBtn">📍 내 위치(GPS)</button>
+      <button type="button" class="eta-btn" id="etaPickBtn">🗺 지도에서 출발지</button>
+    </div>
+    <div class="eta-speed"><span>구조정 선속</span><input id="etaSpeed" type="number" min="1" max="60" step="1" inputmode="decimal"><span>kn</span></div>
+    <div id="etaNote" class="eta-note">사고 좌표를 정한 뒤 출발지를 고르면 거리와 도착 시각이 나옵니다.</div>
+    <div id="etaResult" style="display:none">
+      <div class="stat-grid-4 eta-grid">
+        <div class="stat-box"><div class="label">직선거리</div><div class="value accent" id="etaDist">-</div></div>
+        <div class="stat-box"><div class="label">침로(방위)</div><div class="value accent" id="etaBrg">-</div></div>
+        <div class="stat-box"><div class="label">소요시간</div><div class="value accent" id="etaDur">-</div></div>
+        <div class="stat-box"><div class="label">도착 예정</div><div class="value accent" id="etaArrive">-</div></div>
+      </div>
+      <div class="eta-from" id="etaFrom"></div>
+      <div class="eta-hazards" id="etaHazards"></div>
+    </div>
+  </div>
 
   <div id="marineCard" class="card">
     <div class="card-title">
@@ -425,7 +487,6 @@
 
 <footer>국립해양조사원(KHOA·HF레이더) 조류 + 기상청 기상 데이터 기반<br>해상 바람·파고 예보: <a href="https://open-meteo.com/" target="_blank" rel="noopener" style="color:inherit;">Open-Meteo.com</a> (CC BY 4.0)</footer>
 
-<script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=7cf14f6520831fe7a42b307b25e72103&libraries=services"></script>
 <script type="module" src="/src/main.js"></script>
 </body>
 </html>

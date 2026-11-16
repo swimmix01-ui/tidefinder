@@ -20,7 +20,41 @@ export function isMapReady() {
   return !!map;
 }
 
-export function initMap(containerId, onMapClick) {
+export function getMap() {
+  return map;
+}
+
+// 카카오 SDK를 동적으로 불러온다. Netlify 환경변수 VITE_KAKAO_KEY(새 키)를 먼저 쓰고,
+// 그 키가 아직 도메인 등록 전이라 거부되면 기존 키로 다시 시도한다.
+const LEGACY_KAKAO_KEY = '7cf14f6520831fe7a42b307b25e72103';
+function loadScript(src) {
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src;
+    s.onload = () => resolve();
+    s.onerror = () => { s.remove(); reject(new Error('load fail')); };
+    document.head.appendChild(s);
+  });
+}
+async function loadKakaoSdk() {
+  if (window.kakao && window.kakao.maps) return true;
+  const keys = [import.meta.env.VITE_KAKAO_KEY, LEGACY_KAKAO_KEY].filter(Boolean);
+  for (const key of [...new Set(keys)]) {
+    try {
+      await loadScript(`https://dapi.kakao.com/v2/maps/sdk.js?appkey=${key}&libraries=services&autoload=false`);
+      if (window.kakao && window.kakao.maps) return true;
+    } catch { /* 다음 키 시도 */ }
+  }
+  return false;
+}
+
+export function setMapType(satellite) {
+  if (!map) return;
+  map.setMapTypeId(satellite ? window.kakao.maps.MapTypeId.HYBRID : window.kakao.maps.MapTypeId.ROADMAP);
+}
+
+export async function initMap(containerId, onMapClick) {
+  await loadKakaoSdk();
   return new Promise((resolve) => {
     if (!window.kakao || !window.kakao.maps) { resolve(null); return; }
     window.kakao.maps.load(() => {

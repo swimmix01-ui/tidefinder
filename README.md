@@ -15,10 +15,12 @@ npm run build     # dist/ 에 프로덕션 빌드
 - `index.html` - 화면(스타일 포함)
 - `src/main.js` - 초기화, 버튼 연결, 상황 보고서 복사, 서비스워커 등록
 - `src/predict.js` - 표류 예측 파이프라인, 예측 신뢰도 계산
-- `src/modules/` - api(외부 API), map(카카오맵), coastline(해안선·정치망), montecarlo, marine(해상상태 카드), ui
+- `src/modules/` - api(외부 API), map(카카오맵), coastline(해안선·정치망), montecarlo, marine(해상상태 카드), ui,
+  sealayers(어장·간출암 지도 레이어, 직선 항로 위험 판정), eta(출동 거리·도착 예정시각)
 - `src/worker.js` - 몬테카를로 500입자 시뮬레이션(Web Worker)
 - `netlify/functions/weather.cjs` - 공공 API 프록시(서비스키는 Netlify 환경변수 `SERVICE_KEY`, `KHOA_SERVICE_KEY`, `TW_SERVICE_KEY`, `KMA_APIHUB_KEY`)
-- `public/` - 해안선(`coastline-korea.geojson.gz`), 정치망(`setnet-korea.geojson`), 아이콘, 매니페스트, 서비스워커(`sw.js`)
+- `public/` - 해안선(`coastline-korea.geojson.gz`), 정치망(`setnet-korea.geojson`, 표류 경고용 전국),
+  어장(`fishery-pohang.geojson`, 지도 표시용 포항·경주·영덕 정치망·양식·마을어업 면허구역), 간출암(`rocks-pohang.geojson`, 추가 예정), 아이콘, 매니페스트, 서비스워커(`sw.js`)
 
 ## 예측 방식 요약
 1. 해류: HF 레이더 실측(커버리지 안) → 없으면 KHOA 조류예측 격자
@@ -40,6 +42,10 @@ npm run build     # dist/ 에 프로덕션 빌드
 - 조류·기상 API 응답은 저장하지 않는다(오래된 값을 최신처럼 보여주지 않기 위함) - 오프라인에선 기본값 계산이 되고 신뢰도가 낮게 표시된다.
 - 카카오맵은 외부 서비스라 오프라인에선 안 뜬다. 지도 없이도 좌표 직접 입력으로 예측 가능.
 - **해안선/정치망 파일을 교체하면 `public/sw.js`의 `CACHE_VERSION`을 올릴 것** (안 올리면 폰에 옛 데이터가 남음).
+
+## 카카오맵 키
+- 지도 SDK는 `src/modules/map.js`에서 동적으로 불러온다. Netlify 환경변수 `VITE_KAKAO_KEY`를 먼저 쓰고,
+  거부되면 기존 키로 다시 시도한다. 환경변수를 바꾸면 재배포해야 반영된다(빌드 시 코드에 들어감).
 
 ## 주의
 - `netlify/functions/`의 함수는 CommonJS(`require`)라 확장자가 `.cjs`여야 한다

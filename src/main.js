@@ -9,6 +9,8 @@ import * as mapModule from './modules/map.js';
 import * as ui from './modules/ui.js';
 import { runPrediction } from './predict.js';
 import { loadMarineStatus } from './modules/marine.js';
+import * as seaLayers from './modules/sealayers.js';
+import * as eta from './modules/eta.js';
 
 let lastPredictionResult = null;
 
@@ -35,6 +37,7 @@ function setCoordsToInputs(lat, lon) {
   document.getElementById('lonM').value = lonDMS.m;
   document.getElementById('lonS').value = lonDMS.s;
   ui.refreshInputCheckmarks();
+  eta.updateEta();
 }
 
 async function handleRunPrediction() {
@@ -133,11 +136,15 @@ async function init() {
   document.getElementById('minuteInput').value = today.getMinutes();
 
   // 비차단 로드 - 실패해도 페이지 동작에 영향 없음
-  const dataLoads = Promise.allSettled([loadCoastlineGeoJSON(), loadSetnetGeoJSON()]);
+  const seaLoad = seaLayers.loadSeaLayers();
+  const dataLoads = Promise.allSettled([loadCoastlineGeoJSON(), loadSetnetGeoJSON(), seaLoad]);
   loadMarineStatus();
 
   ['latD', 'latM', 'latS', 'lonD', 'lonM', 'lonS', 'dateInput', 'hourInput', 'minuteInput', 'hoursAhead'].forEach((id) => {
     document.getElementById(id).addEventListener('input', ui.refreshInputCheckmarks);
+  });
+  ['latD', 'latM', 'latS', 'lonD', 'lonM', 'lonS'].forEach((id) => {
+    document.getElementById(id).addEventListener('input', () => eta.updateEta());
   });
   ui.refreshInputCheckmarks();
 
@@ -180,18 +187,42 @@ async function init() {
   });
 
   const mapInstance = await mapModule.initMap('map', (lat, lon) => {
-    setCoordsToInputs(lat, lon);
-    mapModule.setMarkerPosition(lat, lon);
-    ui.setStatus('ok', '🎯 좌표 자동 입력 완료');
-    loadMarineStatus({ lat, lon });
+    // 어장 도형/간출암을 누른 클릭이면 사고좌표를 옮기지 않는다
+    // (도형 클릭과 지도 클릭 중 어느 쪽이 먼저 오는지 SDK가 보장하지 않아 잠깐 기다렸다 판단)
+    setTimeout(() => {
+      if (seaLayers.shouldIgnoreMapClick()) return;
+      seaLayers.hideInfo();
+      if (eta.consumeMapClick(lat, lon)) { ui.setStatus('ok', '🚤 출발지 지정 완료'); return; }
+      setCoordsToInputs(lat, lon);
+      mapModule.setMarkerPosition(lat, lon);
+      ui.setStatus('ok', '🎯 좌표 자동 입력 완료');
+      loadMarineStatus({ lat, lon });
+    }, 30);
   });
+  eta.initEta({ kakaoMap: mapInstance, getTargetCoords: getCoordsFromInputs });
   if (mapInstance) {
+    await seaLoad;
+    seaLayers.initSeaLayers(mapInstance);
+    setupLayerChips();
     ui.setStatus('ok', '✅ 지도 연동 완료');
   } else {
     ui.setStatus('warn', '⚠ 지도를 불러오지 못했습니다(통신 불량). 좌표 직접 입력으로 예측은 가능합니다.');
   }
 
   registerServiceWorker(dataLoads);
+}
+
+function setupLayerChips() {
+  const state = seaLayers.getLayerState();
+  if (state.loaded.rocks) document.getElementById('rockChip').style.display = '';
+  document.querySelectorAll('#layerChips .chip').forEach((chip) => {
+    chip.addEventListener('click', () => {
+      const on = !chip.classList.contains('on');
+      chip.classList.toggle('on', on);
+      if (chip.dataset.layer) seaLayers.setLayerVisible(chip.dataset.layer, on);
+      if (chip.dataset.maptype) mapModule.setMapType(on);
+    });
+  });
 }
 
 // 오프라인 대비: 앱 화면과 해안선·정치망 데이터를 폰에 저장해 둔다 (public/sw.js).
