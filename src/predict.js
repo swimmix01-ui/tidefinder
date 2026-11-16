@@ -359,12 +359,16 @@ export async function runPrediction(input, callbacks = {}) {
   const finalPoint = cLine[cLine.length - 1];
 
   // ===== AI 분석 카드 데이터 =====
+  // 조류·바람 기여도: 각 벡터를 합성 이동방향에 투영한 길이 ÷ 합성 이동속도.
+  // (두 투영의 합 = 합성 속도라 두 값을 더하면 100%. 한쪽이 반대방향으로 밀면 그쪽은 0%로 표시)
+  // ※ 이전엔 합성 속도 대신 조류 속도(combSpeedRough)로 나눠서 합이 100%가 아니었음 - 2026-11-16 수정
   const combX = curXY.x + wXY.x, combY = curXY.y + wXY.y;
-  const projCurrent = combSpeedRough > 0 ? (curXY.x * combX + curXY.y * combY) / combSpeedRough : 0;
-  const projWind = combSpeedRough > 0 ? (wXY.x * combX + wXY.y * combY) / combSpeedRough : 0;
+  const combMag = Math.hypot(combX, combY);
+  const projCurrent = combMag > 0 ? (curXY.x * combX + curXY.y * combY) / combMag : 0;
+  const projWind = combMag > 0 ? (wXY.x * combX + wXY.y * combY) / combMag : 0;
   const underwaterMode = leewayCoefVal === 0;
-  const currentPct = underwaterMode ? 100 : Math.max(0, Math.min(100, Math.round((projCurrent / combSpeedRough) * 100)));
-  const windPct = underwaterMode ? 0 : Math.max(0, Math.min(100, Math.round((projWind / combSpeedRough) * 100)));
+  const currentPct = underwaterMode ? 100 : combMag > 0 ? Math.max(0, Math.min(100, Math.round((projCurrent / combMag) * 100))) : 0;
+  const windPct = underwaterMode ? 0 : combMag > 0 ? Math.max(0, Math.min(100, Math.round((projWind / combMag) * 100))) : 0;
   const windSpeedPct = underwaterMode ? 0 : windSpeedMS !== null ? Math.min(100, Math.round((windSpeedMS / 15) * 100)) : 0;
   const wavePct = waveHeightM !== null ? Math.min(100, Math.round((waveHeightM / 3) * 100)) : 0;
 
