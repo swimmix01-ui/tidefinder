@@ -75,6 +75,50 @@ export async function fetchWindData(lat, lon) {
   };
 }
 
+// Open-Meteo 해상 격자 예보 - 풍향/풍속(10m) + 파고, 시간별.
+// 기상청 단기예보는 육상용 격자라 해상 지점에서 값이 낮게 나오거나 비는 경우가 있어서
+// 해상 격자에서 바로 계산된 값을 우선 쓴다. 키 없이 브라우저에서 직접 호출(CORS 허용).
+//  - 바람: api.open-meteo.com 기본 best_match(지역별 최적 전지구/지역 모델 자동 선택)
+//    ※ Open-Meteo의 기상청(KMA) 모델 피드는 기상청 모델 교체(2026-03)로 중단 상태라 지정하지 않음
+//  - 파고: marine-api.open-meteo.com (ECMWF WAM / GFS Wave 등 파랑모델)
+//  - cell_selection=sea: 해안 근처 좌표에서도 육지 셀이 아니라 바다 셀 값을 쓰게 함
+//  - 비상업적 이용 무료, 출처표시 필요(화면·README에 표기)
+// 반환: { times: [ms...], windSpeed: [m/s], windDirFrom: [°], waveHeight: [m] } - 실패 항목은 null 배열
+export async function fetchOpenMeteoMarine(lat, lon, startDate, endDate) {
+  const now = Date.now();
+  const pastHours = Math.min(2000, Math.max(1, Math.ceil((now - startDate.getTime()) / 3600000) + 1));
+  const forecastHours = Math.min(384, Math.max(1, Math.ceil((endDate.getTime() - now) / 3600000) + 2));
+  const common = `latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&timeformat=unixtime&cell_selection=sea&past_hours=${pastHours}&forecast_hours=${forecastHours}`;
+  const [windRes, waveRes] = await Promise.allSettled([
+    fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?${common}&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=ms`, 8000).then((r) => r.json()),
+    fetchWithTimeout(`https://marine-api.open-meteo.com/v1/marine?${common}&hourly=wave_height`, 8000).then((r) => r.json()),
+  ]);
+  const toSeries = (res, key) => {
+    if (res.status !== 'fulfilled' || !res.value?.hourly?.time) return null;
+    const h = res.value.hourly;
+    return { times: h.time.map((s) => s * 1000), values: h[key] };
+  };
+  return {
+    windSpeed: toSeries(windRes, 'wind_speed_10m'),
+    windDirFrom: toSeries(windRes, 'wind_direction_10m'),
+    waveHeight: toSeries(waveRes, 'wave_height'),
+  };
+}
+
+// 시계열에서 목표 시각과 가장 가까운 유효값 (2시간 넘게 떨어진 값은 버림)
+export function seriesValueAt(series, targetDate) {
+  if (!series || !series.times?.length) return null;
+  const t = targetDate.getTime();
+  let best = null, bestDiff = Infinity;
+  series.times.forEach((ts, i) => {
+    const v = series.values[i];
+    if (v === null || v === undefined || isNaN(v)) return;
+    const diff = Math.abs(ts - t);
+    if (diff < bestDiff) { bestDiff = diff; best = v; }
+  });
+  return bestDiff <= 2 * 3600000 ? best : null;
+}
+
 // KHOA 조류예측(격자) - 특정 미래 시각 재조회 (밀물/썰물 반전 반영용)
 export async function fetchKhoaCurrentAt(targetDate, latC, lonC) {
   const ds = `${targetDate.getFullYear()}${String(targetDate.getMonth() + 1).padStart(2, '0')}${String(targetDate.getDate()).padStart(2, '0')}`;

@@ -12,6 +12,7 @@ import {
 } from './modules/geo.js';
 import {
   fetchWithTimeout, fetchWindData, fetchKhoaCurrentAt, getForecastValueAtTime,
+  fetchOpenMeteoMarine, seriesValueAt,
 } from './modules/api.js';
 import {
   getLocalCoastline, checkSegmentCrossesCoastline, getLocalSetnets, findNearbySetnets,
@@ -45,7 +46,7 @@ async function mapWithConcurrency(items, limit, fn) {
 // 예측 신뢰도(추정). 실제 받은 데이터의 출처·누락, 예측 시간, 해안선 데이터 여부로
 // 점수를 깎는 방식 - 통계적으로 검증된 확률이 아니라 "이번 결과를 얼마나 믿어도
 // 되는지"를 현장 판단용으로 보여주는 지표다. 감점 사유를 함께 반환해 화면에 표시한다.
-export function computeConfidence({ usedHf, usedKhoaStart, khoaMissingHours, ahead, leewayCoefVal, usedWind, coastlineLoaded, strandedAt }) {
+export function computeConfidence({ usedHf, usedKhoaStart, khoaMissingHours, ahead, leewayCoefVal, usedWind, windSource, coastlineLoaded, strandedAt }) {
   let score = 90;
   const reasons = [];
 
@@ -68,6 +69,9 @@ export function computeConfidence({ usedHf, usedKhoaStart, khoaMissingHours, ahe
     if (!usedWind) {
       score -= 15;
       reasons.push('바람 데이터 없음 - 풍압 영향 미반영');
+    } else if (windSource === 'openmeteo') {
+      score -= 2;
+      reasons.push('바람: Open-Meteo 해상 격자 예보(실측 아님)');
     } else {
       score -= 5;
       reasons.push('바람: 기상청 육상 격자 예보 기준(해상과 차이 가능)');
@@ -112,7 +116,8 @@ export async function runPrediction(input, callbacks = {}) {
   const { lat, lon, ahead, startDateTime, leewayCoefVal, crosswindAngleDeg = CROSSWIND_DIVERGENCE_FALLBACK_DEG } = input;
   const { onStatus = () => {}, onProgress = () => {} } = callbacks;
 
-  let speed = 5.0, dir = 90, usedWind = false, waveHeightM = null, windSpeedMS = null, windDirFrom = null, fcstItemsForHourly = null;
+  let speed = 5.0, dir = 90, usedWind = false, waveHeightM = null, windSpeedMS = null, windDirFrom = null;
+  let windSource = null, waveSource = null;
   let currentSource = 'KHOA 조류예측(기본값)', usedHf = false, usedKhoaStart = false;
 
   // ===== ① 1순위: HF 레이더 실측 =====
@@ -165,12 +170,37 @@ export async function runPrediction(input, callbacks = {}) {
     } catch (err) { onStatus('warn', '⚠️ 기본값 연산 수행'); }
   }
 
-  // ===== 기상청 바람 데이터 =====
-  try {
-    const w = await fetchWindData(lat, lon);
-    windSpeedMS = w.windSpeedMS; windDirFrom = w.windDirFrom; waveHeightM = w.waveHeightM; fcstItemsForHourly = w.items;
-    if (windSpeedMS !== null && windDirFrom !== null) usedWind = true;
-  } catch (e) { /* 바람 데이터 없이 진행 */ }
+  // ===== 바람·파고: Open-Meteo 해상 격자 예보 우선, 기상청 단기예보(육상 격자) 폴백 =====
+  // 두 곳을 동시에 요청하고, Open-Meteo가 사고 시각의 풍향·풍속을 주면 그 시계열을 전 구간에
+  // 쓴다. 섞어 쓰지 않는 이유: 모델이 다르면 같은 시각에도 값이 달라 궤적이 튈 수 있음.
+  const endDateTime = new Date(startDateTime.getTime() + ahead * 3600000);
+  const [omRes, kmaRes] = await Promise.allSettled([
+    fetchOpenMeteoMarine(lat, lon, startDateTime, endDateTime),
+    fetchWindData(lat, lon),
+  ]);
+  const om = omRes.status === 'fulfilled' ? omRes.value : null;
+  const kma = kmaRes.status === 'fulfilled' ? kmaRes.value : null;
+  const omWindAt = (d) => {
+    const sp = seriesValueAt(om?.windSpeed, d), dr = seriesValueAt(om?.windDirFrom, d);
+    return sp !== null && dr !== null ? { speed: sp, dirFrom: dr } : null;
+  };
+  const kmaWindAt = (d) => {
+    if (!kma?.items) return null;
+    const sp = getForecastValueAtTime(kma.items, 'WSD', d), dr = getForecastValueAtTime(kma.items, 'VEC', d);
+    return sp !== null && dr !== null && !isNaN(sp) && !isNaN(dr) ? { speed: sp, dirFrom: dr } : null;
+  };
+  const useOpenMeteoWind = omWindAt(startDateTime) !== null;
+  const windAt = useOpenMeteoWind ? omWindAt : kmaWindAt;
+  const w0 = useOpenMeteoWind
+    ? omWindAt(startDateTime)
+    : kma && kma.windSpeedMS !== null && kma.windDirFrom !== null ? { speed: kma.windSpeedMS, dirFrom: kma.windDirFrom } : null;
+  if (w0) {
+    windSpeedMS = w0.speed; windDirFrom = w0.dirFrom; usedWind = true;
+    windSource = useOpenMeteoWind ? 'openmeteo' : 'kma';
+  }
+  const omWave = seriesValueAt(om?.waveHeight, startDateTime);
+  if (omWave !== null) { waveHeightM = omWave; waveSource = 'openmeteo'; }
+  else if (kma && kma.waveHeightM !== null && !isNaN(kma.waveHeightM)) { waveHeightM = kma.waveHeightM; waveSource = 'kma'; }
 
   const curDisp = speed * 0.01 * 3600;
   const curXY = bearingToXY(dir, curDisp);
@@ -218,18 +248,14 @@ export async function runPrediction(input, callbacks = {}) {
   }
   if (usedHf && khoaMissingHours < ahead && ahead > 1) currentSource += ' → 이후 KHOA 시간별 예측';
 
-  // ===== 바람 시간별 사전계산 (500입자가 공유 - 성능 최적화, 정확도 영향 없음) =====
+  // ===== 바람 시간별 사전계산 (궤적 계산과 500입자가 공유) =====
   let hourlyWindXY = null;
-  if (usedWind && fcstItemsForHourly) {
+  if (usedWind) {
     hourlyWindXY = [wXY];
     for (let t = 1; t <= ahead; t++) {
-      const targetTime = new Date(startDateTime.getTime() + t * 3600000);
-      const wsdT = getForecastValueAtTime(fcstItemsForHourly, 'WSD', targetTime);
-      const vecT = getForecastValueAtTime(fcstItemsForHourly, 'VEC', targetTime);
+      const wt = windAt(new Date(startDateTime.getTime() + t * 3600000));
       hourlyWindXY.push(
-        wsdT !== null && vecT !== null
-          ? bearingToXY((vecT + 180) % 360, wsdT * 3600 * leewayCoefVal)
-          : hourlyWindXY[hourlyWindXY.length - 1]
+        wt ? bearingToXY((wt.dirFrom + 180) % 360, wt.speed * 3600 * leewayCoefVal) : hourlyWindXY[hourlyWindXY.length - 1]
       );
     }
   }
@@ -250,16 +276,8 @@ export async function runPrediction(input, callbacks = {}) {
 
   for (let t = 1; t <= ahead; t++) {
     const currentVecT = hourlyCurrentXY[t];
-    let windVecT = wXY, windageMagT = 0;
-    if (usedWind && fcstItemsForHourly) {
-      const targetTime = new Date(startDateTime.getTime() + t * 3600000);
-      const wsdT = getForecastValueAtTime(fcstItemsForHourly, 'WSD', targetTime);
-      const vecT = getForecastValueAtTime(fcstItemsForHourly, 'VEC', targetTime);
-      if (wsdT !== null && vecT !== null) {
-        windageMagT = wsdT * 3600 * leewayCoefVal;
-        windVecT = bearingToXY((vecT + 180) % 360, windageMagT);
-      }
-    }
+    const windVecT = hourlyWindXY ? hourlyWindXY[t] : wXY;
+    const windageMagT = Math.hypot(windVecT.x, windVecT.y);
     cumWindageDisp += windageMagT;
     cumWindageByHour.push(cumWindageDisp);
 
@@ -319,7 +337,7 @@ export async function runPrediction(input, callbacks = {}) {
   const risk = calculateAdvancedRisk(underwaterMode ? null : windSpeedMS, waveHeightM, null, null, null, null);
 
   const confidence = computeConfidence({
-    usedHf, usedKhoaStart, khoaMissingHours, ahead, leewayCoefVal, usedWind,
+    usedHf, usedKhoaStart, khoaMissingHours, ahead, leewayCoefVal, usedWind, windSource,
     coastlineLoaded: getCoastlineStatus().loaded, strandedAt,
   });
 
@@ -344,7 +362,7 @@ export async function runPrediction(input, callbacks = {}) {
 
   return {
     combBrng, combSpeed, actualHours, finalErrorRadius, finalPoint, strandedAt,
-    currentSource, setnetWarnings, coastlineStatus: getCoastlineStatus(),
+    currentSource, windSource, waveSource, setnetWarnings, coastlineStatus: getCoastlineStatus(),
     curSpeed: speed, curDir: dir, netDistM, confidence,
   };
 }

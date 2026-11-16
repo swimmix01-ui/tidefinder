@@ -102,6 +102,7 @@ window.copyOperationReport = function copyOperationReport() {
     typeof r.combBrng === 'number' ? `추천 탐색 방향: ${Math.round(r.combBrng)}°` : null,
     typeof r.combSpeed === 'number' ? `평균 이동속도: ${(r.combSpeed / 1852).toFixed(2)}kn` : null,
     r.currentSource ? `해류 자료: ${r.currentSource}` : null,
+    r.windSource ? `바람 자료: ${r.windSource === 'openmeteo' ? 'Open-Meteo 해상 격자 예보' : '기상청 단기예보(육상 격자)'}` : null,
     r.confidence ? `예측 신뢰도(추정): ${r.confidence.score}% (${r.confidence.label})` : null,
     '',
     '※ 본 보고서는 광역 조류 격자 데이터 기반 예측치이며, 현장 상황과 다를 수 있습니다.',

@@ -150,6 +150,7 @@ export async function loadMarineStatus(coords = {}) {
   } catch (err) {
     console.warn('⚠ 조위관측소 실측 풍속 로드 실패:', err);
   }
+  let farWave = null;
   try {
     const twDistKm = lat != null && lon != null ? haversineKm(lat, lon, twStation.lat, twStation.lon) : 0;
     const tw = await api.fetchTwRecent(twStation.code, reqDate);
@@ -158,8 +159,13 @@ export async function loadMarineStatus(coords = {}) {
     const wndrct = pickNumeric(tw, ['wndrct']);
     const distNote = twDistKm > 50 ? ` (관측소 ${Math.round(twDistKm)}km 거리 - 참고용)` : '';
     if (wvhgt !== null) {
-      setText('marineWaveHeight', `${wvhgt}m (실측)${distNote}`);
-      ui.renderWaveStatusPill(wvhgt);
+      if (twDistKm <= 50) {
+        setText('marineWaveHeight', `${wvhgt}m (실측)`);
+        ui.renderWaveStatusPill(wvhgt);
+      } else {
+        // 관측소가 멀면(포항→고래불 70km) 그 지점 해상예보를 먼저 쓰고 실측은 참고로 붙인다.
+        farWave = { wvhgt, name: twStation.name, distKm: twDistKm, distNote };
+      }
     }
     // dtRecent가 풍속을 못 채웠을 때만 twRecent 풍속으로 보충.
     if (wspd !== null && document.getElementById('marineWind')?.textContent === LOADING_TEXT) {
@@ -169,6 +175,30 @@ export async function loadMarineStatus(coords = {}) {
     }
   } catch (err) {
     console.warn('⚠ 해양관측부이 실측 파고/풍속 로드 실패:', err);
+  }
+  // Open-Meteo 해상 격자 예보 - 가까운 실측이 없을 때 기상청 육상 격자 예보보다 먼저 쓴다.
+  try {
+    const now = new Date();
+    const om = await api.fetchOpenMeteoMarine(lat, lon, now, now);
+    const omWave = api.seriesValueAt(om.waveHeight, now);
+    if (omWave !== null && document.getElementById('marineWaveHeight')?.textContent === LOADING_TEXT) {
+      const ref = farWave ? ` · ${farWave.name} 실측 ${farWave.wvhgt}m(${Math.round(farWave.distKm)}km)` : '';
+      setText('marineWaveHeight', `${omWave.toFixed(1)}m (해상예보)${ref}`);
+      ui.renderWaveStatusPill(omWave);
+    }
+    const omSpd = api.seriesValueAt(om.windSpeed, now);
+    const omDir = api.seriesValueAt(om.windDirFrom, now);
+    if (omSpd !== null && document.getElementById('marineWind')?.textContent === LOADING_TEXT) {
+      const dirText = omDir !== null ? `${Math.round(omDir)}°` : '-';
+      setText('marineWind', `${dirText} / ${omSpd.toFixed(1)}m/s (해상예보)`);
+      ui.renderWindStatusPill(omSpd);
+    }
+  } catch (err) {
+    console.warn('⚠ Open-Meteo 해상예보 로드 실패:', err);
+  }
+  if (farWave && document.getElementById('marineWaveHeight')?.textContent === LOADING_TEXT) {
+    setText('marineWaveHeight', `${farWave.wvhgt}m (실측)${farWave.distNote}`);
+    ui.renderWaveStatusPill(farWave.wvhgt);
   }
   try {
     const wind = await api.fetchWindData(windLat, windLon);
