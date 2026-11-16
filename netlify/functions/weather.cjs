@@ -157,7 +157,7 @@ exports.handler = async function (event) {
   if (mode === 'shallow') {
     const T = 0.05;
     const tx = parseInt(params.tx, 10), ty = parseInt(params.ty, 10);
-    const maxDepth = Math.min(30, Math.max(1, parseFloat(params.maxDepth) || 10));
+    const maxDepth = Math.min(1000, Math.max(1, parseFloat(params.maxDepth) || 10));
     if (isNaN(tx) || isNaN(ty) || tx < 2480 || tx > 2640 || ty < 640 || ty > 780) {
       return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'tx/ty 범위 확인 (0.05도 타일 번호)' }) };
     }

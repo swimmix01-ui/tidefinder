@@ -7,7 +7,7 @@
 // ==========================================================================
 
 const TILE = 0.05;
-const MAX_DEPTH = 10;
+const MAX_DEPTH = 1000; // 해도처럼 숫자를 보여주려고 전부 받는다(얕은 곳 색칠·항로는 받은 뒤 걸러 씀)
 const tiles = new Map(); // "tx,ty" -> Promise<[[lat, lon, d], ...]>
 let lastError = '';
 export function getLastDepthError() { return lastError; }
@@ -50,8 +50,10 @@ export async function getShallowPoints(latMin, latMax, lonMin, lonMax, maxTiles 
 let map = null;
 let on = false;
 let shapes = [];
+let labels = [];
 let drawSeq = 0;
 const MAX_LEVEL = 8; // 이보다 축소하면 칸이 너무 작아 생략
+const NUM_LEVEL = 6; // 이 레벨 이하(더 확대)에서 수심 숫자 표시
 
 function colorFor(d) {
   if (d < 2) return ['#FF3B3B', 0.55];
@@ -59,7 +61,7 @@ function colorFor(d) {
   return ['#FDE68A', 0.22];
 }
 
-function clearShapes() { shapes.forEach((s) => s.setMap(null)); shapes = []; }
+function clearShapes() { shapes.forEach((s) => s.setMap(null)); shapes = []; labels.forEach((s) => s.setMap(null)); labels = []; }
 
 async function redraw() {
   if (!map || !on) return;
@@ -78,7 +80,9 @@ async function redraw() {
   clearShapes();
   if (!pts) { if (note) note.textContent = '수심: 더 확대해 주세요'; return; }
   const hLat = 0.00068, hLon = 0.00083; // 격자 반 칸(약 75m)
-  pts.slice(0, 4000).forEach(([la, lo, d]) => {
+  const level = map.getLevel();
+  // 얕은 곳(10m 이하) 색칠
+  pts.filter((p) => p[2] <= 10).slice(0, 4000).forEach(([la, lo, d]) => {
     const [c, op] = colorFor(d);
     const r = new window.kakao.maps.Rectangle({
       bounds: new window.kakao.maps.LatLngBounds(new window.kakao.maps.LatLng(la - hLat, lo - hLon), new window.kakao.maps.LatLng(la + hLat, lo + hLon)),
@@ -87,7 +91,29 @@ async function redraw() {
     r.setMap(map);
     shapes.push(r);
   });
-  if (note) note.textContent = `수심(평균해면 기준): 빨강 2m 미만 · 주황 2~5m · 노랑 5~10m · 이 화면 ${pts.length}칸${failed ? ` · ${failed}개 구역 불러오기 실패 (${lastError.slice(0, 80)})` : ''}`;
+  // 해도처럼 수심 숫자 - 확대했을 때만, 겹치지 않게 격자를 솎아서
+  let shown = 0;
+  if (level <= NUM_LEVEL) {
+    const step = level <= 4 ? 1 : level === 5 ? 2 : 3;
+    pts.forEach(([la, lo, d]) => {
+      const gi = Math.round(lo / 0.00166), gj = Math.round(la / 0.00135);
+      if (gi % step !== 0 || gj % step !== 0 || shown >= 900) return;
+      const cls = d < 2 ? 'd0' : d < 5 ? 'd1' : d < 10 ? 'd2' : 'd3';
+      const txt = d < 10 ? d.toFixed(1) : String(Math.round(d));
+      const ov = new window.kakao.maps.CustomOverlay({
+        position: new window.kakao.maps.LatLng(la, lo), content: `<div class="depth-num ${cls}">${txt}</div>`, zIndex: 2, clickable: false,
+      });
+      ov.setMap(map);
+      labels.push(ov);
+      shown++;
+    });
+  }
+  const n = pts.filter((p) => p[2] <= 10).length;
+  if (note) {
+    note.textContent = `수심(평균해면 기준, m): 빨강 2 미만 · 주황 2~5 · 노랑 5~10 · 이 화면 얕은 칸 ${n}개`
+      + (level <= NUM_LEVEL ? '' : ' · 더 확대하면 해도처럼 수심 숫자 표시')
+      + (failed ? ` · ${failed}개 구역 불러오기 실패 (${lastError.slice(0, 80)})` : '');
+  }
 }
 
 export function initDepthLayer(kakaoMap) {
