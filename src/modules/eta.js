@@ -11,6 +11,7 @@ import { planSeaRoute } from './route.js';
 const NM = 1852;
 const SPEED_KEY = 'tf-boat-speed-kn';
 const AVOID_KEY = 'tf-route-avoid';
+const DEPTH_KEY = 'tf-route-min-depth';
 
 let map = null;
 let getTarget = () => null;
@@ -23,6 +24,8 @@ let hazardMarks = [];
 let lastHazardKey = '';
 let landLeg = null;
 let routeCache = null; // { key, from, res }
+let updSeq = 0;
+let shallowLeg = null;
 
 const $ = (id) => document.getElementById(id);
 
@@ -46,6 +49,12 @@ export function initEta({ kakaoMap, getTargetCoords }) {
   try { $('etaAvoid').checked = localStorage.getItem(AVOID_KEY) !== '0'; } catch { /* 기본 켬 */ }
   $('etaAvoid').addEventListener('change', () => {
     try { localStorage.setItem(AVOID_KEY, $('etaAvoid').checked ? '1' : '0'); } catch { /* 무시 */ }
+    routeCache = null;
+    updateEta();
+  });
+  try { const v = localStorage.getItem(DEPTH_KEY); $('etaMinDepth').value = v !== null ? v : '2'; } catch { $('etaMinDepth').value = '2'; }
+  $('etaMinDepth').addEventListener('change', () => {
+    try { localStorage.setItem(DEPTH_KEY, $('etaMinDepth').value); } catch { /* 무시 */ }
     routeCache = null;
     updateEta();
   });
@@ -98,13 +107,20 @@ function clearRoute() {
   if (routeLine) { routeLine.setMap(null); routeLine = null; }
   if (originMarker) { originMarker.setMap(null); originMarker = null; }
   if (landLeg) { landLeg.setMap(null); landLeg = null; }
+  if (shallowLeg) { shallowLeg.setMap(null); shallowLeg = null; }
   hazardMarks.forEach((m) => m.setMap(null)); hazardMarks = [];
 }
 
-function drawRoute(o, pts, hazards, routed) {
+function drawRoute(o, pts, hazards, routed, shallowLast) {
   if (!map) return;
   clearRoute();
-  const path = pts.map((p) => new window.kakao.maps.LatLng(p.lat, p.lon));
+  const all = pts.map((p) => new window.kakao.maps.LatLng(p.lat, p.lon));
+  // 사고지점이 얕은 곳이면 마지막 구간(구조정 접근 불가)은 빨간 점선으로 따로
+  const path = shallowLast && all.length > 2 ? all.slice(0, -1) : all;
+  if (shallowLast && all.length >= 2) {
+    shallowLeg = new window.kakao.maps.Polyline({ path: all.slice(-2), strokeWeight: 3, strokeColor: '#FF3B3B', strokeOpacity: 0.95, strokeStyle: 'shortdot', zIndex: 8 });
+    shallowLeg.setMap(map);
+  }
   routeLine = new window.kakao.maps.Polyline({
     path, strokeWeight: routed ? 4 : 3,
     strokeColor: hazards.length ? '#FF8A3D' : routed ? '#38BDF8' : '#7DD3FC',
@@ -129,14 +145,15 @@ function drawRoute(o, pts, hazards, routed) {
 }
 
 // GPS가 조금 움직일 때마다 다시 계산하지 않도록 150m 이상 움직였거나 목적지가 바뀌었을 때만 새로 계산
-function getRoute(o, t) {
+async function getRoute(o, t) {
   const avoid = $('etaAvoid').checked;
-  const key = `${t.lat.toFixed(5)},${t.lon.toFixed(5)}|${avoid}`;
+  const minDepth = Math.max(0, parseFloat($('etaMinDepth').value) || 0);
+  const key = `${t.lat.toFixed(5)},${t.lon.toFixed(5)}|${avoid}|${minDepth}`;
   if (routeCache && routeCache.key === key && distanceBetween(routeCache.from.lat, routeCache.from.lon, o.lat, o.lon) < 150) {
     return routeCache.res;
   }
   let res;
-  try { res = planSeaRoute(o, t, { avoidHazards: avoid }); } catch (err) { res = { ok: false, reason: String(err.message || err) }; }
+  try { res = await planSeaRoute(o, t, { avoidHazards: avoid, minDepth }); } catch (err) { res = { ok: false, reason: String(err.message || err) }; }
   routeCache = { key, from: { lat: o.lat, lon: o.lon }, res };
   return res;
 }
@@ -164,7 +181,8 @@ function fmtDur(min) {
 }
 const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
-export function updateEta() {
+export async function updateEta() {
+  const seq = ++updSeq;
   const t = getTarget();
   const speed = parseFloat($('etaSpeed').value);
   const box = $('etaResult');
@@ -174,7 +192,10 @@ export function updateEta() {
     return;
   }
   const straight = distanceBetween(origin.lat, origin.lon, t.lat, t.lon);
-  const route = getRoute(origin, t);
+  if (!routeCache) setNote('항로 계산 중…(수심 자료 받는 중)');
+  const route = await getRoute(origin, t);
+  if (seq !== updSeq) return; // 그 사이 새 계산이 시작됨
+  setNote('');
   const routed = route.ok;
   const pts = routed ? route.points : [{ lat: origin.lat, lon: origin.lon }, { lat: t.lat, lon: t.lon }];
   const d = routed ? route.distM : straight;
@@ -194,7 +215,11 @@ export function updateEta() {
   const routeTxt = routed
     ? ` · 직선 ${fmtNm(straight)} 대비 +${fmtNm(Math.max(0, d - straight))}${route.startOnLandM ? ` · 출발지가 육상이라 가장 가까운 바다(${(route.startOnLandM / 1000).toFixed(1)}km)부터 계산` : ''}`
     : ` · 해상 항로 계산 실패(${route.reason}) → 직선으로 표시`;
-  $('etaFrom').textContent = fromTxt + routeTxt;
+  const minDepth = parseFloat($('etaMinDepth').value) || 0;
+  const depthTxt = !routed || !minDepth ? '' : route.depthUsed
+    ? ` · 수심 ${minDepth}m 미만 회피${route.depthNote ? ` (${route.depthNote})` : ''}`
+    : ` · 수심 미반영(${route.depthNote})`;
+  $('etaFrom').textContent = fromTxt + routeTxt + depthTxt;
 
   const { checked, hazards } = hazardsAlong(pts);
   const avoid = $('etaAvoid').checked;
@@ -217,8 +242,15 @@ export function updateEta() {
     hz.innerHTML = `<b>⚠ 항로에 걸림: ${parts}</b>${routed && avoid ? '<div style="font-size:12px;color:var(--text-lo)">사고지점·출발지가 어장 안이거나 붙어 있어 피할 수 없는 구간입니다.</div>' : ''}<ul>${hazards.slice(0, 8).map((h) =>
       `<li><span>${h.label}</span> 출발 ${fmtNm(h.fromStartM)} 지점 · ${h.addr ? h.addr.replace(/\s+/g, ' ') : h.name}</li>`).join('')}${hazards.length > 8 ? `<li>외 ${hazards.length - 8}건</li>` : ''}</ul>`;
   }
+  const sh = $('etaShallow');
+  if (routed && route.shallowLastLegM > 0) {
+    sh.style.display = 'block';
+    sh.innerHTML = `<b>⚠ 저수심</b> 사고지점 앞 약 <b>${Math.round(route.shallowLastLegM)}m</b>는 수심 ${minDepth}m 미만입니다. 구조정은 빨간 점선 시작점까지 — 이후 고무보트·수영 접근 검토`;
+  } else {
+    sh.style.display = 'none';
+  }
   box.style.display = 'block';
-  drawRoute(origin, pts, hazards, routed);
+  drawRoute(origin, pts, hazards, routed, routed && route.shallowLastLegM > 0);
 
   // 위험물 목록이 바뀔 때만 지도 범위를 맞춘다(GPS 갱신마다 화면이 튀지 않게)
   const key = `${origin.src}|${t.lat.toFixed(4)},${t.lon.toFixed(4)}|${hazards.length}|${pts.length}|${$('etaAvoid').checked}`;

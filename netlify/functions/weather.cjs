@@ -149,6 +149,52 @@ exports.handler = async function (event) {
     return { statusCode: 502, headers: corsHeaders, body: JSON.stringify({ error: '수심 API 호출 실패', tries }) };
   }
 
+  // ===== 얕은 수심 타일(0.1° × 0.1°) =====
+  // 앱이 쓰는 형태로 서버에서 줄여 보낸다: 수심 maxDepth(m) 이하 점만 [위도, 경도, 수심] 배열로.
+  // 수심은 국립해양조사원 자연과학용 수심(150m 격자, 평균해면 기준). 자료가 거의 안 바뀌어서
+  // Netlify CDN에 길게 캐시한다 - 같은 타일은 두 번째부터 공공데이터 서버를 거치지 않는다.
+  if (mode === 'shallow') {
+    const tx = parseInt(params.tx, 10), ty = parseInt(params.ty, 10);
+    const maxDepth = Math.min(30, Math.max(1, parseFloat(params.maxDepth) || 10));
+    if (isNaN(tx) || isNaN(ty) || tx < 1200 || tx > 1320 || ty < 320 || ty > 390) {
+      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'tx/ty 범위 확인 (0.1도 타일 번호)' }) };
+    }
+    const ymin = (ty / 10).toFixed(1), ymax = ((ty + 1) / 10).toFixed(1);
+    const xmin = (tx / 10).toFixed(1), xmax = ((tx + 1) / 10).toFixed(1);
+    const pts = [];
+    let total = 0, got = 0;
+    try {
+      for (let pageNo = 1; pageNo <= 6; pageNo++) {
+        const u = `https://apis.data.go.kr/1192136/waterDepth/GetWaterDepthApiService?serviceKey=${TW_SERVICE_KEY}&type=json&numOfRows=5000&pageNo=${pageNo}&ymin=${ymin}&ymax=${ymax}&xmin=${xmin}&xmax=${xmax}`;
+        const r = await nativeHttpsFetch(u, fetchHeaders);
+        const text = await r.text();
+        if (r.status !== 200) throw new Error(`HTTP ${r.status}: ${text.substring(0, 120)}`);
+        let j;
+        try { j = JSON.parse(text); } catch (e) { throw new Error(`응답 형식 오류: ${text.substring(0, 120)}`); }
+        const body = j.body || (j.response && j.response.body) || {};
+        let items = body.items && body.items.item;
+        if (!items) items = [];
+        if (!Array.isArray(items)) items = [items];
+        total = parseInt(body.totalCount, 10) || 0;
+        got += items.length;
+        for (const it of items) {
+          const d = parseFloat(it.dpwt), la = parseFloat(it.lat), lo = parseFloat(it.lot);
+          if (isNaN(d) || isNaN(la) || isNaN(lo) || d > maxDepth) continue;
+          pts.push([Math.round(la * 1e4) / 1e4, Math.round(lo * 1e4) / 1e4, Math.round(d * 10) / 10]);
+        }
+        if (!items.length || got >= total) break;
+      }
+      return {
+        statusCode: 200,
+        headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=86400', 'Netlify-CDN-Cache-Control': 'public, durable, max-age=2592000' },
+        body: JSON.stringify({ tx, ty, maxDepth, total, got, pts }),
+      };
+    } catch (err) {
+      console.log(`shallow ${tx},${ty} error: ${err.message}`);
+      return { statusCode: 502, headers: corsHeaders, body: JSON.stringify({ error: err.message }) };
+    }
+  }
+
   // ===== 기상청 API허브 해양 종합 관측(해양기상부이·파고부이·등표 등) 실측 =====
   // 요청 시각 기준 -59분~00분 자료가 오므로, 비어 있으면 1시간 전으로 한 번 더 요청한다.
   if (mode === 'kmasea') {

@@ -342,10 +342,11 @@
       <button type="button" class="chip on" data-layer="farm"><i style="background:#FBBF24"></i>양식장</button>
       <button type="button" class="chip" data-layer="village"><i style="background:#34D399"></i>마을어업</button>
       <button type="button" class="chip on" data-layer="rock" id="rockChip" style="display:none"><i class="rock-dot"></i>간출암</button>
+      <button type="button" class="chip" data-layer="depth"><i style="background:#FF9F1C"></i>수심</button>
       <button type="button" class="chip" data-maptype="sat">🛰 위성</button>
     </div>
   </div>
-  <div class="map-src">어장: 국립해양조사원 어장정보(포항·경주·영덕, 면허 구역도) · 도형을 누르면 상세 정보</div>
+  <div class="map-src">어장: 국립해양조사원 어장정보(포항·경주·영덕, 면허 구역도) · 도형을 누르면 상세 정보<br><span id="depthNote"></span></div>
 
   <button class="run-btn" id="resetMapBtn" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px; margin-top:-4px;">↺ 지도 초기화</button>
   <button class="run-btn" onclick="openCoastView()" type="button" style="background: rgba(255,255,255,0.08); color: var(--text-hi); box-shadow:none; margin-bottom:14px;">
@@ -360,6 +361,7 @@
     </div>
     <div class="eta-speed"><span>구조정 선속</span><input id="etaSpeed" type="number" min="1" max="60" step="1" inputmode="decimal"><span>kn</span>
       <label class="eta-avoid"><input type="checkbox" id="etaAvoid" checked> 어장·간출암 피해서</label></div>
+    <div class="eta-speed"><span>최소 수심</span><input id="etaMinDepth" type="number" min="0" max="10" step="0.5" inputmode="decimal"><span>m 미만 피함 (0 = 수심 무시)</span></div>
     <div id="etaNote" class="eta-note">사고 좌표를 정한 뒤 출발지를 고르면 거리와 도착 시각이 나옵니다.</div>
     <div id="etaResult" style="display:none">
       <div class="stat-grid-4 eta-grid">
@@ -369,6 +371,7 @@
         <div class="stat-box"><div class="label">도착 예정</div><div class="value accent" id="etaArrive">-</div></div>
       </div>
       <div class="eta-from" id="etaFrom"></div>
+      <div class="eta-hazards warn" id="etaShallow" style="display:none"></div>
       <div class="eta-hazards" id="etaHazards"></div>
     </div>
   </div>

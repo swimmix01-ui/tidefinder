@@ -16,8 +16,9 @@
 import { getCoastlineData } from './coastline.js';
 import { getHazardData } from './sealayers.js';
 import { distanceBetween } from './geo.js';
+import { getShallowPoints } from './depth.js';
 
-const FREE = 0, COAST = 1, HAZARD = 2;
+const FREE = 0, COAST = 1, HAZARD = 2, SHALLOW = 3;
 const MAX_CELLS = 200000;
 
 let coastIndex = null;
@@ -105,11 +106,31 @@ class Heap {
   }
 }
 
+// 격자 범위(planOnce와 같은 식) - 수심 타일을 미리 받기 위해 따로 계산
+function gridBounds(from, to, scale) {
+  const lat0 = (from.lat + to.lat) / 2;
+  const kx = 111320 * Math.cos((lat0 * Math.PI) / 180), ky = 110574;
+  const tx = (to.lon - from.lon) * kx, ty = (to.lat - from.lat) * ky;
+  const margin = Math.max(4000, Math.hypot(tx, ty) * 0.35) * scale;
+  return {
+    lonMin: from.lon + (Math.min(0, tx) - margin) / kx, lonMax: from.lon + (Math.max(0, tx) + margin) / kx,
+    latMin: from.lat + (Math.min(0, ty) - margin) / ky, latMax: from.lat + (Math.max(0, ty) + margin) / ky,
+  };
+}
+
 // 범위가 좁으면 만(灣) 출구가 격자 밖이라 길이 끊길 수 있다 → 범위를 넓혀 다시 시도
-export function planSeaRoute(from, to, opts = {}) {
+// opts: { avoidHazards, minDepth(m, 0이면 수심 무시) }
+export async function planSeaRoute(from, to, opts = {}) {
   let best = null;
   for (const scale of [1, 2.5, 5]) {
-    const r = planOnce(from, to, opts, scale);
+    let depth = { pts: null, reason: '' };
+    if (opts.minDepth > 0) {
+      const b = gridBounds(from, to, scale);
+      try { depth = await getShallowPoints(b.latMin, b.latMax, b.lonMin, b.lonMax, 30); } catch { depth = { pts: null, reason: '수심 불러오기 실패' }; }
+    }
+    const r = planOnce(from, to, opts, scale, depth.pts);
+    r.depthUsed = !!depth.pts;
+    r.depthNote = depth.pts ? (depth.failed ? `수심 일부 구역 누락(${depth.failed}/${depth.total})` : '') : (opts.minDepth > 0 ? (depth.reason || '수심 자료 없음') : '');
     if (r.ok && r.startOnLandM < 1500) return r;
     if (r.ok && (!best || !best.ok || r.startOnLandM < best.startOnLandM)) best = r;
     if (!best) best = r;
@@ -117,7 +138,7 @@ export function planSeaRoute(from, to, opts = {}) {
   return best;
 }
 
-function planOnce(from, to, { avoidHazards = true } = {}, scale = 1) {
+function planOnce(from, to, { avoidHazards = true, minDepth = 0 } = {}, scale = 1, depthPts = null) {
   const coast = getCoastlineData();
   if (!coast && !land) return { ok: false, reason: '해안선 자료를 아직 불러오지 못했습니다' };
   if (coast && coastIndexSrc !== coast) buildCoastIndex(coast);
@@ -239,6 +260,31 @@ function planOnce(from, to, { avoidHazards = true } = {}, scale = 1) {
     }
   }
 
+  // 3) 얕은 곳: 구조정 최소수심보다 얕은 150m 격자점 주변(반경 80m)을 막는다
+  let shallowCount = 0;
+  if (depthPts && minDepth > 0) {
+    const r = 80, rc = Math.ceil(r / cell) + 1;
+    for (const [la, lo, d] of depthPts) {
+      if (d >= minDepth) continue;
+      shallowCount++;
+      const px = toX(lo), py = toY(la), pi = ci(px), pj = cj(py);
+      for (let dj = -rc; dj <= rc; dj++) for (let di = -rc; di <= rc; di++) {
+        const i = pi + di, j = pj + dj;
+        if (inb(i, j) && Math.hypot(x0 + (i + 0.5) * cell - px, y0 + (j + 0.5) * cell - py) <= r + cell * 0.5 && grid[j * W + i] === FREE) grid[j * W + i] = SHALLOW;
+      }
+    }
+  }
+  // 사고지점 자체가 얕은 곳인지(가장 가까운 격자점이 최소수심 미만)
+  let targetShallow = false;
+  if (depthPts && minDepth > 0) {
+    let bd = Infinity, bdep = null;
+    for (const [la, lo, d] of depthPts) {
+      const dd = Math.hypot(toX(lo) - tx, toY(la) - ty);
+      if (dd < bd) { bd = dd; bdep = d; }
+    }
+    targetShallow = bd <= 110 && bdep !== null && bdep < minDepth;
+  }
+
   const free = (i, j) => inb(i, j) && grid[j * W + i] === FREE;
 
   // 육지·위험물 바로 옆 칸은 막지는 않되(좁은 항구 입구가 닫히지 않게) 비용을 높여 가급적 떨어져 가게 한다
@@ -270,7 +316,7 @@ function planOnce(from, to, { avoidHazards = true } = {}, scale = 1) {
     return null;
   }
 
-  // 3) 사고지점 쪽 바다 찾기. 사고지점이 육지·어장 안이면 가장 가까운 빈 칸에서 시작하되,
+  // 4) 사고지점 쪽 바다 찾기. 사고지점이 육지·어장 안이면 가장 가까운 빈 칸에서 시작하되,
   //    갇힌 웅덩이(조각난 칸)가 아니라 격자 가장자리(먼바다)까지 이어진 바다여야 한다.
   const sea = new Uint8Array(W * H);
   const q = new Int32Array(W * H);
@@ -300,7 +346,7 @@ function planOnce(from, to, { avoidHazards = true } = {}, scale = 1) {
   const src = nearest(ci(0), cj(0), (a, b) => inb(a, b) && sea[b * W + a] === 1, Math.max(W, H));
   if (!src) return { ok: false, reason: '출발지에서 사고지점까지 바다로 이어지지 않습니다' };
 
-  // 4) A*
+  // 5) A*
   const N = W * H;
   const g = new Float32Array(N).fill(Infinity);
   const came = new Int32Array(N).fill(-1);
@@ -332,7 +378,7 @@ function planOnce(from, to, { avoidHazards = true } = {}, scale = 1) {
   for (let id = tId; id !== -1; id = came[id]) cells.push(id);
   cells.reverse();
 
-  // 5) 지그재그 펴기: 서로 보이면(사이에 막힌 칸 없으면) 바로 잇는다
+  // 6) 지그재그 펴기: 서로 보이면(사이에 막힌 칸 없으면) 바로 잇는다
   const cx = (id) => x0 + ((id % W) + 0.5) * cell, cy = (id) => y0 + (Math.floor(id / W) + 0.5) * cell;
   const onPath = new Set(cells);
   function los(aId, bId) {
@@ -376,6 +422,10 @@ function planOnce(from, to, { avoidHazards = true } = {}, scale = 1) {
     distM,
     straightM: distanceBetween(from.lat, from.lon, to.lat, to.lon),
     startOnLandM: startOnLandM > cell * 2 ? startOnLandM : 0,
+    // 사고지점이 최소수심보다 얕은 곳이면: 구조정이 갈 수 있는 마지막 지점 → 사고지점 거리
+    shallowLastLegM: targetShallow && seaPts.length >= 2
+      ? distanceBetween(seaPts[seaPts.length - 2].lat, seaPts[seaPts.length - 2].lon, to.lat, to.lon) : 0,
+    shallowCount,
     cellM: cell,
     hazardCount,
   };

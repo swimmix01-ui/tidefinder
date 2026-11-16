@@ -12,6 +12,7 @@ import { loadMarineStatus } from './modules/marine.js';
 import * as seaLayers from './modules/sealayers.js';
 import * as eta from './modules/eta.js';
 import { loadLandPolygons } from './modules/route.js';
+import * as depth from './modules/depth.js';
 
 let lastPredictionResult = null;
 
@@ -205,6 +206,7 @@ async function init() {
   if (mapInstance) {
     await seaLoad;
     seaLayers.initSeaLayers(mapInstance);
+    depth.initDepthLayer(mapInstance);
     setupLayerChips();
     ui.setStatus('ok', '✅ 지도 연동 완료');
   } else {
@@ -221,7 +223,8 @@ function setupLayerChips() {
     chip.addEventListener('click', () => {
       const on = !chip.classList.contains('on');
       chip.classList.toggle('on', on);
-      if (chip.dataset.layer) seaLayers.setLayerVisible(chip.dataset.layer, on);
+      if (chip.dataset.layer === 'depth') depth.setDepthVisible(on);
+      else if (chip.dataset.layer) seaLayers.setLayerVisible(chip.dataset.layer, on);
       if (chip.dataset.maptype) mapModule.setMapType(on);
     });
   });
