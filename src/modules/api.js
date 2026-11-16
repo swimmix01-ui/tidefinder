@@ -77,7 +77,7 @@ export async function fetchWindData(lat, lon) {
 
 // Open-Meteo 해상 격자 예보 - 풍향/풍속(10m) + 파고, 시간별.
 // 기상청 단기예보는 육상용 격자라 해상 지점에서 값이 낮게 나오거나 비는 경우가 있어서
-// 해상 격자에서 바로 계산된 값을 우선 쓴다. 키 없이 브라우저에서 직접 호출(CORS 허용).
+// 해상 격자에서 바로 계산된 값을 우선 쓴다. 키 불필요, 서버 함수 경유.
 //  - 바람: api.open-meteo.com 기본 best_match(지역별 최적 전지구/지역 모델 자동 선택)
 //    ※ Open-Meteo의 기상청(KMA) 모델 피드는 기상청 모델 교체(2026-03)로 중단 상태라 지정하지 않음
 //  - 파고: marine-api.open-meteo.com (ECMWF WAM / GFS Wave 등 파랑모델)
@@ -88,10 +88,11 @@ export async function fetchOpenMeteoMarine(lat, lon, startDate, endDate) {
   const now = Date.now();
   const pastHours = Math.min(2000, Math.max(1, Math.ceil((now - startDate.getTime()) / 3600000) + 1));
   const forecastHours = Math.min(384, Math.max(1, Math.ceil((endDate.getTime() - now) / 3600000) + 2));
-  const common = `latitude=${lat.toFixed(4)}&longitude=${lon.toFixed(4)}&timeformat=unixtime&cell_selection=sea&past_hours=${pastHours}&forecast_hours=${forecastHours}`;
+  // 서버 함수(mode=openmeteo)를 거쳐 호출 - 실패 원인이 Netlify 함수 기록에 남는다.
+  const q = `lat=${lat.toFixed(4)}&lon=${lon.toFixed(4)}&past=${pastHours}&fcst=${forecastHours}`;
   const [windRes, waveRes] = await Promise.allSettled([
-    fetchWithTimeout(`https://api.open-meteo.com/v1/forecast?${common}&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=ms`, 8000).then((r) => r.json()),
-    fetchWithTimeout(`https://marine-api.open-meteo.com/v1/marine?${common}&hourly=wave_height`, 8000).then((r) => r.json()),
+    fetchWithTimeout(`/.netlify/functions/weather?mode=openmeteo&kind=wind&${q}`, 10000).then((r) => r.json()),
+    fetchWithTimeout(`/.netlify/functions/weather?mode=openmeteo&kind=wave&${q}`, 10000).then((r) => r.json()),
   ]);
   const toSeries = (res, key) => {
     if (res.status !== 'fulfilled' || !res.value?.hourly?.time) return null;

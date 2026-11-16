@@ -37,19 +37,23 @@ function parseKmaSeaObs(text) {
     const n = parseFloat(v);
     return v === undefined || v.trim() === '' || isNaN(n) || n <= -50 ? null : n;
   };
-  const latest = {};
+  // 부이는 바람(10분)과 파고(30분)의 관측 주기가 달라서, 가장 최근 줄에 파고가 비어 있는 경우가
+  // 많다. 그래서 지점별로 파고와 바람을 각각 "값이 있는 가장 최근 관측"으로 따로 고른다.
+  // (2026-11-16: 최근 한 줄만 남겨서 구룡포 파고가 사라졌던 문제 수정)
+  const byStn = {};
   text.split('\n').forEach((line) => {
     if (!line.trim() || line.startsWith('#')) return;
     const c = line.split(',').map((x) => x.trim());
     if (c.length < 10 || !/^\d{12}$/.test(c[1])) return;
-    const o = {
-      tp: c[0], tm: c[1], stn: c[2], name: c[3], lon: num(c[4]), lat: num(c[5]),
-      wh: num(c[6]), wd: num(c[7]), ws: num(c[8]), gst: num(c[9]), tw: num(c[10]),
-    };
-    if (o.lat === null || o.lon === null) return;
-    if (!latest[o.stn] || latest[o.stn].tm < o.tm) latest[o.stn] = o;
+    const lon = num(c[4]), lat = num(c[5]);
+    if (lat === null || lon === null) return;
+    const st = byStn[c[2]] || (byStn[c[2]] = { tp: c[0], stn: c[2], name: c[3], lon, lat, wh: null, whTm: null, wd: null, ws: null, gst: null, windTm: null, tw: null });
+    const wh = num(c[6]), wd = num(c[7]), ws = num(c[8]), gst = num(c[9]), tw = num(c[10]);
+    if (wh !== null && (!st.whTm || c[1] > st.whTm)) { st.wh = wh; st.whTm = c[1]; }
+    if (wd !== null && ws !== null && (!st.windTm || c[1] > st.windTm)) { st.wd = wd; st.ws = ws; st.gst = gst; st.windTm = c[1]; }
+    if (tw !== null) st.tw = tw;
   });
-  return Object.values(latest);
+  return Object.values(byStn);
 }
 
 exports.handler = async function (event) {
@@ -91,6 +95,32 @@ exports.handler = async function (event) {
     'Content-Type': 'application/json'
   };
 
+  // ===== Open-Meteo 해상 격자 예보 프록시 =====
+  // 브라우저 직접 호출은 실패해도 원인이 서버 기록에 남지 않아서 함수를 거치게 했다.
+  // kind=wind → api.open-meteo.com/v1/forecast, kind=wave → marine-api.open-meteo.com/v1/marine
+  if (mode === 'openmeteo') {
+    const { kind, lat, lon, past, fcst } = params;
+    const la = parseFloat(lat), lo = parseFloat(lon);
+    const ph = Math.max(1, Math.min(2000, parseInt(past, 10) || 1));
+    const fh = Math.max(1, Math.min(384, parseInt(fcst, 10) || 2));
+    if (isNaN(la) || isNaN(lo) || (kind !== 'wind' && kind !== 'wave')) {
+      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'kind/lat/lon 확인' }) };
+    }
+    const common = `latitude=${la.toFixed(4)}&longitude=${lo.toFixed(4)}&timeformat=unixtime&cell_selection=sea&past_hours=${ph}&forecast_hours=${fh}`;
+    const omUrl = kind === 'wind'
+      ? `https://api.open-meteo.com/v1/forecast?${common}&hourly=wind_speed_10m,wind_direction_10m&wind_speed_unit=ms`
+      : `https://marine-api.open-meteo.com/v1/marine?${common}&hourly=wave_height`;
+    try {
+      const r = await nativeHttpsFetchBuffer(omUrl);
+      const body = r.buffer.toString('utf8');
+      if (r.status !== 200) console.log(`openmeteo ${kind} HTTP ${r.status}: ${body.substring(0, 300)}`);
+      return { statusCode: r.status, headers: corsHeaders, body };
+    } catch (err) {
+      console.log(`openmeteo ${kind} error: ${err.message}`);
+      return { statusCode: 502, headers: corsHeaders, body: JSON.stringify({ error: err.message }) };
+    }
+  }
+
   // ===== 기상청 API허브 해양 종합 관측(해양기상부이·파고부이·등표 등) 실측 =====
   // 요청 시각 기준 -59분~00분 자료가 오므로, 비어 있으면 1시간 전으로 한 번 더 요청한다.
   if (mode === 'kmasea') {
@@ -108,6 +138,7 @@ exports.handler = async function (event) {
         let text;
         try { text = new TextDecoder('euc-kr').decode(r.buffer); } catch (e) { text = r.buffer.toString('utf8'); }
         const stations = parseKmaSeaObs(text);
+        console.log(`kmasea tm=${tm} lines=${text.split('\n').length} stations=${stations.length} wave=${stations.filter((x) => x.wh !== null).length} wind=${stations.filter((x) => x.ws !== null).length}`);
         if (stations.length > 0 || back === 1) {
           return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ tm, stations }) };
         }
