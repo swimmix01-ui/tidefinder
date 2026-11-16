@@ -118,6 +118,8 @@ export async function fetchKmaSeaObs() {
   return promise;
 }
 
+const MARINE_WIND_TYPES = ['B', 'L', 'J'];
+
 // 사고 지점에서 가장 가까운 관측 지점 (해당 항목 값이 있는 지점만, maxKm 이내)
 // field: 'wave' → 유의파고(wh), 'wind' → 풍향·풍속(wd, ws)
 export function nearestKmaSeaStation(stations, lat, lon, field, maxKm = 50) {
@@ -125,7 +127,10 @@ export function nearestKmaSeaStation(stations, lat, lon, field, maxKm = 50) {
   const toRad = (d) => (d * Math.PI) / 180;
   let best = null;
   (stations || []).forEach((s) => {
-    const ok = field === 'wave' ? s.wh !== null : s.wd !== null && s.ws !== null;
+    // 바람은 바다 위 관측(B 해양기상부이, L 등표, J 기상1호)만 쓴다. 조위관측소(N)·연안방재(F)는
+    // 항구·해안 육상이라 지형에 막혀 해상풍보다 훨씬 약하게 나온다
+    // (2026-11-16 풍랑주의보 중 포항 2km 지점 3.3m/s 표시 확인).
+    const ok = field === 'wave' ? s.wh !== null : s.wd !== null && s.ws !== null && MARINE_WIND_TYPES.includes(s.tp);
     if (!ok) return;
     const dLat = toRad(s.lat - lat), dLon = toRad(s.lon - lon);
     const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat)) * Math.cos(toRad(s.lat)) * Math.sin(dLon / 2) ** 2;
