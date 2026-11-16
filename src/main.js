@@ -101,6 +101,8 @@ window.copyOperationReport = function copyOperationReport() {
     typeof r.finalErrorRadius === 'number' ? `오차반경: 약 ${Math.round(r.finalErrorRadius)}m` : null,
     typeof r.combBrng === 'number' ? `추천 탐색 방향: ${Math.round(r.combBrng)}°` : null,
     typeof r.combSpeed === 'number' ? `평균 이동속도: ${(r.combSpeed / 1852).toFixed(2)}kn` : null,
+    r.currentSource ? `해류 자료: ${r.currentSource}` : null,
+    r.confidence ? `예측 신뢰도(추정): ${r.confidence.score}% (${r.confidence.label})` : null,
     '',
     '※ 본 보고서는 광역 조류 격자 데이터 기반 예측치이며, 현장 상황과 다를 수 있습니다.',
   ].filter(Boolean).join('\n');
@@ -121,8 +123,7 @@ async function init() {
   document.getElementById('minuteInput').value = today.getMinutes();
 
   // 비차단 로드 - 실패해도 페이지 동작에 영향 없음
-  loadCoastlineGeoJSON();
-  loadSetnetGeoJSON();
+  const dataLoads = Promise.allSettled([loadCoastlineGeoJSON(), loadSetnetGeoJSON()]);
   loadMarineStatus();
 
   ['latD', 'latM', 'latS', 'lonD', 'lonM', 'lonS', 'dateInput', 'hourInput', 'minuteInput', 'hoursAhead'].forEach((id) => {
@@ -168,13 +169,35 @@ async function init() {
     );
   });
 
-  await mapModule.initMap('map', (lat, lon) => {
+  const mapInstance = await mapModule.initMap('map', (lat, lon) => {
     setCoordsToInputs(lat, lon);
     mapModule.setMarkerPosition(lat, lon);
     ui.setStatus('ok', '🎯 좌표 자동 입력 완료');
     loadMarineStatus({ lat, lon });
   });
-  ui.setStatus('ok', '✅ 지도 연동 완료');
+  if (mapInstance) {
+    ui.setStatus('ok', '✅ 지도 연동 완료');
+  } else {
+    ui.setStatus('warn', '⚠ 지도를 불러오지 못했습니다(통신 불량). 좌표 직접 입력으로 예측은 가능합니다.');
+  }
+
+  registerServiceWorker(dataLoads);
+}
+
+// 오프라인 대비: 앱 화면과 해안선·정치망 데이터를 폰에 저장해 둔다 (public/sw.js).
+// 서비스워커가 페이지를 제어하기 전에 이미 받아온 파일들(첫 방문)은 목록을 넘겨서
+// 워커가 캐시에 담게 한다 - 해안선 파일은 브라우저 HTTP 캐시에서 바로 복사되므로
+// 17MB를 다시 내려받지 않는다.
+function registerServiceWorker(dataLoads) {
+  if (!('serviceWorker' in navigator) || location.hostname === 'localhost') return;
+  navigator.serviceWorker.register('/sw.js').then(async () => {
+    const reg = await navigator.serviceWorker.ready;
+    await dataLoads; // 해안선·정치망 다운로드가 끝난 뒤에 목록을 만들어야 그 파일들도 포함된다
+    const urls = performance.getEntriesByType('resource')
+      .map((e) => e.name)
+      .filter((u) => u.startsWith(location.origin) && !u.includes('/.netlify/functions/'));
+    reg.active?.postMessage({ type: 'cache-urls', urls: ['/', ...urls] });
+  }).catch((err) => console.warn('서비스워커 등록 실패(오프라인 캐시만 비활성, 앱 동작 영향 없음):', err));
 }
 
 init();

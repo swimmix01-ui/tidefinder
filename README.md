@@ -1,25 +1,44 @@
-# TideFinder - Vite 모듈화 (1단계 완료)
+# TideFinder - AI 기반 해양 수색지원 시스템
 
-## 로컬에서 실행하기
+조류·바람 데이터로 해상 표류자/표류물의 이동을 예측하고 수색구역을 제시하는 웹앱.
+Vite로 빌드하고, GitHub `main`에 푸시하면 Netlify가 자동 배포한다.
+
+## 로컬 실행
 ```bash
 npm install
-npm run dev       # http://localhost:5173 에서 개발 서버 실행
-npm run build     # dist/ 에 프로덕션 빌드 생성
+npm run dev       # http://localhost:5173
+npm run build     # dist/ 에 프로덕션 빌드
 ```
+로컬 개발 중 `/.netlify/functions/*` 요청은 배포된 사이트의 함수로 우회된다(vite.config.js).
 
-## 배포 전 반드시 해야 할 일
-1. `public/coastline-korea.geojson.gz.PLACEHOLDER` → 기존 저장소의 진짜 파일로 교체 (확장자 .PLACEHOLDER 제거)
-2. `public/setnet-korea.geojson.PLACEHOLDER` → 기존 저장소의 진짜 파일로 교체
-3. `netlify/functions/weather.js` → 기존 저장소의 진짜 파일로 덮어쓰기 (지금은 501 반환하는 더미)
-4. Netlify 배포 설정에서 Build command를 `npm run build`, Publish directory를 `dist`로 지정
+## 구조
+- `index.html` - 화면(스타일 포함)
+- `src/main.js` - 초기화, 버튼 연결, 상황 보고서 복사, 서비스워커 등록
+- `src/predict.js` - 표류 예측 파이프라인, 예측 신뢰도 계산
+- `src/modules/` - api(외부 API), map(카카오맵), coastline(해안선·정치망), montecarlo, marine(해상상태 카드), ui
+- `src/worker.js` - 몬테카를로 500입자 시뮬레이션(Web Worker)
+- `netlify/functions/weather.cjs` - 공공 API 프록시(서비스키는 Netlify 환경변수 `SERVICE_KEY`, `KHOA_SERVICE_KEY`)
+- `public/` - 해안선(`coastline-korea.geojson.gz`), 정치망(`setnet-korea.geojson`), 아이콘, 매니페스트, 서비스워커(`sw.js`)
 
-## 이번 단계에서 아직 안 옮겨진 기능 (다음 턴에 이어서 진행)
-- ROMS/HF 비교 브리핑 카드 (`fetchAndRenderRomsInfo`, `fetchAndRenderHFCurrent`)
-- 정치망 인접 경고 마커 렌더링
-- 상황 보고서 클립보드 복사 (`copyOperationReport`)
-- CoastView(3D 지형) 새 탭 열기
-- 현재 해상 상태 카드(수온/기온/파고 등) 자동 갱신
+## 예측 방식 요약
+1. 해류: HF 레이더 실측(커버리지 안) → 없으면 KHOA 조류예측 격자
+2. KHOA 시간별 조류 예측은 항상 받는다(동시 6건씩). HF를 쓴 경우 0~1시간은 HF,
+   2·3시간째에 KHOA로 점차 전환, 4시간째부터 KHOA만 사용 - 조류 방향 전환 반영
+3. 바람: 기상청 단기예보(육상 격자) × 풍압계수
+4. 해안선에 닿으면 좌초 처리, 정치망 300m 이내 접근 시 경고
+5. 예측 신뢰도(추정): 자료 출처·누락, 예측 시간, 해안선 로드 여부로 감점하는 현장 판단용 지표
+   (통계적 확률 아님). 감점 사유가 화면에 함께 표시된다.
 
-이 기능들은 코드가 어디로 가야 할지는 이미 구조가 잡혀 있습니다
-(api.js에 fetch 함수 추가 -> ui.js에 렌더 함수 추가 -> main.js에서 연결).
-"다음 단계 진행해줘"라고 하시면 이어서 완성해드립니다.
+## 오프라인 동작 (public/sw.js)
+- 한 번 접속하면 화면·스크립트·해안선·정치망 데이터가 폰에 저장되어, 신호가 끊겨도 앱이 열리고 예측이 돈다.
+- 조류·기상 API 응답은 저장하지 않는다(오래된 값을 최신처럼 보여주지 않기 위함) - 오프라인에선 기본값 계산이 되고 신뢰도가 낮게 표시된다.
+- 카카오맵은 외부 서비스라 오프라인에선 안 뜬다. 지도 없이도 좌표 직접 입력으로 예측 가능.
+- **해안선/정치망 파일을 교체하면 `public/sw.js`의 `CACHE_VERSION`을 올릴 것** (안 올리면 폰에 옛 데이터가 남음).
+
+## 주의
+- `netlify/functions/`의 함수는 CommonJS(`require`)라 확장자가 `.cjs`여야 한다
+  (package.json이 `"type": "module"`이라 `.js`면 Netlify 빌드가 실패함).
+
+## 남은 과제
+- 풍속·파고의 해상 전용 소스 (현재 기상청 육상 격자 예보 기반)
+- 오차반경 공식(50m + 이동거리 비례 + 횡풍 발산)의 실제 사례 검증

@@ -103,6 +103,8 @@
   .ai-confidence-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; padding: 12px 14px; background: rgba(34,211,238,0.08); border: 1px solid rgba(34,211,238,0.25); border-radius: 12px; }
   .ai-confidence-label { font-size: 13px; color: var(--text-lo); font-weight: 600; }
   .ai-confidence-value { font-size: 22px; font-weight: 800; color: var(--cyan); }
+  .ai-confidence-note { margin: -8px 0 16px; padding-left: 18px; font-size: 12px; line-height: 1.6; color: var(--text-lo); }
+  .ai-confidence-note:empty { display: none; }
 
   .ai-explain { margin-top: 16px; font-size: 13.5px; line-height: 1.7; color: var(--text-hi); background: rgba(255,255,255,0.04); border: 1px solid var(--border); border-radius: 12px; padding: 14px; }
 
@@ -326,9 +328,10 @@
     </div>
 
     <div class="ai-confidence-row">
-      <span class="ai-confidence-label">예측 신뢰도</span>
+      <span class="ai-confidence-label">예측 신뢰도(추정)</span>
       <span class="ai-confidence-value" id="aiConfidence">-</span>
     </div>
+    <ul class="ai-confidence-note" id="aiConfidenceNote"></ul>
 
     <div class="factor-row">
       <div class="factor-label-row"><span>조류 영향</span><span class="factor-pct" id="factorCurrentPct">-</span></div>

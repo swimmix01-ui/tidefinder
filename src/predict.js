@@ -24,6 +24,76 @@ import { calculateAdvancedRisk } from './modules/risk.js';
 import * as mapModule from './modules/map.js';
 import * as ui from './modules/ui.js';
 
+// HF 실측 비중 (시간 인덱스별). 0~1시간은 실측 그대로, 2·3시간째에 KHOA로 넘어가고
+// 4시간째부터는 KHOA 시간별 예측만 쓴다.
+const HF_WEIGHT_BY_HOUR = [1, 1, 0.67, 0.33];
+
+// 동시 요청 수를 제한한 병렬 처리 - 공공 API에 한꺼번에 수십 건을 쏘지 않기 위함.
+async function mapWithConcurrency(items, limit, fn) {
+  const results = new Array(items.length);
+  let next = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (next < items.length) {
+      const i = next++;
+      try { results[i] = await fn(items[i]); } catch (err) { results[i] = null; }
+    }
+  });
+  await Promise.all(workers);
+  return results;
+}
+
+// 예측 신뢰도(추정). 실제 받은 데이터의 출처·누락, 예측 시간, 해안선 데이터 여부로
+// 점수를 깎는 방식 - 통계적으로 검증된 확률이 아니라 "이번 결과를 얼마나 믿어도
+// 되는지"를 현장 판단용으로 보여주는 지표다. 감점 사유를 함께 반환해 화면에 표시한다.
+export function computeConfidence({ usedHf, usedKhoaStart, khoaMissingHours, ahead, leewayCoefVal, usedWind, coastlineLoaded, strandedAt }) {
+  let score = 90;
+  const reasons = [];
+
+  if (usedHf) {
+    reasons.push('해류: HF 레이더 실측(초기 2~3시간) + KHOA 예측');
+  } else if (usedKhoaStart) {
+    score -= 10;
+    reasons.push('해류: KHOA 예측값(실측 아님)');
+  } else {
+    score -= 35;
+    reasons.push('조류 데이터 수신 실패 - 기본값으로 계산');
+  }
+
+  if (ahead > 0 && khoaMissingHours > 0) {
+    score -= Math.round((20 * khoaMissingHours) / ahead);
+    reasons.push(`${khoaMissingHours}시간분 조류 예측 누락(직전 값으로 대체)`);
+  }
+
+  if (leewayCoefVal > 0) {
+    if (!usedWind) {
+      score -= 15;
+      reasons.push('바람 데이터 없음 - 풍압 영향 미반영');
+    } else {
+      score -= 5;
+      reasons.push('바람: 기상청 육상 격자 예보 기준(해상과 차이 가능)');
+    }
+  }
+
+  if (ahead > 3) {
+    score -= Math.min(25, (ahead - 3) * 2);
+    reasons.push(`예측 ${ahead}시간 - 길수록 오차 누적`);
+  }
+
+  if (!coastlineLoaded) {
+    score -= 10;
+    reasons.push('해안선 데이터 미로드 - 좌초 판정 안 됨');
+  }
+
+  if (strandedAt) {
+    score -= 5;
+    reasons.push(`${strandedAt}시간째 해안 도달 - 연안 흐름은 불확실`);
+  }
+
+  score = Math.max(10, Math.min(95, score));
+  const label = score >= 70 ? '높음' : score >= 45 ? '보통' : '낮음';
+  return { score, label, reasons };
+}
+
 function findNearestHFStation(targetLat, targetLon) {
   let nearest = HF_STATIONS[0], minDist = Infinity;
   HF_STATIONS.forEach((station) => {
@@ -43,7 +113,7 @@ export async function runPrediction(input, callbacks = {}) {
   const { onStatus = () => {}, onProgress = () => {} } = callbacks;
 
   let speed = 5.0, dir = 90, usedWind = false, waveHeightM = null, windSpeedMS = null, windDirFrom = null, fcstItemsForHourly = null;
-  let currentSource = 'KHOA 조류예측(기본값)', usedHf = false;
+  let currentSource = 'KHOA 조류예측(기본값)', usedHf = false, usedKhoaStart = false;
 
   // ===== ① 1순위: HF 레이더 실측 =====
   const hfStation = findNearestHFStation(lat, lon);
@@ -88,6 +158,7 @@ export async function runPrediction(input, callbacks = {}) {
           speed = parseFloat(nearest.current_speed);
           dir = parseFloat(nearest.current_dir);
           currentSource = `KHOA 조류예측(격자, 최근접점 ${(Math.sqrt(minDist) * 111).toFixed(1)}km)`;
+          usedKhoaStart = true;
           onStatus('ok', '✅ 조류 수신 완료');
         }
       }
@@ -109,16 +180,43 @@ export async function runPrediction(input, callbacks = {}) {
     wXY = bearingToXY((windDirFrom + 180) % 360, windageDisp);
   }
 
-  // ===== 조류 시간별 재조회 (KHOA 폴백일 때만 - 반일주조 방향전환 반영) =====
-  let hourlyCurrentXY = null;
-  if (!usedHf) {
-    hourlyCurrentXY = [curXY];
-    for (let t = 1; t <= ahead; t++) {
-      const targetTime = new Date(startDateTime.getTime() + t * 3600000);
-      const c = await fetchKhoaCurrentAt(targetTime, lat, lon);
-      hourlyCurrentXY.push(c && !isNaN(c.speed) ? bearingToXY(c.dir, c.speed * 0.01 * 3600) : hourlyCurrentXY[hourlyCurrentXY.length - 1]);
+  // ===== 조류 시간별 시계열 (반일주조 방향전환 반영) =====
+  // HF 레이더는 "지금 이 순간"의 실측이라, 그 값 하나로 6시간 넘게 밀면 조류가
+  // 반대로 바뀌는 걸 놓친다. 그래서 KHOA 시간별 예측은 HF 사용 여부와 상관없이
+  // 항상 받아두고, HF를 썼다면 처음 몇 시간만 HF 비중을 두고 점차 KHOA로 넘긴다.
+  // (조회는 동시에 최대 6개씩 - 예전엔 한 시간씩 차례로 기다려서 12시간 예측이면
+  //  최악 12×8초가 걸렸다)
+  const firstKhoaHour = usedHf ? 0 : 1;
+  const khoaHours = [];
+  for (let t = firstKhoaHour; t <= ahead; t++) khoaHours.push(t);
+  const khoaResults = await mapWithConcurrency(khoaHours, 6, (t) =>
+    fetchKhoaCurrentAt(new Date(startDateTime.getTime() + t * 3600000), lat, lon)
+  );
+  const khoaByHour = {};
+  khoaHours.forEach((t, i) => {
+    const c = khoaResults[i];
+    khoaByHour[t] = c && !isNaN(c.speed) && !isNaN(c.dir) ? bearingToXY(c.dir, c.speed * 0.01 * 3600) : null;
+  });
+  if (!usedHf) khoaByHour[0] = curXY;
+
+  const hourlyCurrentXY = [];
+  let khoaMissingHours = 0;
+  let prevXY = curXY;
+  for (let t = 0; t <= ahead; t++) {
+    const k = khoaByHour[t];
+    if (t > 0 && !k) khoaMissingHours++;
+    let v;
+    if (usedHf) {
+      const w = HF_WEIGHT_BY_HOUR[t] ?? 0;
+      if (k) v = { x: w * curXY.x + (1 - w) * k.x, y: w * curXY.y + (1 - w) * k.y };
+      else v = w > 0 ? curXY : prevXY; // KHOA 누락 시 직전 값 유지
+    } else {
+      v = k || prevXY;
     }
+    hourlyCurrentXY.push(v);
+    prevXY = v;
   }
+  if (usedHf && khoaMissingHours < ahead && ahead > 1) currentSource += ' → 이후 KHOA 시간별 예측';
 
   // ===== 바람 시간별 사전계산 (500입자가 공유 - 성능 최적화, 정확도 영향 없음) =====
   let hourlyWindXY = null;
@@ -151,7 +249,7 @@ export async function runPrediction(input, callbacks = {}) {
   let strandedAt = null;
 
   for (let t = 1; t <= ahead; t++) {
-    const currentVecT = hourlyCurrentXY ? hourlyCurrentXY[t] : curXY;
+    const currentVecT = hourlyCurrentXY[t];
     let windVecT = wXY, windageMagT = 0;
     if (usedWind && fcstItemsForHourly) {
       const targetTime = new Date(startDateTime.getTime() + t * 3600000);
@@ -220,8 +318,13 @@ export async function runPrediction(input, callbacks = {}) {
 
   const risk = calculateAdvancedRisk(underwaterMode ? null : windSpeedMS, waveHeightM, null, null, null, null);
 
+  const confidence = computeConfidence({
+    usedHf, usedKhoaStart, khoaMissingHours, ahead, leewayCoefVal, usedWind,
+    coastlineLoaded: getCoastlineStatus().loaded, strandedAt,
+  });
+
   ui.renderAIAnalysisCard({
-    confidence: 80, currentPct, windPct, windSpeedPct, wavePct, underwaterMode, risk,
+    confidence, currentPct, windPct, windSpeedPct, wavePct, underwaterMode, risk,
     explain: `현재 ${currentPct >= windPct ? '조류' : '바람(풍압)'}의 영향이 최종 이동방향에 가장 크게 기여하고 있습니다 (조류 ${currentPct}% / 바람 ${windPct}%).`,
   });
 
@@ -242,6 +345,6 @@ export async function runPrediction(input, callbacks = {}) {
   return {
     combBrng, combSpeed, actualHours, finalErrorRadius, finalPoint, strandedAt,
     currentSource, setnetWarnings, coastlineStatus: getCoastlineStatus(),
-    curSpeed: speed, curDir: dir, netDistM,
+    curSpeed: speed, curDir: dir, netDistM, confidence,
   };
 }

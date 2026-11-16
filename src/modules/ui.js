@@ -79,7 +79,9 @@ export function forceAlertPills() {
 }
 
 export function renderAIAnalysisCard({ confidence, currentPct, windPct, windSpeedPct, wavePct, explain, risk, underwaterMode }) {
-  document.getElementById('aiConfidence').textContent = `${confidence}%`;
+  document.getElementById('aiConfidence').textContent = `${confidence.score}% · ${confidence.label}`;
+  const noteEl = document.getElementById('aiConfidenceNote');
+  if (noteEl) noteEl.innerHTML = confidence.reasons.map((r) => `<li>${r}</li>`).join('');
   document.getElementById('factorCurrentPct').textContent = `${currentPct}%`;
   document.getElementById('factorWindPct').textContent = underwaterMode ? '해당없음' : `${windPct}%`;
   document.getElementById('factorWindSpeedPct').textContent = underwaterMode ? '해당없음' : `${windSpeedPct}%`;

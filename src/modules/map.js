@@ -14,8 +14,15 @@ let monteCarloHullOverlay = null;
 let hfComparisonPolyline = null;
 let romsComparisonPolyline = null;
 
+// 지도가 실제로 떠 있는지. 오프라인이거나 카카오 SDK가 차단되면 false -
+// 이때 아래 렌더 함수들은 조용히 아무것도 안 하고, 예측 계산·결과 카드는 그대로 동작한다.
+export function isMapReady() {
+  return !!map;
+}
+
 export function initMap(containerId, onMapClick) {
   return new Promise((resolve) => {
+    if (!window.kakao || !window.kakao.maps) { resolve(null); return; }
     window.kakao.maps.load(() => {
       const container = document.getElementById(containerId);
       map = new window.kakao.maps.Map(container, { center: new window.kakao.maps.LatLng(36.023, 129.419), level: 8 });
@@ -31,12 +38,14 @@ export function initMap(containerId, onMapClick) {
 }
 
 export function setMarkerPosition(lat, lon) {
+  if (!map) return;
   const pos = new window.kakao.maps.LatLng(lat, lon);
   clickMarker.setPosition(pos);
   return pos;
 }
 
 export function centerMap(lat, lon, level) {
+  if (!map) return;
   map.setCenter(new window.kakao.maps.LatLng(lat, lon));
   if (level) map.setLevel(level);
 }
@@ -52,6 +61,7 @@ function animateCircleFade(circle, targetOpacity, steps = 10, durationMs = 400) 
 
 // 예측 결과 전체(경로선/오차원/시간마커/사각형/최종핀)를 지도에 그린다.
 export function renderPredictionPath({ startLat, startLon, pathPoints, hourlyRadii, strandedAt, finalErrorRadius }) {
+  if (!map) return;
   clearPrediction();
 
   const start = new window.kakao.maps.LatLng(startLat, startLon);
@@ -133,6 +143,7 @@ export function renderPredictionPath({ startLat, startLon, pathPoints, hourlyRad
 }
 
 export function renderMonteCarloHull(hullFeature) {
+  if (!map) return;
   if (!hullFeature || !hullFeature.geometry) return;
   const coords = hullFeature.geometry.coordinates[0];
   const path = coords.map((c) => new window.kakao.maps.LatLng(c[1], c[0]));
@@ -144,6 +155,7 @@ export function renderMonteCarloHull(hullFeature) {
 }
 
 export function renderComparisonPolylines({ hfPathLatLon, romsPathLatLon }) {
+  if (!map) return;
   if (hfComparisonPolyline) { hfComparisonPolyline.setMap(null); hfComparisonPolyline = null; }
   if (romsComparisonPolyline) { romsComparisonPolyline.setMap(null); romsComparisonPolyline = null; }
 
@@ -174,6 +186,7 @@ export function clearPrediction() {
 }
 
 export function resetMapView() {
+  if (!map) return;
   clearPrediction();
   const defaultPos = new window.kakao.maps.LatLng(36.023, 129.419);
   clickMarker.setPosition(defaultPos);
