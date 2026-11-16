@@ -163,14 +163,14 @@ exports.handler = async function (event) {
     }
     const ymin = (ty * T).toFixed(2), ymax = ((ty + 1) * T).toFixed(2);
     const xmin = (tx * T).toFixed(2), xmax = ((tx + 1) * T).toFixed(2);
-    const ROWS = 1000;
-    const getPage = async (pageNo) => {
-      const u = `https://apis.data.go.kr/1192136/waterDepth/GetWaterDepthApiService?serviceKey=${TW_SERVICE_KEY}&type=json&numOfRows=${ROWS}&pageNo=${pageNo}&ymin=${ymin}&ymax=${ymax}&xmin=${xmin}&xmax=${xmax}`;
+    // 한 번에 받을 수 있는 건수 상한이 문서에 없어 큰 값부터 줄여가며 시도한다
+    const getPage = async (pageNo, rows) => {
+      const u = `https://apis.data.go.kr/1192136/waterDepth/GetWaterDepthApiService?serviceKey=${TW_SERVICE_KEY}&type=json&numOfRows=${rows}&pageNo=${pageNo}&ymin=${ymin}&ymax=${ymax}&xmin=${xmin}&xmax=${xmax}`;
       const r = await nativeHttpsFetch(u, fetchHeaders);
       const text = await r.text();
-      if (r.status !== 200) throw new Error(`HTTP ${r.status}: ${text.substring(0, 120)}`);
+      if (r.status !== 200) throw new Error(`HTTP ${r.status}: ${text.substring(0, 160)}`);
       let j;
-      try { j = JSON.parse(text); } catch (e) { throw new Error(`응답 형식 오류: ${text.substring(0, 120)}`); }
+      try { j = JSON.parse(text); } catch (e) { throw new Error(`응답 형식 오류: ${text.substring(0, 160)}`); }
       const head = j.header || (j.response && j.response.header) || {};
       const body = j.body || (j.response && j.response.body) || {};
       const code = String(head.resultCode || '');
@@ -181,9 +181,13 @@ exports.handler = async function (event) {
       return { items, total: parseInt(body.totalCount, 10) || 0 };
     };
     try {
-      const first = await getPage(1);
-      const pages = Math.min(8, Math.ceil(first.total / ROWS));
-      const rest = pages > 1 ? await Promise.all(Array.from({ length: pages - 1 }, (_, i) => getPage(i + 2))) : [];
+      let first = null, ROWS = 0, lastErr = null;
+      for (const rows of [1000, 300, 100]) {
+        try { first = await getPage(1, rows); ROWS = rows; break; } catch (e) { lastErr = e; console.log(`shallow ${tx},${ty} rows=${rows} 실패: ${e.message}`); }
+      }
+      if (!first) throw lastErr || new Error('수심 응답 없음');
+      const pages = Math.min(20, Math.ceil(first.total / ROWS));
+      const rest = pages > 1 ? await Promise.all(Array.from({ length: pages - 1 }, (_, i) => getPage(i + 2, ROWS))) : [];
       const pts = [];
       let got = 0;
       for (const pg of [first, ...rest]) {
@@ -194,7 +198,7 @@ exports.handler = async function (event) {
           pts.push([Math.round(la * 1e4) / 1e4, Math.round(lo * 1e4) / 1e4, Math.round(d * 10) / 10]);
         }
       }
-      console.log(`shallow ${tx},${ty} total=${first.total} got=${got} shallow=${pts.length}`);
+      console.log(`shallow ${tx},${ty} rows=${ROWS} total=${first.total} got=${got} shallow=${pts.length}`);
       return {
         statusCode: 200,
         headers: { ...corsHeaders, 'Cache-Control': 'public, max-age=86400', 'Netlify-CDN-Cache-Control': 'public, durable, max-age=2592000' },

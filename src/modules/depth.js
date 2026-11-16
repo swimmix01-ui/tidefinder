@@ -9,6 +9,8 @@
 const TILE = 0.05;
 const MAX_DEPTH = 10;
 const tiles = new Map(); // "tx,ty" -> Promise<[[lat, lon, d], ...]>
+let lastError = '';
+export function getLastDepthError() { return lastError; }
 
 function tileKey(tx, ty) { return `${tx},${ty}`; }
 
@@ -16,9 +18,14 @@ function fetchTile(tx, ty) {
   const k = tileKey(tx, ty);
   if (tiles.has(k)) return tiles.get(k);
   const p = fetch(`/.netlify/functions/weather?mode=shallow&tx=${tx}&ty=${ty}&maxDepth=${MAX_DEPTH}`)
-    .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
+    .then(async (r) => {
+      if (r.ok) return r.json();
+      let msg = `HTTP ${r.status}`;
+      try { const j = await r.json(); if (j.error) msg = j.error; } catch { /* 본문 없음 */ }
+      throw new Error(msg);
+    })
     .then((j) => j.pts || [])
-    .catch((err) => { tiles.delete(k); console.warn('수심 타일 실패', k, err); return null; });
+    .catch((err) => { tiles.delete(k); lastError = String(err.message || err); console.warn('수심 타일 실패', k, err); return null; });
   tiles.set(k, p);
   return p;
 }
@@ -80,7 +87,7 @@ async function redraw() {
     r.setMap(map);
     shapes.push(r);
   });
-  if (note) note.textContent = `수심(평균해면 기준): 빨강 2m 미만 · 주황 2~5m · 노랑 5~10m · 이 화면 ${pts.length}칸${failed ? ` · ${failed}개 구역 불러오기 실패` : ''}`;
+  if (note) note.textContent = `수심(평균해면 기준): 빨강 2m 미만 · 주황 2~5m · 노랑 5~10m · 이 화면 ${pts.length}칸${failed ? ` · ${failed}개 구역 불러오기 실패 (${lastError.slice(0, 80)})` : ''}`;
 }
 
 export function initDepthLayer(kakaoMap) {
