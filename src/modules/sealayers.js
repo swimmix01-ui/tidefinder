@@ -36,6 +36,11 @@ export function getLayerState() {
   };
 }
 
+// 항로 계산(route.js)에서 피할 대상으로 쓴다
+export function getHazardData() {
+  return { fishery, rocks };
+}
+
 // 도형을 눌렀을 때 지도 클릭(=사고좌표 이동)까지 같이 일어나지 않게 막는 용도
 export function shouldIgnoreMapClick() {
   return Date.now() < ignoreMapClickUntil;

@@ -16,11 +16,12 @@ npm run build     # dist/ 에 프로덕션 빌드
 - `src/main.js` - 초기화, 버튼 연결, 상황 보고서 복사, 서비스워커 등록
 - `src/predict.js` - 표류 예측 파이프라인, 예측 신뢰도 계산
 - `src/modules/` - api(외부 API), map(카카오맵), coastline(해안선·정치망), montecarlo, marine(해상상태 카드), ui,
-  sealayers(어장·간출암 지도 레이어, 직선 항로 위험 판정), eta(출동 거리·도착 예정시각)
+  sealayers(어장·간출암 지도 레이어, 항로 위험 판정), eta(출동 거리·도착 예정시각),
+  route(해상 항로 계산 - 격자 A*로 육지를 돌아가고 정치망·양식장·간출암 회피)
 - `src/worker.js` - 몬테카를로 500입자 시뮬레이션(Web Worker)
 - `netlify/functions/weather.cjs` - 공공 API 프록시(서비스키는 Netlify 환경변수 `SERVICE_KEY`, `KHOA_SERVICE_KEY`, `TW_SERVICE_KEY`, `KMA_APIHUB_KEY`)
 - `public/` - 해안선(`coastline-korea.geojson.gz`), 정치망(`setnet-korea.geojson`, 표류 경고용 전국),
-  어장(`fishery-pohang.geojson`, 지도 표시용 포항·경주·영덕 정치망·양식·마을어업 면허구역), 간출암(`rocks-pohang.geojson`, 해양수산부 간출암 2025-01 배포본 포항~영덕 23개), 아이콘, 매니페스트, 서비스워커(`sw.js`)
+  어장(`fishery-pohang.geojson`, 지도 표시용 포항·경주·영덕 정치망·양식·마을어업 면허구역), 동해안 육지(`land-east.geojson`, 통계청 시군구 경계 2013 기반 - 전자해도 해안선 자료에 포항~영덕(북위 36.22° 이남)이 빠져 있어 항로 계산용으로 보완), 간출암(`rocks-pohang.geojson`, 해양수산부 간출암 2025-01 배포본 포항~영덕 23개), 아이콘, 매니페스트, 서비스워커(`sw.js`)
 
 ## 예측 방식 요약
 1. 해류: HF 레이더 실측(커버리지 안) → 없으면 KHOA 조류예측 격자

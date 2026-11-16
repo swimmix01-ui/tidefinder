@@ -11,6 +11,10 @@ let coastlineLoadError = null;
 let setnetData = null;
 let setnetLoadError = null;
 
+export function getCoastlineData() {
+  return coastlineData;
+}
+
 export function getCoastlineStatus() {
   return { loaded: !!coastlineData, error: coastlineLoadError };
 }

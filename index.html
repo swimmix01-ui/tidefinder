@@ -199,6 +199,8 @@
   .eta-btn.active { border-color: var(--cyan); background: rgba(34,211,238,0.18); color: var(--cyan); }
   .eta-speed { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; color: var(--text-lo); }
   .eta-speed input { width: 80px !important; text-align: center; }
+  .eta-avoid { margin-left: auto; display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text-hi); }
+  .eta-avoid input { width: 18px; height: 18px; accent-color: var(--cyan); }
   .eta-note { font-size: 12.5px; color: var(--text-lo); margin-top: 8px; min-height: 16px; }
   .eta-grid { margin-top: 10px; }
   .eta-from { font-size: 12px; color: var(--text-lo); margin-top: 8px; }
@@ -356,12 +358,13 @@
       <button type="button" class="eta-btn" id="etaGpsBtn">📍 내 위치(GPS)</button>
       <button type="button" class="eta-btn" id="etaPickBtn">🗺 지도에서 출발지</button>
     </div>
-    <div class="eta-speed"><span>구조정 선속</span><input id="etaSpeed" type="number" min="1" max="60" step="1" inputmode="decimal"><span>kn</span></div>
+    <div class="eta-speed"><span>구조정 선속</span><input id="etaSpeed" type="number" min="1" max="60" step="1" inputmode="decimal"><span>kn</span>
+      <label class="eta-avoid"><input type="checkbox" id="etaAvoid" checked> 어장·간출암 피해서</label></div>
     <div id="etaNote" class="eta-note">사고 좌표를 정한 뒤 출발지를 고르면 거리와 도착 시각이 나옵니다.</div>
     <div id="etaResult" style="display:none">
       <div class="stat-grid-4 eta-grid">
-        <div class="stat-box"><div class="label">직선거리</div><div class="value accent" id="etaDist">-</div></div>
-        <div class="stat-box"><div class="label">침로(방위)</div><div class="value accent" id="etaBrg">-</div></div>
+        <div class="stat-box"><div class="label" id="etaDistLabel">해상 항로 거리</div><div class="value accent" id="etaDist">-</div></div>
+        <div class="stat-box"><div class="label" id="etaBrgLabel">침로(방위)</div><div class="value accent" id="etaBrg">-</div></div>
         <div class="stat-box"><div class="label">소요시간</div><div class="value accent" id="etaDur">-</div></div>
         <div class="stat-box"><div class="label">도착 예정</div><div class="value accent" id="etaArrive">-</div></div>
       </div>

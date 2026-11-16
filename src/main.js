@@ -11,6 +11,7 @@ import { runPrediction } from './predict.js';
 import { loadMarineStatus } from './modules/marine.js';
 import * as seaLayers from './modules/sealayers.js';
 import * as eta from './modules/eta.js';
+import { loadLandPolygons } from './modules/route.js';
 
 let lastPredictionResult = null;
 
@@ -137,7 +138,8 @@ async function init() {
 
   // 비차단 로드 - 실패해도 페이지 동작에 영향 없음
   const seaLoad = seaLayers.loadSeaLayers();
-  const dataLoads = Promise.allSettled([loadCoastlineGeoJSON(), loadSetnetGeoJSON(), seaLoad]);
+  const dataLoads = Promise.allSettled([loadCoastlineGeoJSON(), loadSetnetGeoJSON(), seaLoad, loadLandPolygons()]);
+  dataLoads.then(() => eta.updateEta()); // 해안선이 늦게 오면 그때 항로를 다시 계산
   loadMarineStatus();
 
   ['latD', 'latM', 'latS', 'lonD', 'lonM', 'lonS', 'dateInput', 'hourInput', 'minuteInput', 'hoursAhead'].forEach((id) => {
