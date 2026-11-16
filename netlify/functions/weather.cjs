@@ -10,6 +10,48 @@ function nativeHttpsFetch(url, headers) {
   });
 }
 
+
+// 바이너리 그대로 받기 - 기상청 API허브는 EUC-KR로 응답해서 문자열로 이어붙이면 한글이 깨진다.
+function nativeHttpsFetchBuffer(url) {
+  return new Promise((resolve, reject) => {
+    https.get(url, (res) => {
+      const chunks = [];
+      res.on('data', (c) => chunks.push(c));
+      res.on('end', () => resolve({ status: res.statusCode, buffer: Buffer.concat(chunks) }));
+    }).on('error', reject);
+  });
+}
+
+function kstStamp(date) {
+  const k = new Date(date.getTime() + 9 * 3600000);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${k.getUTCFullYear()}${p(k.getUTCMonth() + 1)}${p(k.getUTCDate())}${p(k.getUTCHours())}${p(k.getUTCMinutes())}`;
+}
+
+// 기상청 API허브 해양 종합 관측자료(sea_obs.php) 파싱.
+// 한 줄 형식: TP, TM, STN_ID, STN_KO, LON, LAT, WH, WD, WS, WS_GST, TW, TA, PA, HM, ...
+// (TP: B 해양기상부이 / C 파고부이 / L 등표 / N 조위관측소 / F 연안방재 / G 파랑계 / J 기상1호 등)
+// 결측값은 음수 큰 값(-99 등)이나 빈칸 - null로 바꾼다. 지점별로 가장 최근 관측만 남긴다.
+function parseKmaSeaObs(text) {
+  const num = (v) => {
+    const n = parseFloat(v);
+    return v === undefined || v.trim() === '' || isNaN(n) || n <= -50 ? null : n;
+  };
+  const latest = {};
+  text.split('\n').forEach((line) => {
+    if (!line.trim() || line.startsWith('#')) return;
+    const c = line.split(',').map((x) => x.trim());
+    if (c.length < 10 || !/^\d{12}$/.test(c[1])) return;
+    const o = {
+      tp: c[0], tm: c[1], stn: c[2], name: c[3], lon: num(c[4]), lat: num(c[5]),
+      wh: num(c[6]), wd: num(c[7]), ws: num(c[8]), gst: num(c[9]), tw: num(c[10]),
+    };
+    if (o.lat === null || o.lon === null) return;
+    if (!latest[o.stn] || latest[o.stn].tm < o.tm) latest[o.stn] = o;
+  });
+  return Object.values(latest);
+}
+
 exports.handler = async function (event) {
   // 보안 개선: Netlify 환경변수(SERVICE_KEY)를 우선 사용하고, 아직 설정 전이면 기존 값으로 폴백.
   // Netlify 대시보드 > Site configuration > Environment variables 에서 SERVICE_KEY를 등록하면
@@ -48,6 +90,32 @@ exports.handler = async function (event) {
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64)',
     'Content-Type': 'application/json'
   };
+
+  // ===== 기상청 API허브 해양 종합 관측(해양기상부이·파고부이·등표 등) 실측 =====
+  // 요청 시각 기준 -59분~00분 자료가 오므로, 비어 있으면 1시간 전으로 한 번 더 요청한다.
+  if (mode === 'kmasea') {
+    const KMA_KEY = process.env.KMA_APIHUB_KEY;
+    if (!KMA_KEY) {
+      return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: 'KMA_APIHUB_KEY 미설정' }) };
+    }
+    try {
+      for (const back of [0, 1]) {
+        const tm = kstStamp(new Date(Date.now() - back * 3600000));
+        const r = await nativeHttpsFetchBuffer(`https://apihub.kma.go.kr/api/typ01/url/sea_obs.php?tm=${tm}&stn=0&help=0&authKey=${encodeURIComponent(KMA_KEY)}`);
+        if (r.status !== 200) {
+          return { statusCode: r.status, headers: corsHeaders, body: JSON.stringify({ error: `기상청 API허브 에러 (HTTP ${r.status})` }) };
+        }
+        let text;
+        try { text = new TextDecoder('euc-kr').decode(r.buffer); } catch (e) { text = r.buffer.toString('utf8'); }
+        const stations = parseKmaSeaObs(text);
+        if (stations.length > 0 || back === 1) {
+          return { statusCode: 200, headers: corsHeaders, body: JSON.stringify({ tm, stations }) };
+        }
+      }
+    } catch (err) {
+      return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: err.message }) };
+    }
+  }
 
   try {
     let url = '';

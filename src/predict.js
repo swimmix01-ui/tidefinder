@@ -12,7 +12,7 @@ import {
 } from './modules/geo.js';
 import {
   fetchWithTimeout, fetchWindData, fetchKhoaCurrentAt, getForecastValueAtTime,
-  fetchOpenMeteoMarine, seriesValueAt,
+  fetchOpenMeteoMarine, seriesValueAt, fetchKmaSeaObs, nearestKmaSeaStation,
 } from './modules/api.js';
 import {
   getLocalCoastline, checkSegmentCrossesCoastline, getLocalSetnets, findNearbySetnets,
@@ -28,6 +28,10 @@ import * as ui from './modules/ui.js';
 // HF 실측 비중 (시간 인덱스별). 0~1시간은 실측 그대로, 2·3시간째에 KHOA로 넘어가고
 // 4시간째부터는 KHOA 시간별 예측만 쓴다.
 const HF_WEIGHT_BY_HOUR = [1, 1, 0.67, 0.33];
+
+// 기상청 부이 실측 바람의 시간별 비중(HF와 동일), 사용 거리 한도
+const OBS_WEIGHT_BY_HOUR = [1, 1, 0.67, 0.33];
+const OBS_MAX_KM = 50;
 
 // 동시 요청 수를 제한한 병렬 처리 - 공공 API에 한꺼번에 수십 건을 쏘지 않기 위함.
 async function mapWithConcurrency(items, limit, fn) {
@@ -46,7 +50,7 @@ async function mapWithConcurrency(items, limit, fn) {
 // 예측 신뢰도(추정). 실제 받은 데이터의 출처·누락, 예측 시간, 해안선 데이터 여부로
 // 점수를 깎는 방식 - 통계적으로 검증된 확률이 아니라 "이번 결과를 얼마나 믿어도
 // 되는지"를 현장 판단용으로 보여주는 지표다. 감점 사유를 함께 반환해 화면에 표시한다.
-export function computeConfidence({ usedHf, usedKhoaStart, khoaMissingHours, ahead, leewayCoefVal, usedWind, windSource, coastlineLoaded, strandedAt }) {
+export function computeConfidence({ usedHf, usedKhoaStart, khoaMissingHours, ahead, leewayCoefVal, usedWind, windSource, windObsLabel, coastlineLoaded, strandedAt }) {
   let score = 90;
   const reasons = [];
 
@@ -69,6 +73,14 @@ export function computeConfidence({ usedHf, usedKhoaStart, khoaMissingHours, ahe
     if (!usedWind) {
       score -= 15;
       reasons.push('바람 데이터 없음 - 풍압 영향 미반영');
+    } else if (windSource && windSource.startsWith('obs')) {
+      if (windSource === 'obs' && ahead > 3) {
+        score -= 8;
+        reasons.push(`바람: 기상청 부이 실측(${windObsLabel}) - 예보 없음, 3시간 이후는 실측값 유지`);
+      } else {
+        reasons.push(`바람: 기상청 부이 실측(${windObsLabel}) → 이후 ${windSource.endsWith('openmeteo') ? 'Open-Meteo 해상' : '기상청'} 예보`);
+        if (windSource.endsWith('kma') && ahead > 3) score -= 3;
+      }
     } else if (windSource === 'openmeteo') {
       score -= 2;
       reasons.push('바람: Open-Meteo 해상 격자 예보(실측 아님)');
@@ -174,10 +186,16 @@ export async function runPrediction(input, callbacks = {}) {
   // 두 곳을 동시에 요청하고, Open-Meteo가 사고 시각의 풍향·풍속을 주면 그 시계열을 전 구간에
   // 쓴다. 섞어 쓰지 않는 이유: 모델이 다르면 같은 시각에도 값이 달라 궤적이 튈 수 있음.
   const endDateTime = new Date(startDateTime.getTime() + ahead * 3600000);
-  const [omRes, kmaRes] = await Promise.allSettled([
+  // 기상청 부이 실측은 "지금" 값이라 사고 시각이 현재와 90분 넘게 차이나면 쓰지 않는다.
+  const obsUsable = Math.abs(startDateTime.getTime() - Date.now()) <= 90 * 60000;
+  const [omRes, kmaRes, obsRes] = await Promise.allSettled([
     fetchOpenMeteoMarine(lat, lon, startDateTime, endDateTime),
     fetchWindData(lat, lon),
+    obsUsable ? fetchKmaSeaObs() : Promise.resolve([]),
   ]);
+  const obsStations = obsRes.status === 'fulfilled' ? obsRes.value : [];
+  const obsWind = nearestKmaSeaStation(obsStations, lat, lon, 'wind', OBS_MAX_KM);
+  const obsWave = nearestKmaSeaStation(obsStations, lat, lon, 'wave', OBS_MAX_KM);
   const om = omRes.status === 'fulfilled' ? omRes.value : null;
   const kma = kmaRes.status === 'fulfilled' ? kmaRes.value : null;
   const omWindAt = (d) => {
@@ -194,12 +212,19 @@ export async function runPrediction(input, callbacks = {}) {
   const w0 = useOpenMeteoWind
     ? omWindAt(startDateTime)
     : kma && kma.windSpeedMS !== null && kma.windDirFrom !== null ? { speed: kma.windSpeedMS, dirFrom: kma.windDirFrom } : null;
-  if (w0) {
+  const forecastWindSource = w0 ? (useOpenMeteoWind ? 'openmeteo' : 'kma') : null;
+  if (obsWind) {
+    // 초기 바람은 실측값. 이후 시간은 아래 시간별 계산에서 예보로 점차 넘긴다.
+    windSpeedMS = obsWind.ws; windDirFrom = obsWind.wd; usedWind = true;
+    windSource = forecastWindSource ? `obs+${forecastWindSource}` : 'obs';
+  } else if (w0) {
     windSpeedMS = w0.speed; windDirFrom = w0.dirFrom; usedWind = true;
-    windSource = useOpenMeteoWind ? 'openmeteo' : 'kma';
+    windSource = forecastWindSource;
   }
+  const windObsLabel = obsWind ? `${obsWind.name.trim()} ${Math.round(obsWind.distKm)}km` : null;
   const omWave = seriesValueAt(om?.waveHeight, startDateTime);
-  if (omWave !== null) { waveHeightM = omWave; waveSource = 'openmeteo'; }
+  if (obsWave) { waveHeightM = obsWave.wh; waveSource = 'obs'; }
+  else if (omWave !== null) { waveHeightM = omWave; waveSource = 'openmeteo'; }
   else if (kma && kma.waveHeightM !== null && !isNaN(kma.waveHeightM)) { waveHeightM = kma.waveHeightM; waveSource = 'kma'; }
 
   const curDisp = speed * 0.01 * 3600;
@@ -250,13 +275,22 @@ export async function runPrediction(input, callbacks = {}) {
 
   // ===== 바람 시간별 사전계산 (궤적 계산과 500입자가 공유) =====
   let hourlyWindXY = null;
+  // 실측이 있으면 0~1시간은 실측, 2·3시간째에 예보로 전환 (HF 조류와 같은 방식).
+  // 예보가 아예 없으면 실측 구간이 끝난 뒤엔 직전 값을 유지한다.
   if (usedWind) {
     hourlyWindXY = [wXY];
     for (let t = 1; t <= ahead; t++) {
       const wt = windAt(new Date(startDateTime.getTime() + t * 3600000));
-      hourlyWindXY.push(
-        wt ? bearingToXY((wt.dirFrom + 180) % 360, wt.speed * 3600 * leewayCoefVal) : hourlyWindXY[hourlyWindXY.length - 1]
-      );
+      const fc = wt ? bearingToXY((wt.dirFrom + 180) % 360, wt.speed * 3600 * leewayCoefVal) : null;
+      const prev = hourlyWindXY[hourlyWindXY.length - 1];
+      let v;
+      if (obsWind) {
+        const w = OBS_WEIGHT_BY_HOUR[t] ?? 0;
+        v = fc ? { x: w * wXY.x + (1 - w) * fc.x, y: w * wXY.y + (1 - w) * fc.y } : w > 0 ? wXY : prev;
+      } else {
+        v = fc || prev;
+      }
+      hourlyWindXY.push(v);
     }
   }
 
@@ -337,7 +371,7 @@ export async function runPrediction(input, callbacks = {}) {
   const risk = calculateAdvancedRisk(underwaterMode ? null : windSpeedMS, waveHeightM, null, null, null, null);
 
   const confidence = computeConfidence({
-    usedHf, usedKhoaStart, khoaMissingHours, ahead, leewayCoefVal, usedWind, windSource,
+    usedHf, usedKhoaStart, khoaMissingHours, ahead, leewayCoefVal, usedWind, windSource, windObsLabel,
     coastlineLoaded: getCoastlineStatus().loaded, strandedAt,
   });
 
@@ -362,7 +396,7 @@ export async function runPrediction(input, callbacks = {}) {
 
   return {
     combBrng, combSpeed, actualHours, finalErrorRadius, finalPoint, strandedAt,
-    currentSource, windSource, waveSource, setnetWarnings, coastlineStatus: getCoastlineStatus(),
+    currentSource, windSource, windObsLabel, waveSource, setnetWarnings, coastlineStatus: getCoastlineStatus(),
     curSpeed: speed, curDir: dir, netDistM, confidence,
   };
 }

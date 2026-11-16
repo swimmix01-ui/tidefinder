@@ -150,7 +150,27 @@ export async function loadMarineStatus(coords = {}) {
   } catch (err) {
     console.warn('⚠ 조위관측소 실측 풍속 로드 실패:', err);
   }
+  // 기상청 해양기상부이·파고부이·등표 실측 (API허브) - 50km 이내 지점이 있으면 파고는 이것을
+  // 최우선으로 쓰고, 풍속은 조위관측소 실측이 없을 때 쓴다. 더 멀면 참고값 후보로만 둔다.
   let farWave = null;
+  try {
+    const kmaStations = await api.fetchKmaSeaObs();
+    const kWave = api.nearestKmaSeaStation(kmaStations, lat, lon, 'wave', 50);
+    if (kWave) {
+      setText('marineWaveHeight', `${kWave.wh}m (실측·${kWave.name.trim()} ${Math.round(kWave.distKm)}km)`);
+      ui.renderWaveStatusPill(kWave.wh);
+    } else {
+      const far = api.nearestKmaSeaStation(kmaStations, lat, lon, 'wave', 300);
+      if (far) farWave = { wvhgt: far.wh, name: far.name.trim(), distKm: far.distKm, distNote: ` (관측소 ${Math.round(far.distKm)}km 거리 - 참고용)` };
+    }
+    const kWind = api.nearestKmaSeaStation(kmaStations, lat, lon, 'wind', 50);
+    if (kWind && document.getElementById('marineWind')?.textContent === LOADING_TEXT) {
+      setText('marineWind', `${Math.round(kWind.wd)}° / ${kWind.ws}m/s (실측·${kWind.name.trim()} ${Math.round(kWind.distKm)}km)`);
+      ui.renderWindStatusPill(kWind.ws);
+    }
+  } catch (err) {
+    console.warn('⚠ 기상청 해양관측(API허브) 로드 실패:', err);
+  }
   try {
     const twDistKm = lat != null && lon != null ? haversineKm(lat, lon, twStation.lat, twStation.lon) : 0;
     const tw = await api.fetchTwRecent(twStation.code, reqDate);
@@ -158,13 +178,13 @@ export async function loadMarineStatus(coords = {}) {
     const wspd = pickNumeric(tw, ['wspd']);
     const wndrct = pickNumeric(tw, ['wndrct']);
     const distNote = twDistKm > 50 ? ` (관측소 ${Math.round(twDistKm)}km 거리 - 참고용)` : '';
-    if (wvhgt !== null) {
+    if (wvhgt !== null && document.getElementById('marineWaveHeight')?.textContent === LOADING_TEXT) {
       if (twDistKm <= 50) {
         setText('marineWaveHeight', `${wvhgt}m (실측)`);
         ui.renderWaveStatusPill(wvhgt);
       } else {
         // 관측소가 멀면(포항→고래불 70km) 그 지점 해상예보를 먼저 쓰고 실측은 참고로 붙인다.
-        farWave = { wvhgt, name: twStation.name, distKm: twDistKm, distNote };
+        if (!farWave || twDistKm < farWave.distKm) farWave = { wvhgt, name: twStation.name, distKm: twDistKm, distNote };
       }
     }
     // dtRecent가 풍속을 못 채웠을 때만 twRecent 풍속으로 보충.

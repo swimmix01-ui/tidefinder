@@ -17,7 +17,7 @@ npm run build     # dist/ 에 프로덕션 빌드
 - `src/predict.js` - 표류 예측 파이프라인, 예측 신뢰도 계산
 - `src/modules/` - api(외부 API), map(카카오맵), coastline(해안선·정치망), montecarlo, marine(해상상태 카드), ui
 - `src/worker.js` - 몬테카를로 500입자 시뮬레이션(Web Worker)
-- `netlify/functions/weather.cjs` - 공공 API 프록시(서비스키는 Netlify 환경변수 `SERVICE_KEY`, `KHOA_SERVICE_KEY`)
+- `netlify/functions/weather.cjs` - 공공 API 프록시(서비스키는 Netlify 환경변수 `SERVICE_KEY`, `KHOA_SERVICE_KEY`, `TW_SERVICE_KEY`, `KMA_APIHUB_KEY`)
 - `public/` - 해안선(`coastline-korea.geojson.gz`), 정치망(`setnet-korea.geojson`), 아이콘, 매니페스트, 서비스워커(`sw.js`)
 
 ## 예측 방식 요약
@@ -28,6 +28,9 @@ npm run build     # dist/ 에 프로덕션 빌드
    실패 시 기상청 단기예보(육상 격자) 폴백. 바람 × 풍압계수, 파고는 오차반경에 반영
    - Open-Meteo는 비상업적 이용 무료, 출처표시 필요(화면 하단 표기). Open-Meteo의 기상청 모델 피드는
      기상청 모델 교체(2026-03)로 중단 상태라 기본 best_match 모델을 사용
+   - 기상청 API허브 해양 종합 관측(`sea_obs.php`, 해양기상부이·파고부이·등표) 실측이 50km 이내에 있고
+     사고 시각이 현재와 90분 이내면: 파고는 실측값, 바람은 0~1시간 실측 → 2·3시간째 예보로 전환.
+     키는 Netlify 환경변수 `KMA_APIHUB_KEY`(서버 함수에서만 사용, 응답 EUC-KR → 함수에서 JSON 변환)
 4. 해안선에 닿으면 좌초 처리, 정치망 300m 이내 접근 시 경고
 5. 예측 신뢰도(추정): 자료 출처·누락, 예측 시간, 해안선 로드 여부로 감점하는 현장 판단용 지표
    (통계적 확률 아님). 감점 사유가 화면에 함께 표시된다.
@@ -43,6 +46,4 @@ npm run build     # dist/ 에 프로덕션 빌드
   (package.json이 `"type": "module"`이라 `.js`면 Netlify 빌드가 실패함).
 
 ## 남은 과제
-- 기상청 해양기상부이·파고부이 실측(공공데이터포털 "기상청_해양기상관측 조회서비스") 연동 -
-  초기 1~2시간 예보 보정용. 활용신청 승인 후 진행
 - 오차반경 공식(50m + 이동거리 비례 + 횡풍 발산)의 실제 사례 검증

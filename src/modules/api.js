@@ -105,6 +105,36 @@ export async function fetchOpenMeteoMarine(lat, lon, startDate, endDate) {
   };
 }
 
+// 기상청 API허브 해양 종합 관측(해양기상부이·파고부이·등표 등) - 전국 지점 최신 1건씩.
+// 같은 화면에서 해상상태 카드와 예측이 거의 동시에 부르므로 5분간 결과를 공유한다.
+let kmaSeaCache = null;
+export async function fetchKmaSeaObs() {
+  if (kmaSeaCache && Date.now() - kmaSeaCache.at < 5 * 60000) return kmaSeaCache.promise;
+  const promise = fetchWithTimeout('/.netlify/functions/weather?mode=kmasea', 10000)
+    .then((r) => r.json())
+    .then((d) => (Array.isArray(d.stations) ? d.stations : []));
+  kmaSeaCache = { at: Date.now(), promise };
+  promise.catch(() => { kmaSeaCache = null; });
+  return promise;
+}
+
+// 사고 지점에서 가장 가까운 관측 지점 (해당 항목 값이 있는 지점만, maxKm 이내)
+// field: 'wave' → 유의파고(wh), 'wind' → 풍향·풍속(wd, ws)
+export function nearestKmaSeaStation(stations, lat, lon, field, maxKm = 50) {
+  const R = 6371;
+  const toRad = (d) => (d * Math.PI) / 180;
+  let best = null;
+  (stations || []).forEach((s) => {
+    const ok = field === 'wave' ? s.wh !== null : s.wd !== null && s.ws !== null;
+    if (!ok) return;
+    const dLat = toRad(s.lat - lat), dLon = toRad(s.lon - lon);
+    const a = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(lat)) * Math.cos(toRad(s.lat)) * Math.sin(dLon / 2) ** 2;
+    const distKm = 2 * R * Math.asin(Math.sqrt(a));
+    if (distKm <= maxKm && (!best || distKm < best.distKm)) best = { ...s, distKm };
+  });
+  return best;
+}
+
 // 시계열에서 목표 시각과 가장 가까운 유효값 (2시간 넘게 떨어진 값은 버림)
 export function seriesValueAt(series, targetDate) {
   if (!series || !series.times?.length) return null;
