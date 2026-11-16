@@ -48,6 +48,38 @@ export async function loadCoastlineGeoJSON() {
     coastlineLoadError = String(err && err.message ? err.message : err);
     console.warn('⚠ 해안선 GeoJSON 로드 실패:', err);
   }
+  await appendEastCoastLines();
+}
+
+// 전자해도 해안선 자료(coastline-korea)에는 포항~영덕(북위 36.22° 이남) 해안선이 빠져 있다.
+// 항로 계산용으로 만든 동해안 육지 폴리곤(통계청 시군구 경계 2013 기반, land-east.geojson)의
+// 테두리를 해안선으로 덧붙여 좌초 판정이 이 해역에서도 동작하게 한다.
+// ※ getLocalCoastline이 선마다 첫·중간·끝 점만 보고 거르기 때문에, 긴 테두리를 30점 단위로 잘라 넣는다.
+async function appendEastCoastLines() {
+  try {
+    const res = await fetch('/land-east.geojson');
+    if (!res.ok) return;
+    const land = await res.json();
+    const lines = [];
+    const CH = 30;
+    for (const f of land.features || []) {
+      const ring = f.geometry && f.geometry.coordinates && f.geometry.coordinates[0];
+      if (!ring || ring.length < 2) continue;
+      for (let i = 0; i < ring.length - 1; i += CH) {
+        lines.push({ type: 'Feature', properties: { src: 'land-east' }, geometry: { type: 'LineString', coordinates: ring.slice(i, Math.min(ring.length, i + CH + 1)) } });
+      }
+    }
+    if (!lines.length) return;
+    if (coastlineData && Array.isArray(coastlineData.features)) {
+      coastlineData.features.push(...lines);
+    } else {
+      coastlineData = { type: 'FeatureCollection', features: lines };
+      coastlineLoadError = null;
+    }
+    console.info(`✅ 동해안 해안선 보완 (${lines.length}개 구간)`);
+  } catch (err) {
+    console.warn('⚠ 동해안 해안선 보완 실패(기존 해안선만 사용):', err);
+  }
 }
 
 export async function loadSetnetGeoJSON() {
