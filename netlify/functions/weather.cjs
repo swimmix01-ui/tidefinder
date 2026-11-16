@@ -121,6 +121,34 @@ exports.handler = async function (event) {
     }
   }
 
+  // ===== 자연과학용 수심정보(150m 격자) =====
+  // 공공데이터포털 1192136/waterDepth. 키는 twRecent와 같은 계정 키(TW_SERVICE_KEY)를 쓴다.
+  // 오퍼레이션 이름·파라미터가 문서로 확인되지 않아 후보를 차례로 시도하고, 처음 성공한 것을 쓴다.
+  if (mode === 'waterdepth') {
+    const { ymin, ymax, xmin, xmax } = params;
+    const pageNo = Math.max(1, parseInt(params.pageNo, 10) || 1);
+    const rows = Math.max(1, Math.min(10000, parseInt(params.numOfRows, 10) || 1000));
+    if (!ymin || !ymax || !xmin || !xmax) {
+      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'ymin/ymax/xmin/xmax 필요' }) };
+    }
+    const ops = params.op ? [params.op] : ['GetWaterDepthApiService', 'GetWaterDepthService', 'getWaterDepth'];
+    const tries = [];
+    for (const op of ops) {
+      const u = `https://apis.data.go.kr/1192136/waterDepth/${op}?serviceKey=${TW_SERVICE_KEY}&type=json&numOfRows=${rows}&pageNo=${pageNo}&ymin=${ymin}&ymax=${ymax}&xmin=${xmin}&xmax=${xmax}`;
+      try {
+        const r = await nativeHttpsFetch(u, fetchHeaders);
+        const text = await r.text();
+        tries.push({ op, status: r.status, head: text.substring(0, 300) });
+        if (r.status === 200 && !/NO_OPENAPI_SERVICE|SERVICE_KEY|Unexpected errors|API not found/i.test(text.substring(0, 400))) {
+          return { statusCode: 200, headers: corsHeaders, body: text };
+        }
+      } catch (err) {
+        tries.push({ op, error: err.message });
+      }
+    }
+    return { statusCode: 502, headers: corsHeaders, body: JSON.stringify({ error: '수심 API 호출 실패', tries }) };
+  }
+
   // ===== 기상청 API허브 해양 종합 관측(해양기상부이·파고부이·등표 등) 실측 =====
   // 요청 시각 기준 -59분~00분 자료가 오므로, 비어 있으면 1시간 전으로 한 번 더 요청한다.
   if (mode === 'kmasea') {
