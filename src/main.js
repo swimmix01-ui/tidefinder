@@ -152,7 +152,8 @@ window.copyOperationReport = function copyOperationReport() {
 };
 
 // 화면 전체를 처음 상태로: 입력값(기본 좌표·현재 시각), 지도 표시물, 결과 카드, 출동 도착위치
-const DEFAULT_COORD = { lat: 36 + 1 / 60 + 23 / 3600, lon: 129 + 25 / 60 + 10 / 3600 };
+// 기본 좌표 = 영일만 바다 한가운데 (예전 기본값 36°01′23″ 129°25′10″은 포항신항 매립지 위였음)
+const DEFAULT_COORD = { lat: 36.05, lon: 129.45 };
 function setNowToInputs() {
   const now = new Date();
   document.getElementById('dateInput').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -185,8 +186,17 @@ async function init() {
   ['latD', 'latM', 'latS', 'lonD', 'lonM', 'lonS', 'dateInput', 'hourInput', 'minuteInput', 'hoursAhead'].forEach((id) => {
     document.getElementById(id).addEventListener('input', ui.refreshInputCheckmarks);
   });
+  // 도분초 칸을 직접 고쳐도 지도 핀이 따라가게 (예전엔 지도 클릭·붙여넣기 때만 핀이 움직였음)
+  const syncMarkerFromInputs = (center) => {
+    const { lat, lon } = getCoordsFromInputs();
+    if (!isValidKoreaSea(lat, lon)) return;
+    mapModule.setMarkerPosition(lat, lon);
+    if (center) mapModule.centerMap(lat, lon);
+  };
   ['latD', 'latM', 'latS', 'lonD', 'lonM', 'lonS'].forEach((id) => {
-    document.getElementById(id).addEventListener('input', () => eta.updateEta());
+    const el = document.getElementById(id);
+    el.addEventListener('input', () => { eta.updateEta(); syncMarkerFromInputs(false); });
+    el.addEventListener('change', () => syncMarkerFromInputs(true));
   });
   ui.refreshInputCheckmarks();
 

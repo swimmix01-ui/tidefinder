@@ -59,7 +59,7 @@ export async function initMap(containerId, onMapClick) {
     if (!window.kakao || !window.kakao.maps) { resolve(null); return; }
     window.kakao.maps.load(() => {
       const container = document.getElementById(containerId);
-      map = new window.kakao.maps.Map(container, { center: new window.kakao.maps.LatLng(36.023, 129.419), level: 8 });
+      map = new window.kakao.maps.Map(container, { center: new window.kakao.maps.LatLng(36.05, 129.45), level: 8 });
       clickMarker = new window.kakao.maps.Marker({ position: map.getCenter() });
       clickMarker.setMap(map);
 
@@ -226,7 +226,7 @@ export function clearPrediction() {
 export function resetMapView() {
   if (!map) return;
   clearPrediction();
-  const defaultPos = new window.kakao.maps.LatLng(36.023, 129.419);
+  const defaultPos = new window.kakao.maps.LatLng(36.05, 129.45);
   clickMarker.setPosition(defaultPos);
-  centerMap(36.023, 129.419, 8);
+  centerMap(36.05, 129.45, 8);
 }
