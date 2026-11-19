@@ -151,11 +151,30 @@ window.copyOperationReport = function copyOperationReport() {
   }
 };
 
+// 화면 전체를 처음 상태로: 입력값(기본 좌표·현재 시각), 지도 표시물, 결과 카드, 출동 도착위치
+const DEFAULT_COORD = { lat: 36 + 1 / 60 + 23 / 3600, lon: 129 + 25 / 60 + 10 / 3600 };
+function setNowToInputs() {
+  const now = new Date();
+  document.getElementById('dateInput').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  document.getElementById('hourInput').value = now.getHours();
+  document.getElementById('minuteInput').value = now.getMinutes();
+}
+function resetAll() {
+  lastPredictionResult = null;
+  ['aiCard', 'resultCard', 'searchCard'].forEach((id) => { document.getElementById(id).style.display = 'none'; });
+  const paste = document.getElementById('coordPaste');
+  paste.value = '';
+  const note = document.getElementById('coordPasteNote');
+  note.textContent = '도·분(소수) / 도분초 / 도(소수) 모두 됩니다'; note.style.color = '';
+  setNowToInputs();
+  document.getElementById('hoursAhead').value = 6;
+  setCoordsToInputs(DEFAULT_COORD.lat, DEFAULT_COORD.lon); // 출동 카드도 여기서 다시 계산됨
+  mapModule.resetMapView();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
 async function init() {
-  const today = new Date();
-  document.getElementById('dateInput').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
-  document.getElementById('hourInput').value = today.getHours();
-  document.getElementById('minuteInput').value = today.getMinutes();
+  setNowToInputs();
 
   // 비차단 로드 - 실패해도 페이지 동작에 영향 없음
   const seaLoad = seaLayers.loadSeaLayers();
@@ -190,17 +209,18 @@ async function init() {
 
   document.getElementById('runPredictionBtn').addEventListener('click', handleRunPrediction);
 
+  // 오른쪽 위 버튼 = 처음 화면으로 전체 초기화 (예전엔 해상상태만 다시 받아서 지도·결과가 그대로 남았음)
   document.getElementById('headerRefreshBtn').addEventListener('click', async (e) => {
     const btn = e.currentTarget;
     if (btn.classList.contains('spinning')) return; // 중복 클릭 방지
     btn.classList.add('spinning');
-    ui.setStatus('busy', '⏳ 해상상태 갱신 중...');
+    resetAll();
+    ui.setStatus('busy', '⏳ 초기화 · 해상상태 다시 받는 중...');
     try {
-      const { lat, lon } = getCoordsFromInputs();
-      await loadMarineStatus(Number.isNaN(lat) || Number.isNaN(lon) ? {} : { lat, lon });
-      ui.setStatus('ok', '✅ 해상상태 갱신 완료');
+      await loadMarineStatus();
+      ui.setStatus('ok', '↺ 초기화 완료 - 지도를 누르거나 좌표를 넣어주세요');
     } catch (err) {
-      ui.setStatus('warn', '⚠ 해상상태 갱신 실패');
+      ui.setStatus('warn', '↺ 초기화 완료 (해상상태 갱신 실패)');
     } finally {
       btn.classList.remove('spinning');
     }
