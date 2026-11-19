@@ -12,7 +12,7 @@
 // ※ 해안선/정치망 데이터 파일을 교체하면 아래 CACHE_VERSION 숫자를 올려야
 //   폰에 저장된 옛 데이터가 새 것으로 바뀐다.
 // ==========================================================================
-const CACHE_VERSION = 'v3';
+const CACHE_VERSION = 'v4'; // v4: land-east에 포항신항 매립지 추가(2026-11-20)
 const CACHE_NAME = `tidefinder-${CACHE_VERSION}`;
 const CORE_URLS = ['/', '/manifest.webmanifest', '/icon.svg', '/apple-touch-icon.png', '/icon-192.png'];
 const DATA_FILES = ['/coastline-korea.geojson.gz', '/setnet-korea.geojson', '/fishery-pohang.geojson', '/rocks-pohang.geojson', '/land-east.geojson'];
