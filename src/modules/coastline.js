@@ -48,7 +48,8 @@ export async function loadCoastlineGeoJSON() {
     coastlineLoadError = String(err && err.message ? err.message : err);
     console.warn('⚠ 해안선 GeoJSON 로드 실패:', err);
   }
-  await appendEastCoastLines();
+  // 2026-11-20: 국립해양조사원 해안선(2025.12.31 기준)으로 교체하면서 포항~영덕 공백이 메워져
+  // 2013 행정경계 기반 보완선(appendEastCoastLines)은 더 이상 쓰지 않는다. (육지 쪽으로 수백 m 어긋난 곳이 있었음)
 }
 
 // 전자해도 해안선 자료(coastline-korea)에는 포항~영덕(북위 36.22° 이남) 해안선이 빠져 있다.

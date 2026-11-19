@@ -3,6 +3,7 @@
 // ※ index.html에 <script type="module" src="/src/main.js"> 한 줄만 있으면
 //   Vite가 이 파일부터 시작해서 import 트리를 전부 번들링한다.
 // ==========================================================================
+import { loadLandPolygons } from './modules/route.js';
 import { dmsToDecimal, decimalToDMS, parseCoordText, isValidKoreaSea, positionAtHour } from './modules/geo.js';
 import { loadCoastlineGeoJSON, loadSetnetGeoJSON } from './modules/coastline.js';
 import * as mapModule from './modules/map.js';
@@ -11,7 +12,6 @@ import { runPrediction } from './predict.js';
 import { loadMarineStatus } from './modules/marine.js';
 import * as seaLayers from './modules/sealayers.js';
 import * as eta from './modules/eta.js';
-import { loadLandPolygons } from './modules/route.js';
 import * as depth from './modules/depth.js';
 
 let lastPredictionResult = null;

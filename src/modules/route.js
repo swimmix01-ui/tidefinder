@@ -10,8 +10,10 @@
 //     그 바다에서 가장 가까운 칸을 출발점으로 잡는다.
 //  5. A*로 최단 경로를 찾고, 서로 보이는 점끼리 이어서 지그재그를 편다.
 //
-// ※ 포항~영덕은 전자해도 해안선이 비어 있어 육지 폴리곤(land-east, 2013 행정경계)으로 막는데,
-//   매립지가 빠진 곳이 있다. 포항신항 북측 매립지는 OSM+카카오맵 대조로 보완(2026-11-20).
+// ※ 해안선 = 국립해양조사원 해안선(2025.12.31 기준, 방파제·매립지 포함).
+//   해안선은 '선'이라 하구(강 입구) 같은 틈으로 격자 탐색이 내륙까지 새어 들어갈 수 있다 → 동해안 육지
+//   폴리곤(2013 행정경계)을 안쪽으로 350m 줄인 '내륙 코어'(land-east-core)로 내륙을 막는다.
+//   (원본 폴리곤은 해안이 수백 m 어긋난 곳이 있어 그대로 쓰면 바다를 막음 - 정확한 해안은 해안선이 담당)
 // ※ 한계: 방파제·교량 같은 인공구조물은 해안선 자료에 없을 수 있다. 어장은 서류상
 //   면허구역이라 실제 부표와 다를 수 있다. 수심(얕은 곳)은 아직 반영 안 됨.
 // ==========================================================================
@@ -24,11 +26,11 @@ const FREE = 0, COAST = 1, HAZARD = 2, SHALLOW = 3;
 const MAX_CELLS = 200000;
 
 let coastIndex = null;
-let land = null; // 동해안 육지 폴리곤(통계청 시군구 경계 2013 기반) - 해안선 자료가 빠진 포항~영덕 보완용
+let land = null; // 동해안 내륙 코어(2013 행정경계를 350m 줄인 것) - 하구 틈으로 내륙이 바다로 잡히는 것 방지
 
 export async function loadLandPolygons() {
   try {
-    const res = await fetch('/land-east.geojson');
+    const res = await fetch('/land-east-core.geojson');
     if (!res.ok) return false;
     const d = await res.json();
     if (!d || !d.features) return false;
@@ -38,7 +40,7 @@ export async function loadLandPolygons() {
       for (const [lon, lat] of ring) { if (lon < a) a = lon; if (lon > x) x = lon; if (lat < b) b = lat; if (lat > y) y = lat; }
       return { a, b, x, y, ring };
     });
-    console.info(`✅ 동해안 육지 폴리곤 로드 (${land.length}개)`);
+    console.info(`✅ 동해안 내륙 코어 로드 (${land.length}개)`);
     return true;
   } catch {
     return false;
