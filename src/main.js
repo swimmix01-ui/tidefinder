@@ -159,11 +159,40 @@ window.copyOperationReport = function copyOperationReport() {
 // 화면 전체를 처음 상태로: 입력값(기본 좌표·현재 시각), 지도 표시물, 결과 카드, 출동 도착위치
 // 기본 좌표 = 영일만 바다 한가운데 (예전 기본값 36°01′23″ 129°25′10″은 포항신항 매립지 위였음)
 const DEFAULT_COORD = { lat: 36.05, lon: 129.45 };
+// 입력칸의 사고 일시 ↔ Date
+function getIncidentDate() {
+  const d = document.getElementById('dateInput').value;
+  const h = parseInt(document.getElementById('hourInput').value, 10);
+  const m = parseInt(document.getElementById('minuteInput').value, 10);
+  if (!d || Number.isNaN(h) || Number.isNaN(m)) return null;
+  const dt = new Date(`${d}T${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}:00`);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+function setIncidentDate(dt) {
+  document.getElementById('dateInput').value = `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  document.getElementById('hourInput').value = dt.getHours();
+  document.getElementById('minuteInput').value = dt.getMinutes();
+  ui.refreshInputCheckmarks();
+  updateDtNote();
+}
+// "지금으로부터 몇 분 전"을 보여줘서 날짜·시각 실수를 바로 알아채게
+function updateDtNote() {
+  const el = document.getElementById('dtNote');
+  const dt = getIncidentDate();
+  if (!dt) { el.textContent = ''; return; }
+  const diff = Math.round((Date.now() - dt.getTime()) / 60000);
+  const abs = Math.abs(diff);
+  const txt = abs < 1 ? '지금' : abs < 60 ? `${abs}분` : `${Math.floor(abs / 60)}시간${abs % 60 ? ` ${abs % 60}분` : ''}`;
+  el.textContent = abs <= 1 ? '사고 시각 = 지금' : diff > 0 ? `지금으로부터 ${txt} 전` : `⚠ 지금보다 ${txt} 뒤 (미래 시각)`;
+  el.style.color = diff < -1 ? 'var(--amber)' : '';
+}
+
 function setNowToInputs() {
   const now = new Date();
   document.getElementById('dateInput').value = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
   document.getElementById('hourInput').value = now.getHours();
   document.getElementById('minuteInput').value = now.getMinutes();
+  updateDtNote();
 }
 function resetAll() {
   lastPredictionResult = null;
@@ -207,6 +236,18 @@ async function init() {
     el.addEventListener('change', () => syncMarkerFromInputs(true));
   });
   ui.refreshInputCheckmarks();
+
+  // 사고 일시 빠른 조정: [지금] [-30분] [-1시간] [-2시간] - 누를 때마다 현재 입력값에서 더 빼진다
+  document.querySelectorAll('.dt-btn').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const v = btn.dataset.shift;
+      if (v === 'now') { setIncidentDate(new Date()); return; }
+      const base = getIncidentDate() || new Date();
+      setIncidentDate(new Date(base.getTime() + parseInt(v, 10) * 60000));
+    });
+  });
+  ['dateInput', 'hourInput', 'minuteInput'].forEach((id) => document.getElementById(id).addEventListener('input', updateDtNote));
+  setInterval(updateDtNote, 60000);
 
   // 좌표 한 번에 입력 - 플로터(도·분), 도분초, 도(소수) 어느 쪽이든 붙여넣으면 아래 칸을 채운다
   const pasteEl = document.getElementById('coordPaste');

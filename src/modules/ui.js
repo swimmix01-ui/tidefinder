@@ -172,7 +172,6 @@ export function refreshInputCheckmarks() {
   const lonOk = val('lonD') && val('lonM') && val('lonS');
   document.getElementById('checkLat').classList.toggle('filled', latOk);
   document.getElementById('checkLon').classList.toggle('filled', lonOk);
-  document.getElementById('checkDate').classList.toggle('filled', val('dateInput'));
-  document.getElementById('checkTime').classList.toggle('filled', val('hourInput') && val('minuteInput'));
+  document.getElementById('checkTime').classList.toggle('filled', val('dateInput') && val('hourInput') && val('minuteInput'));
   document.getElementById('checkHours').classList.toggle('filled', val('hoursAhead'));
 }
