@@ -4,7 +4,7 @@
 //  - 목적지: 화면의 사고 좌표(지도 클릭/좌표 입력값)
 //  - 선속(kn)은 폰에 저장해 두고 다음에도 그대로 쓴다
 // ==========================================================================
-import { distanceBetween, bearingBetween, bearingToCompass } from './geo.js';
+import { distanceBetween, bearingBetween, bearingToCompass, formatDMS } from './geo.js';
 import { findHazardsOnRoute } from './sealayers.js';
 import { planSeaRoute } from './route.js';
 
@@ -15,6 +15,8 @@ const DEPTH_KEY = 'tf-route-min-depth';
 
 let map = null;
 let getTarget = () => null;
+let getDriftAt = () => null;
+let driftMark = null;
 let origin = null;          // { lat, lon, src: 'gps' | 'map', acc }
 let watchId = null;
 let pickMode = false;
@@ -37,9 +39,10 @@ function saveSpeed(v) {
   try { localStorage.setItem(SPEED_KEY, String(v)); } catch { /* 무시 */ }
 }
 
-export function initEta({ kakaoMap, getTargetCoords }) {
+export function initEta({ kakaoMap, getTargetCoords, getDriftAt: driftFn }) {
   map = kakaoMap;
   getTarget = getTargetCoords;
+  if (driftFn) getDriftAt = driftFn;
   $('etaSpeed').value = loadSpeed();
   $('etaSpeed').addEventListener('input', () => {
     const v = parseFloat($('etaSpeed').value);
@@ -189,6 +192,7 @@ export async function updateEta() {
   if (!origin || !t || Number.isNaN(t.lat) || Number.isNaN(t.lon)) {
     box.style.display = 'none';
     clearRoute();
+    if (driftMark) { driftMark.setMap(null); driftMark = null; }
     return;
   }
   const straight = distanceBetween(origin.lat, origin.lon, t.lat, t.lon);
@@ -220,6 +224,28 @@ export async function updateEta() {
     ? ` · 수심 ${minDepth}m 미만 회피${route.depthNote ? ` (${route.depthNote})` : ''}`
     : ` · 수심 미반영(${route.depthNote})`;
   $('etaFrom').textContent = fromTxt + routeTxt + depthTxt;
+
+  // 도착할 때쯤 표류자는 이미 사고 지점을 떠나 있다 → 예측 경로상 도착 시각 위치를 같이 보여준다
+  const dEl = $('etaDrift');
+  const drift = Number.isFinite(minutes) ? getDriftAt(arrive) : null;
+  if (driftMark) { driftMark.setMap(null); driftMark = null; }
+  if (drift && Number.isFinite(drift.lat)) {
+    const off = distanceBetween(t.lat, t.lon, drift.lat, drift.lon);
+    const offBrg = bearingBetween(t.lat, t.lon, drift.lat, drift.lon);
+    dEl.style.display = 'block';
+    dEl.innerHTML = `<b>도착(${hhmm(arrive)}) 때 예상 표류 위치</b><br>${formatDMS(drift.lat, drift.lon)}<br>사고 지점에서 <b>${Math.round(offBrg)}° ${bearingToCompass(offBrg)} ${fmtNm(off)}</b> 떨어짐` +
+      (drift.beyond ? '<br><span style="color:var(--amber)">⚠ 도착 시각이 예측 시간보다 뒤 - 예측 시간을 늘려 다시 계산하세요</span>' : '') +
+      '<br><span style="font-size:11.5px;opacity:.8">항로는 사고 지점 기준 · 접근하면서 이 위치 쪽으로 침로 수정</span>';
+    if (map) {
+      driftMark = new window.kakao.maps.CustomOverlay({
+        position: new window.kakao.maps.LatLng(drift.lat, drift.lon),
+        content: `<div class="datum-mark" style="background:#22D3EE">🚤 도착 ${hhmm(arrive)} 예상위치</div>`, yAnchor: 1.4, zIndex: 26,
+      });
+      driftMark.setMap(map);
+    }
+  } else {
+    dEl.style.display = 'none';
+  }
 
   const { checked, hazards } = hazardsAlong(pts);
   const avoid = $('etaAvoid').checked;

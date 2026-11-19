@@ -3,7 +3,7 @@
 // ※ index.html에 <script type="module" src="/src/main.js"> 한 줄만 있으면
 //   Vite가 이 파일부터 시작해서 import 트리를 전부 번들링한다.
 // ==========================================================================
-import { dmsToDecimal, decimalToDMS } from './modules/geo.js';
+import { dmsToDecimal, decimalToDMS, parseCoordText, isValidKoreaSea, positionAtHour } from './modules/geo.js';
 import { loadCoastlineGeoJSON, loadSetnetGeoJSON } from './modules/coastline.js';
 import * as mapModule from './modules/map.js';
 import * as ui from './modules/ui.js';
@@ -42,13 +42,28 @@ function setCoordsToInputs(lat, lon) {
   eta.updateEta();
 }
 
+// 입력값 점검 - 잘못된 값으로 계산이 돌아가 엉뚱한 구역이 나오는 걸 막는다
+function validateInputs({ lat, lon, ahead, hourN, minN, startDateTime }) {
+  if (!isValidKoreaSea(lat, lon)) return '좌표를 확인하세요 (위도 32~39.5°, 경도 124~132.5° 범위 밖이거나 빈칸)';
+  if (!Number.isInteger(ahead) || ahead < 1 || ahead > 24) return '예측 시간은 1~24시간으로 넣어주세요';
+  if (!Number.isInteger(hourN) || hourN < 0 || hourN > 23 || !Number.isInteger(minN) || minN < 0 || minN > 59) return '사고 시각(시 0~23, 분 0~59)을 확인하세요';
+  if (Number.isNaN(startDateTime.getTime())) return '사고 날짜를 확인하세요';
+  if (startDateTime.getTime() > Date.now() + 6 * 3600000) return '사고 시각이 지금보다 6시간 넘게 미래입니다 - 날짜를 확인하세요';
+  if (Date.now() - startDateTime.getTime() > 7 * 86400000) return '사고 시각이 7일보다 오래 전입니다 - 날짜를 확인하세요';
+  return null;
+}
+
 async function handleRunPrediction() {
   const { lat, lon } = getCoordsFromInputs();
   const ahead = parseInt(document.getElementById('hoursAhead').value, 10);
-  const hour = document.getElementById('hourInput').value.padStart(2, '0');
-  const minute = document.getElementById('minuteInput').value.padStart(2, '0');
+  const hourN = parseInt(document.getElementById('hourInput').value, 10);
+  const minN = parseInt(document.getElementById('minuteInput').value, 10);
+  const hour = String(hourN).padStart(2, '0');
+  const minute = String(minN).padStart(2, '0');
   const dateInputVal = document.getElementById('dateInput').value;
   const startDateTime = new Date(`${dateInputVal}T${hour}:${minute}:00`);
+  const invalid = validateInputs({ lat, lon, ahead, hourN, minN, startDateTime });
+  if (invalid) { ui.setStatus('warn', `⚠ ${invalid}`); document.getElementById('status').scrollIntoView({ behavior: 'smooth', block: 'center' }); return; }
   const leewaySelect = document.getElementById('leewayCoef');
   const leewayCoefVal = parseFloat(leewaySelect.value);
   const selectedOption = leewaySelect.options[leewaySelect.selectedIndex];
@@ -70,6 +85,9 @@ async function handleRunPrediction() {
     ui.setStatus('ok', '✅ 예측 완료');
     ui.renderResultCard(result);
     lastPredictionResult = { ...result, inputLat: lat, inputLon: lon, startDateTime, ahead };
+    eta.updateEta();
+    // 결과(지도·수색구역)가 입력칸보다 한참 아래라 폰에서 안 보였음 → 지도로 바로 이동
+    document.getElementById('status').scrollIntoView({ behavior: 'smooth', block: 'start' });
     console.log('예측 결과:', result);
   } catch (err) {
     ui.hideLoading();
@@ -117,7 +135,9 @@ window.copyOperationReport = function copyOperationReport() {
     typeof r.combSpeed === 'number' ? `평균 이동속도: ${(r.combSpeed / 1852).toFixed(2)}kn` : null,
     r.currentSource ? `해류 자료: ${r.currentSource}` : null,
     r.windSource ? `바람 자료: ${windSourceText(r.windSource, r.windObsLabel)}` : null,
-    r.confidence ? `예측 신뢰도(추정): ${r.confidence.score}% (${r.confidence.label})` : null,
+    r.regions ? `수색 기준점: ${fmt(r.regions.center.lat)}, ${fmt(r.regions.center.lon)}` : null,
+    r.regions?.area50Km2 ? `1차 구역(50%): ${r.regions.area50Km2.toFixed(2)}km² / 2차 구역(90%): ${r.regions.area90Km2.toFixed(2)}km²` : null,
+    r.confidence ? `입력 자료 품질(추정): ${r.confidence.score}점 (${r.confidence.label})` : null,
     '',
     '※ 본 보고서는 광역 조류 격자 데이터 기반 예측치이며, 현장 상황과 다를 수 있습니다.',
   ].filter(Boolean).join('\n');
@@ -150,6 +170,23 @@ async function init() {
     document.getElementById(id).addEventListener('input', () => eta.updateEta());
   });
   ui.refreshInputCheckmarks();
+
+  // 좌표 한 번에 입력 - 플로터(도·분), 도분초, 도(소수) 어느 쪽이든 붙여넣으면 아래 칸을 채운다
+  const pasteEl = document.getElementById('coordPaste');
+  const pasteNote = document.getElementById('coordPasteNote');
+  const applyPaste = () => {
+    const v = pasteEl.value.trim();
+    if (!v) { pasteNote.textContent = '도·분(소수) / 도분초 / 도(소수) 모두 됩니다'; pasteNote.style.color = ''; return; }
+    const c = parseCoordText(v);
+    if (!c) { pasteNote.textContent = '⚠ 좌표로 읽을 수 없습니다 (숫자 2·4·6개, 한반도 해역)'; pasteNote.style.color = 'var(--amber)'; return; }
+    setCoordsToInputs(c.lat, c.lon);
+    mapModule.setMarkerPosition(c.lat, c.lon);
+    mapModule.centerMap(c.lat, c.lon);
+    pasteNote.textContent = `✅ ${c.format} 형식으로 읽음 → ${c.lat.toFixed(5)}, ${c.lon.toFixed(5)}`;
+    pasteNote.style.color = 'var(--green)';
+  };
+  pasteEl.addEventListener('change', applyPaste);
+  pasteEl.addEventListener('input', () => { if (parseCoordText(pasteEl.value)) applyPaste(); });
 
   document.getElementById('runPredictionBtn').addEventListener('click', handleRunPrediction);
 
@@ -202,7 +239,20 @@ async function init() {
       loadMarineStatus({ lat, lon });
     }, 30);
   });
-  eta.initEta({ kakaoMap: mapInstance, getTargetCoords: getCoordsFromInputs });
+  eta.initEta({
+    kakaoMap: mapInstance,
+    getTargetCoords: getCoordsFromInputs,
+    // 구조정 도착 시각에 표류자가 있을 것으로 보이는 위치 (예측을 돌린 뒤에만)
+    getDriftAt: (arriveDate) => {
+      const r = lastPredictionResult;
+      if (!r || !r.path) return null;
+      const { lat, lon } = getCoordsFromInputs();
+      if (Math.abs(lat - r.inputLat) > 1e-6 || Math.abs(lon - r.inputLon) > 1e-6) return null; // 좌표가 바뀌면 무효
+      const h = (arriveDate.getTime() - r.startDateTime.getTime()) / 3600000;
+      if (h < 0) return null;
+      return { ...positionAtHour(r.path, h), hours: h, beyond: h > r.path.length - 1 };
+    },
+  });
   if (mapInstance) {
     await seaLoad;
     seaLayers.initSeaLayers(mapInstance);

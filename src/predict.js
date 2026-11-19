@@ -19,7 +19,7 @@ import {
   getCoastlineStatus,
 } from './modules/coastline.js';
 import {
-  runMonteCarloSimulationWorker, runMonteCarloSimulationFallback, computeConvexHull,
+  runMonteCarloSimulationWorker, runMonteCarloSimulationFallback, computeSearchRegions,
 } from './modules/montecarlo.js';
 import { calculateAdvancedRisk } from './modules/risk.js';
 import * as mapModule from './modules/map.js';
@@ -133,8 +133,11 @@ export async function runPrediction(input, callbacks = {}) {
   let currentSource = 'KHOA 조류예측(기본값)', usedHf = false, usedKhoaStart = false;
 
   // ===== ① 1순위: HF 레이더 실측 =====
+  // HF는 "지금" 관측값이라 사고 시각이 현재와 90분 넘게 차이나면 쓰지 않는다.
+  // (예전엔 몇 시간 전 사고에도 지금 해류를 넣어서, 조류가 바뀐 뒤면 방향이 반대로 나올 수 있었음)
   const hfStation = findNearestHFStation(lat, lon);
-  try {
+  const hfUsable = Math.abs(startDateTime.getTime() - Date.now()) <= 90 * 60000;
+  if (hfUsable) try {
     const hfRes = await fetchWithTimeout(`/.netlify/functions/weather?mode=hfcurrent&obsCode=${hfStation.code}`, 8000);
     const hfData = await hfRes.json();
     const hfItems = hfData?.body?.items?.item || hfData?.response?.body?.items?.item;
@@ -341,14 +344,18 @@ export async function runPrediction(input, callbacks = {}) {
   const combSpeed = netDistM / actualHours;
 
   // ===== 오차반경 (좌우발산 포함) =====
+  // 이동거리 기준은 "누적 경로 길이". 예전엔 시작점→현재점 직선거리(순이동)를 썼는데,
+  // 밀물·썰물로 왔다 갔다 하면 순이동이 작아져서 오차반경도 같이 줄어드는 문제가 있었다.
   const wFactor = waveHeightM ? waveHeightM * 0.02 : 0;
   const crosswindTan = Math.tan((crosswindAngleDeg * Math.PI) / 180);
   const hourlyRadii = { 0: 0 };
   let finalErrorRadius = 0;
-  cLine.slice(1).forEach((_, idx) => {
+  let alongM = 0;
+  cLine.slice(1).forEach((p, idx) => {
     const hourNum = idx + 1;
+    alongM += distanceBetween(cLine[idx].lat, cLine[idx].lon, p.lat, p.lon);
     const crosswindAdd = cumWindageByHour[hourNum] * crosswindTan;
-    const r = 50 + (0.15 + wFactor) * (combSpeed * hourNum) + crosswindAdd;
+    const r = 50 + (0.15 + wFactor) * alongM + crosswindAdd;
     hourlyRadii[hourNum] = r;
     if (hourNum === actualHours) finalErrorRadius = Math.round(r);
   });
@@ -362,10 +369,15 @@ export async function runPrediction(input, callbacks = {}) {
   // 조류·바람 기여도: 각 벡터를 합성 이동방향에 투영한 길이 ÷ 합성 이동속도.
   // (두 투영의 합 = 합성 속도라 두 값을 더하면 100%. 한쪽이 반대방향으로 밀면 그쪽은 0%로 표시)
   // ※ 이전엔 합성 속도 대신 조류 속도(combSpeedRough)로 나눠서 합이 100%가 아니었음 - 2026-11-16 수정
-  const combX = curXY.x + wXY.x, combY = curXY.y + wXY.y;
+  // 2026-11-19: 사고 시각 한 순간이 아니라 예측 기간 전체의 누적 이동량으로 계산
+  // (조류가 바뀌는 구간에서 시작 순간 값만 보면 "조류 0%"처럼 엉뚱하게 나왔음)
+  const sumXY = (arr) => arr.slice(1, actualHours + 1).reduce((a, v) => ({ x: a.x + (v?.x || 0), y: a.y + (v?.y || 0) }), { x: 0, y: 0 });
+  const curSum = sumXY(hourlyCurrentXY);
+  const windSum = hourlyWindXY ? sumXY(hourlyWindXY) : { x: 0, y: 0 };
+  const combX = curSum.x + windSum.x, combY = curSum.y + windSum.y;
   const combMag = Math.hypot(combX, combY);
-  const projCurrent = combMag > 0 ? (curXY.x * combX + curXY.y * combY) / combMag : 0;
-  const projWind = combMag > 0 ? (wXY.x * combX + wXY.y * combY) / combMag : 0;
+  const projCurrent = combMag > 0 ? (curSum.x * combX + curSum.y * combY) / combMag : 0;
+  const projWind = combMag > 0 ? (windSum.x * combX + windSum.y * combY) / combMag : 0;
   const underwaterMode = leewayCoefVal === 0;
   const currentPct = underwaterMode ? 100 : combMag > 0 ? Math.max(0, Math.min(100, Math.round((projCurrent / combMag) * 100))) : 0;
   const windPct = underwaterMode ? 0 : combMag > 0 ? Math.max(0, Math.min(100, Math.round((projWind / combMag) * 100))) : 0;
@@ -384,23 +396,27 @@ export async function runPrediction(input, callbacks = {}) {
     explain: `현재 ${currentPct >= windPct ? '조류' : '바람(풍압)'}의 영향이 최종 이동방향에 가장 크게 기여하고 있습니다 (조류 ${currentPct}% / 바람 ${windPct}%).`,
   });
 
-  ui.renderSearchRecommendationCard({ startLat: lat, startLon: lon, combinedBearing: combBrng, finalErrorRadius, finalPoint });
-
-  // ===== 몬테카를로 시뮬레이션 (백그라운드) =====
-  const monteCarloParams = { lat, lon, ahead, curXY, hourlyCurrentXY, usedWind, hourlyWindXY, wXY, localCoastline };
+  // ===== 몬테카를로 시뮬레이션 → 50%·90% 확률 수색구역 =====
+  const monteCarloParams = {
+    lat, lon, ahead, hourlyCurrentXY, usedWind, hourlyWindXY, localCoastline,
+    crosswindDeg: underwaterMode ? 0 : crosswindAngleDeg, posErrM: input.posErrM,
+  };
+  let regions = null;
   try {
     const finalPoints = await runMonteCarloSimulationWorker(monteCarloParams, onProgress).catch(() =>
       runMonteCarloSimulationFallback(monteCarloParams, onProgress)
     );
-    const hull = computeConvexHull(finalPoints);
-    if (hull) mapModule.renderMonteCarloHull(hull);
+    regions = computeSearchRegions(finalPoints);
+    if (regions) mapModule.renderSearchRegions(regions);
   } catch (err) {
     console.warn('몬테카를로 시뮬레이션 실패(메인 예측 결과에는 영향 없음):', err);
   }
 
+  ui.renderSearchRecommendationCard({ startLat: lat, startLon: lon, combinedBearing: combBrng, finalErrorRadius, finalPoint, regions, actualHours: regions ? ahead : actualHours, startDateTime });
+
   return {
     combBrng, combSpeed, actualHours, finalErrorRadius, finalPoint, strandedAt,
     currentSource, windSource, windObsLabel, waveSource, setnetWarnings, coastlineStatus: getCoastlineStatus(),
-    curSpeed: speed, curDir: dir, netDistM, confidence,
+    curSpeed: speed, curDir: dir, netDistM, alongM, confidence, regions, path: cLine, startDateTime,
   };
 }

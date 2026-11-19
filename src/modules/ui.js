@@ -101,19 +101,43 @@ export function renderAIAnalysisCard({ confidence, currentPct, windPct, windSpee
   animateCardIn(document.getElementById('aiCard'));
 }
 
-export function renderSearchRecommendationCard({ startLat, startLon, combinedBearing, finalErrorRadius, finalPoint }) {
+// 수색 권고 카드. 몬테카를로 구역이 있으면 그걸 기준으로(1차 50%, 2차 90%),
+// 없으면 예전처럼 오차반경 원 기준으로 안내한다.
+const fmtKm2 = (v) => (v === null || v === undefined ? '-' : v < 1 ? `${(v * 100).toFixed(0)}ha (${v.toFixed(2)}km²)` : `${v.toFixed(1)}km²`);
+// 같은 면적의 정사각형 한 변 - "대략 몇 km 사방"인지 감 잡기용
+const sideKm = (v) => (v ? Math.sqrt(v).toFixed(1) : '-');
+
+export function renderSearchRecommendationCard({ startLat, startLon, combinedBearing, finalErrorRadius, finalPoint, regions, actualHours, startDateTime }) {
   const compassName = bearingToCompass(combinedBearing);
-  const r1 = Math.round(finalErrorRadius * 0.5);
-  const r2 = finalErrorRadius;
+  const endTime = startDateTime ? new Date(startDateTime.getTime() + actualHours * 3600000) : null;
+  const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+  const timeTxt = endTime ? ` (${hhmm(endTime)} 기준)` : '';
 
   document.getElementById('searchStart').textContent = formatDMS(startLat, startLon);
   document.getElementById('searchDir').textContent = `${combinedBearing.toFixed(0)}° (${compassName})`;
-  document.getElementById('searchR1').textContent = `${r1}m`;
-  document.getElementById('searchR2').textContent = `${r2}m`;
-  document.getElementById('searchEnd').textContent = formatDMS(finalPoint.lat, finalPoint.lon);
-  document.getElementById('searchOrder').innerHTML =
-    `<b>추천 수색 순서</b><br>① 예측 종료점 중심 ${r1}m 우선 수색 → ② ${compassName} 방향(이동방향 전방) 확인 → ③ 좌우 확산 구역 포함 반경 ${r2}m 정밀 수색`;
 
+  if (regions) {
+    document.getElementById('searchDatumLabel').textContent = `수색 기준점${timeTxt}`;
+    document.getElementById('searchEnd').textContent = formatDMS(regions.center.lat, regions.center.lon);
+    document.getElementById('searchR1Label').textContent = '1차 구역 (50%, 노랑)';
+    document.getElementById('searchR1').textContent = `${fmtKm2(regions.area50Km2)} · 약 ${sideKm(regions.area50Km2)}km 사방`;
+    document.getElementById('searchR2Label').textContent = '2차 구역 (90%, 빨강)';
+    document.getElementById('searchR2').textContent = `${fmtKm2(regions.area90Km2)} · 약 ${sideKm(regions.area90Km2)}km 사방`;
+    const strandTxt = regions.strandedPct >= 5 ? `<br>⚠ 시뮬레이션 입자의 <b>${regions.strandedPct}%</b>가 해안에 닿음 → 인근 해안·갯바위 수색 병행` : '';
+    document.getElementById('searchOrder').innerHTML =
+      `<b>추천 수색 순서</b><br>① 수색 기준점에서 시작해 <b>노란 구역(50%)</b> 우선 수색 → ② 못 찾으면 <b>빨간 구역(90%)</b>으로 확대 → ③ 시간이 지날수록 구역이 ${compassName} 쪽으로 이동하므로 예측을 다시 돌려 갱신${strandTxt}` +
+      `<div style="font-size:11.5px;margin-top:6px;opacity:.85">50%·90%는 조류·바람 예보 오차를 가정해 1,000번 돌린 결과 중 그 비율이 들어간 범위입니다(실측 보정 전 추정치).</div>`;
+  } else {
+    const r1 = Math.round(finalErrorRadius * 0.5);
+    document.getElementById('searchDatumLabel').textContent = `예상 도달 위치${timeTxt}`;
+    document.getElementById('searchEnd').textContent = formatDMS(finalPoint.lat, finalPoint.lon);
+    document.getElementById('searchR1Label').textContent = '1차 탐색 반경';
+    document.getElementById('searchR1').textContent = `${r1}m`;
+    document.getElementById('searchR2Label').textContent = '2차 탐색 반경';
+    document.getElementById('searchR2').textContent = `${finalErrorRadius}m`;
+    document.getElementById('searchOrder').innerHTML =
+      `<b>추천 수색 순서</b><br>① 예측 종료점 중심 ${r1}m 우선 수색 → ② ${compassName} 방향(이동방향 전방) 확인 → ③ 반경 ${finalErrorRadius}m 정밀 수색`;
+  }
   animateCardIn(document.getElementById('searchCard'));
 }
 
@@ -123,7 +147,7 @@ export function renderSearchRecommendationCard({ startLat, startLon, combinedBea
 const MS_PER_KNOT_HOUR = 1852; // m/h
 const CMS_PER_KNOT = 51.4444; // cm/s
 
-export function renderResultCard({ curSpeed, curDir, netDistM, actualHours, combSpeed, finalErrorRadius, finalPoint }) {
+export function renderResultCard({ curSpeed, curDir, netDistM, alongM, actualHours, combSpeed, finalErrorRadius, finalPoint }) {
   const curSpeedKn = curSpeed / CMS_PER_KNOT;
   const combSpeedKn = combSpeed / MS_PER_KNOT_HOUR;
 
@@ -135,7 +159,9 @@ export function renderResultCard({ curSpeed, curDir, netDistM, actualHours, comb
   document.getElementById('statErrorRadius').textContent = `${Math.round(finalErrorRadius)}m`;
   document.getElementById('driftSummary').innerHTML =
     `예측 종료 지점: <b>${formatDMS(finalPoint.lat, finalPoint.lon)}</b><br>` +
-    `${actualHours}시간 동안 약 ${Math.round(netDistM)}m 이동 (평균 ${combSpeedKn.toFixed(2)}kn), 오차반경 ±${Math.round(finalErrorRadius)}m`;
+    `${actualHours}시간 동안 시작점에서 약 ${Math.round(netDistM)}m 이동` +
+    (alongM && alongM > netDistM * 1.3 ? ` (실제로 떠다닌 거리는 약 ${Math.round(alongM)}m - 조류가 바뀌며 왕복)` : '') +
+    `, 오차반경 ±${Math.round(finalErrorRadius)}m`;
 
   animateCardIn(document.getElementById('resultCard'));
 }

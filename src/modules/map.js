@@ -142,38 +142,41 @@ export function renderPredictionPath({ startLat, startLon, pathPoints, hourlyRad
   setTimeout(() => finalPin.setMap(map), fullPath.length * 140 + 100);
   currentMarkers.push(finalPin);
 
-  const innerCircle = new window.kakao.maps.Circle({
-    center: finalPos, radius: Math.round(finalErrorRadius * 0.5),
-    strokeWeight: 1.5, strokeColor: '#22D3EE', strokeOpacity: 0.7, strokeStyle: 'solid', fillColor: '#22D3EE', fillOpacity: 0,
-  });
-  innerCircle.setMap(map);
-  currentCircles.push(innerCircle);
-
+  // 오차반경 원(계산식 기준)은 얇은 점선으로만 - 실제 수색구역은 몬테카를로 50%·90% 구역으로 표시
   const outerCircle = new window.kakao.maps.Circle({
     center: finalPos, radius: finalErrorRadius,
-    strokeWeight: 2.6, strokeColor: '#FF5C5C', strokeOpacity: 0.9, strokeStyle: 'solid', fillColor: '#FF5C5C', fillOpacity: 0,
+    strokeWeight: 1.5, strokeColor: '#FF5C5C', strokeOpacity: 0.7, strokeStyle: 'shortdash', fillColor: '#FF5C5C', fillOpacity: 0,
   });
   outerCircle.setMap(map);
   currentCircles.push(outerCircle);
 
-  setTimeout(() => {
-    animateCircleFade(innerCircle, 0.14);
-    animateCircleFade(outerCircle, 0.16);
-  }, fullPath.length * 140);
-
-  const latOffset = finalErrorRadius / 111000;
-  const lonOffset = finalErrorRadius / (111000 * Math.cos((finalPoint.lat * Math.PI) / 180));
-  currentRectangle = new window.kakao.maps.Rectangle({
-    bounds: new window.kakao.maps.LatLngBounds(
-      new window.kakao.maps.LatLng(finalPoint.lat - latOffset, finalPoint.lon - lonOffset),
-      new window.kakao.maps.LatLng(finalPoint.lat + latOffset, finalPoint.lon + lonOffset)
-    ),
-    strokeWeight: 2, strokeColor: '#22D3EE', strokeOpacity: 0.6, strokeStyle: 'solid', fillColor: '#22D3EE', fillOpacity: 0.03,
-  });
-  currentRectangle.setMap(map);
-
   centerMap(startLat, startLon, 9);
   return { animationDurationMs: fullPath.length * 140 };
+}
+
+// 확률 수색구역: 90%(빨강, 2차) 위에 50%(노랑, 1차)를 겹쳐 그리고, 기준점(datum)에 표시
+let regionOverlays = [];
+export function renderSearchRegions(regions) {
+  if (!map || !regions) return;
+  regionOverlays.forEach((o) => o.setMap(null));
+  regionOverlays = [];
+  const poly = (f, color, fill, weight) => {
+    if (!f || !f.geometry) return;
+    const path = f.geometry.coordinates[0].map((c) => new window.kakao.maps.LatLng(c[1], c[0]));
+    const pg = new window.kakao.maps.Polygon({ path, strokeWeight: weight, strokeColor: color, strokeOpacity: 0.95, strokeStyle: 'solid', fillColor: color, fillOpacity: fill });
+    pg.setMap(map);
+    regionOverlays.push(pg);
+  };
+  poly(regions.r90, '#FF5C5C', 0.10, 2.5);
+  poly(regions.r50, '#FBBF24', 0.22, 2.5);
+  const c = new window.kakao.maps.LatLng(regions.center.lat, regions.center.lon);
+  const mark = new window.kakao.maps.CustomOverlay({ position: c, content: '<div class="datum-mark">✚ 수색 기준점</div>', yAnchor: 0.5, zIndex: 25 });
+  mark.setMap(map);
+  regionOverlays.push(mark);
+  // 90% 구역이 화면에 다 들어오게
+  const bounds = new window.kakao.maps.LatLngBounds();
+  (regions.r90 || regions.r50)?.geometry.coordinates[0].forEach((p) => bounds.extend(new window.kakao.maps.LatLng(p[1], p[0])));
+  if (!bounds.isEmpty()) map.setBounds(bounds, 30, 30, 30, 30);
 }
 
 export function renderMonteCarloHull(hullFeature) {
@@ -215,6 +218,7 @@ export function clearPrediction() {
   currentMarkers.forEach((m) => m.setMap(null)); currentMarkers = [];
   if (currentRectangle) { currentRectangle.setMap(null); currentRectangle = null; }
   if (monteCarloHullOverlay) { monteCarloHullOverlay.setMap(null); monteCarloHullOverlay = null; }
+  regionOverlays.forEach((o) => o.setMap(null)); regionOverlays = [];
   if (hfComparisonPolyline) { hfComparisonPolyline.setMap(null); hfComparisonPolyline = null; }
   if (romsComparisonPolyline) { romsComparisonPolyline.setMap(null); romsComparisonPolyline = null; }
 }

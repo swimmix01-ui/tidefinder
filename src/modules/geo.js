@@ -9,8 +9,11 @@ export function decimalToDMS(val) {
   const d = Math.floor(val);
   const mF = (val - d) * 60;
   const m = Math.floor(mF);
-  const s = Math.round((mF - m) * 60);
-  return { d, m, s };
+  let s = Math.round((mF - m) * 60);
+  let mm = m, dd = d;
+  if (s === 60) { s = 0; mm += 1; } // 59.6초 → 60초로 반올림되는 경우 자리올림
+  if (mm === 60) { mm = 0; dd += 1; }
+  return { d: dd, m: mm, s };
 }
 
 export function dmsToDecimal(d, m, s) {
@@ -128,4 +131,41 @@ export function findCoastlineIntersection(prevLat, prevLon, curLat, curLon, data
     }
   }
   return nearest;
+}
+
+// ==========================================================================
+// 좌표 문자열 파싱 - 플로터·무전·문자로 받은 좌표를 그대로 붙여넣어도 되게.
+// 지원: "36 01.383 129 25.170" (도·분소수, 플로터 표기)
+//       "36°01'23\"N 129°25'10\"E" / "36 1 23 129 25 10" (도분초)
+//       "36.0231, 129.4194" (도 소수)
+//       "N36-01.383 E129-25.170", "36도 1분 23초 129도 25분 10초" 등 구분기호 섞여도 됨
+// 반환: { lat, lon, format } 또는 null. 위경도 순서가 바뀌어 들어오면(129 먼저) 바로잡는다.
+// ==========================================================================
+export function parseCoordText(text) {
+  if (!text) return null;
+  const nums = String(text).match(/\d+(?:\.\d+)?/g);
+  if (!nums) return null;
+  const n = nums.map(Number);
+  let lat, lon, format;
+  if (n.length === 2) { [lat, lon] = n; format = '도(소수)'; }
+  else if (n.length === 4) { lat = n[0] + n[1] / 60; lon = n[2] + n[3] / 60; format = '도·분'; if (n[1] >= 60 || n[3] >= 60) return null; }
+  else if (n.length === 6) { lat = n[0] + n[1] / 60 + n[2] / 3600; lon = n[3] + n[4] / 60 + n[5] / 3600; format = '도분초'; if (n[1] >= 60 || n[2] >= 60 || n[4] >= 60 || n[5] >= 60) return null; }
+  else return null;
+  if (lat > 90 && lon <= 90) [lat, lon] = [lon, lat]; // 경도를 먼저 쓴 경우
+  if (!isValidKoreaSea(lat, lon)) return null;
+  return { lat, lon, format };
+}
+
+// 한반도 주변 해역 범위 대충 확인 (입력 실수 거르기용)
+export function isValidKoreaSea(lat, lon) {
+  return Number.isFinite(lat) && Number.isFinite(lon) && lat >= 32 && lat <= 39.5 && lon >= 124 && lon <= 132.5;
+}
+
+// 예측 경로(시간별 점)에서 사고 후 h시간(소수 가능) 시점의 위치를 직선 보간
+export function positionAtHour(path, h) {
+  if (!path || !path.length) return null;
+  if (h <= 0) return path[0];
+  if (h >= path.length - 1) return path[path.length - 1];
+  const i = Math.floor(h), f = h - i;
+  return { lat: path[i].lat + (path[i + 1].lat - path[i].lat) * f, lon: path[i].lon + (path[i + 1].lon - path[i].lon) * f };
 }
