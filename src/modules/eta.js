@@ -288,3 +288,19 @@ export async function updateEta() {
     map.setBounds(bounds, 40, 40, 40, 40);
   }
 }
+
+// 초기화 버튼용 - 출발지(GPS 추적 포함)·항로선·도착 예상위치를 모두 지운다. 선속·회피 설정은 유지.
+export function resetEta() {
+  updSeq++; // 진행 중인 항로 계산 결과가 나중에 도착해도 무시
+  stopGps();
+  origin = null;
+  pickMode = false;
+  $('etaPickBtn').classList.remove('active');
+  routeCache = null;
+  lastHazardKey = '';
+  clearRoute();
+  if (driftMark) { driftMark.setMap(null); driftMark = null; }
+  $('etaResult').style.display = 'none';
+  $('etaDrift').style.display = 'none';
+  setNote('사고 좌표를 정한 뒤 출발지를 고르면 거리와 도착 시각이 나옵니다.');
+}

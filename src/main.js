@@ -169,7 +169,8 @@ function resetAll() {
   note.textContent = '도·분(소수) / 도분초 / 도(소수) 모두 됩니다'; note.style.color = '';
   setNowToInputs();
   document.getElementById('hoursAhead').value = 6;
-  setCoordsToInputs(DEFAULT_COORD.lat, DEFAULT_COORD.lon); // 출동 카드도 여기서 다시 계산됨
+  eta.resetEta(); // 출발지·항로선 지우기 (GPS 추적도 끔)
+  setCoordsToInputs(DEFAULT_COORD.lat, DEFAULT_COORD.lon);
   mapModule.resetMapView();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
@@ -237,8 +238,15 @@ async function init() {
   });
 
   document.getElementById('resetMapBtn').addEventListener('click', () => {
-    mapModule.resetMapView();
-    ui.setStatus('warn', '↺ 지도가 초기화되었습니다.');
+    // 지도 위 그림(표류경로·수색구역·출동항로)과 결과만 지우고, 입력한 사고 좌표는 그대로 둔다
+    // (예전엔 핀만 기본 위치로 튀고 입력칸 좌표는 남아서 서로 안 맞았음)
+    mapModule.clearPrediction();
+    eta.resetEta();
+    lastPredictionResult = null;
+    ['aiCard', 'resultCard', 'searchCard'].forEach((id) => { document.getElementById(id).style.display = 'none'; });
+    const { lat, lon } = getCoordsFromInputs();
+    if (isValidKoreaSea(lat, lon)) { mapModule.setMarkerPosition(lat, lon); mapModule.centerMap(lat, lon, 8); }
+    ui.setStatus('warn', '↺ 지도 표시를 지웠습니다 (사고 좌표는 유지)');
   });
 
   document.getElementById('useLocationBtn').addEventListener('click', () => {
