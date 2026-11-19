@@ -18,6 +18,7 @@ let getTarget = () => null;
 let getDriftAt = () => null;
 let driftMark = null;
 let origin = null;          // { lat, lon, src: 'gps' | 'map', acc }
+let fallbackOrigin = null;  // 앱 열 때 받은 내 위치(1회) - 출발지를 따로 안 고르면 이걸로 계산
 let watchId = null;
 let pickMode = false;
 let routeLine = null;
@@ -185,6 +186,7 @@ function fmtDur(min) {
 const hhmm = (d) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 
 export async function updateEta() {
+  const origin = activeOrigin(); // 지정한 출발지 > 앱 열 때 내 위치
   const seq = ++updSeq;
   const t = getTarget();
   const speed = parseFloat($('etaSpeed').value);
@@ -215,7 +217,9 @@ export async function updateEta() {
   $('etaArrive').textContent = Number.isFinite(minutes) ? hhmm(arrive) : '-';
   const fromTxt = origin.src === 'gps'
     ? `출발: 내 위치(GPS ±${Math.round(origin.acc || 0)}m, 이동하면 자동 갱신)`
-    : '출발: 지도에서 찍은 위치';
+    : origin.src === 'gps-once'
+      ? '출발: 앱 열 때 내 위치(GPS) · 이동 중이면 [내 위치(GPS)] 눌러 실시간 갱신'
+      : '출발: 지도에서 찍은 위치';
   const routeTxt = routed
     ? ` · 직선 ${fmtNm(straight)} 대비 +${fmtNm(Math.max(0, d - straight))}${route.startOnLandM ? ` · 출발지가 육상이라 가장 가까운 바다(${(route.startOnLandM / 1000).toFixed(1)}km)부터 계산` : ''}`
     : ` · 해상 항로 계산 실패(${route.reason}) → 직선으로 표시`;
@@ -302,5 +306,13 @@ export function resetEta() {
   if (driftMark) { driftMark.setMap(null); driftMark = null; }
   $('etaResult').style.display = 'none';
   $('etaDrift').style.display = 'none';
-  setNote('사고 좌표를 정한 뒤 출발지를 고르면 거리와 도착 시각이 나옵니다.');
+  setNote('사고 좌표를 정하면 내 위치(GPS) 기준으로 거리·도착 시각이 나옵니다. 다른 출발지는 위 버튼으로.');
+}
+
+function activeOrigin() { return origin || fallbackOrigin; }
+
+// 앱 열 때 한 번 받은 내 위치 - 출발지를 따로 고르지 않았을 때 기본 출발지로 쓴다
+export function setFallbackOrigin(lat, lon, acc) {
+  fallbackOrigin = { lat, lon, src: 'gps-once', acc };
+  updateEta();
 }

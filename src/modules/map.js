@@ -230,3 +230,15 @@ export function resetMapView() {
   clickMarker.setPosition(defaultPos);
   centerMap(36.05, 129.45, 8);
 }
+
+// 내 위치(앱 열 때 GPS 1회) 표시 - 파란 점
+let myLocOverlay = null;
+export function setMyLocation(lat, lon) {
+  if (!map) return;
+  if (myLocOverlay) myLocOverlay.setMap(null);
+  myLocOverlay = new window.kakao.maps.CustomOverlay({
+    position: new window.kakao.maps.LatLng(lat, lon),
+    content: '<div class="my-loc" title="내 위치"></div>', zIndex: 8,
+  });
+  myLocOverlay.setMap(map);
+}

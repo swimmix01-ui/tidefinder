@@ -15,6 +15,10 @@ import { loadLandPolygons } from './modules/route.js';
 import * as depth from './modules/depth.js';
 
 let lastPredictionResult = null;
+// 사용자가 사고 좌표를 직접 정했는지 (지도 클릭·붙여넣기·칸 입력·현재위치·계산 실행).
+// 정하기 전엔 기본 좌표로 출동 항로를 긋지 않는다 - 엉뚱한 곳으로 가는 선이 먼저 뜨는 걸 막음
+let incidentSet = false;
+let myPos = null; // 앱 열 때 받은 내 위치
 
 function getCoordsFromInputs() {
   const lat = dmsToDecimal(
@@ -54,6 +58,7 @@ function validateInputs({ lat, lon, ahead, hourN, minN, startDateTime }) {
 }
 
 async function handleRunPrediction() {
+  incidentSet = true;
   const { lat, lon } = getCoordsFromInputs();
   const ahead = parseInt(document.getElementById('hoursAhead').value, 10);
   const hourN = parseInt(document.getElementById('hourInput').value, 10);
@@ -162,6 +167,7 @@ function setNowToInputs() {
 }
 function resetAll() {
   lastPredictionResult = null;
+  incidentSet = false;
   ['aiCard', 'resultCard', 'searchCard'].forEach((id) => { document.getElementById(id).style.display = 'none'; });
   const paste = document.getElementById('coordPaste');
   paste.value = '';
@@ -172,6 +178,7 @@ function resetAll() {
   eta.resetEta(); // 출발지·항로선 지우기 (GPS 추적도 끔)
   setCoordsToInputs(DEFAULT_COORD.lat, DEFAULT_COORD.lon);
   mapModule.resetMapView();
+  if (myPos) mapModule.centerMap(myPos.lat, myPos.lon, 7);
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -196,7 +203,7 @@ async function init() {
   };
   ['latD', 'latM', 'latS', 'lonD', 'lonM', 'lonS'].forEach((id) => {
     const el = document.getElementById(id);
-    el.addEventListener('input', () => { eta.updateEta(); syncMarkerFromInputs(false); });
+    el.addEventListener('input', () => { incidentSet = true; eta.updateEta(); syncMarkerFromInputs(false); });
     el.addEventListener('change', () => syncMarkerFromInputs(true));
   });
   ui.refreshInputCheckmarks();
@@ -209,6 +216,7 @@ async function init() {
     if (!v) { pasteNote.textContent = '도·분(소수) / 도분초 / 도(소수) 모두 됩니다'; pasteNote.style.color = ''; return; }
     const c = parseCoordText(v);
     if (!c) { pasteNote.textContent = '⚠ 좌표로 읽을 수 없습니다 (숫자 2·4·6개, 한반도 해역)'; pasteNote.style.color = 'var(--amber)'; return; }
+    incidentSet = true;
     setCoordsToInputs(c.lat, c.lon);
     mapModule.setMarkerPosition(c.lat, c.lon);
     mapModule.centerMap(c.lat, c.lon);
@@ -254,6 +262,7 @@ async function init() {
     ui.setStatus('busy', '⏳ 현재 위치 확인 중...');
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        incidentSet = true;
         setCoordsToInputs(pos.coords.latitude, pos.coords.longitude);
         mapModule.setMarkerPosition(pos.coords.latitude, pos.coords.longitude);
         mapModule.centerMap(pos.coords.latitude, pos.coords.longitude);
@@ -271,6 +280,7 @@ async function init() {
       if (seaLayers.shouldIgnoreMapClick()) return;
       seaLayers.hideInfo();
       if (eta.consumeMapClick(lat, lon)) { ui.setStatus('ok', '🚤 출발지 지정 완료'); return; }
+      incidentSet = true;
       setCoordsToInputs(lat, lon);
       mapModule.setMarkerPosition(lat, lon);
       ui.setStatus('ok', '🎯 좌표 자동 입력 완료');
@@ -279,7 +289,7 @@ async function init() {
   });
   eta.initEta({
     kakaoMap: mapInstance,
-    getTargetCoords: getCoordsFromInputs,
+    getTargetCoords: () => (incidentSet ? getCoordsFromInputs() : null),
     // 구조정 도착 시각에 표류자가 있을 것으로 보이는 위치 (예측을 돌린 뒤에만)
     getDriftAt: (arriveDate) => {
       const r = lastPredictionResult;
@@ -301,7 +311,25 @@ async function init() {
     ui.setStatus('warn', '⚠ 지도를 불러오지 못했습니다(통신 불량). 좌표 직접 입력으로 예측은 가능합니다.');
   }
 
+  locateMeOnStart();
   registerServiceWorker(dataLoads);
+}
+
+// 앱 열 때 내 위치를 한 번 받아 지도를 그쪽으로 옮기고, 출동 거리의 기본 출발지로 쓴다.
+// 사고 좌표는 GPS로 채우지 않는다 - 출동 전엔 보통 파출소·부두(육상)에 있고, 사고 위치는 무전·신고로 따로 들어오기 때문.
+// (사고 현장에 이미 있으면 "📍 현재 위치 사용" 버튼)
+function locateMeOnStart() {
+  if (!navigator.geolocation) return;
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      myPos = { lat: pos.coords.latitude, lon: pos.coords.longitude };
+      mapModule.setMyLocation(myPos.lat, myPos.lon);
+      if (!incidentSet) mapModule.centerMap(myPos.lat, myPos.lon, 7);
+      eta.setFallbackOrigin(myPos.lat, myPos.lon, pos.coords.accuracy);
+    },
+    () => { /* 위치 거부·실패 시 기본 지도 위치 그대로 */ },
+    { enableHighAccuracy: false, maximumAge: 120000, timeout: 10000 }
+  );
 }
 
 function setupLayerChips() {

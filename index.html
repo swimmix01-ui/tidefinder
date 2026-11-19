@@ -197,6 +197,7 @@
   .depth-num.d1 { color: #E85D04; }
   .depth-num.d2 { color: #7A5C00; }
   .depth-num.d3 { color: #1E3A8A; font-weight: 600; }
+  .my-loc { width: 16px; height: 16px; border-radius: 50%; background: #3B82F6; border: 3px solid #fff; box-shadow: 0 0 0 6px rgba(59,130,246,.25); transform: translate(-50%, -50%); position: relative; left: 50%; }
   .datum-mark { background: #FBBF24; color: #06222E; font-size: 11px; font-weight: 900; padding: 3px 7px; border-radius: 6px; border: 1.5px solid #06222E; white-space: nowrap; box-shadow: 0 2px 8px rgba(0,0,0,.4); }
   .boat-mark { font-size: 20px; transform: translate(-50%, -50%); position: relative; left: 50%; }
   .hazard-ping { width: 20px; height: 20px; border-radius: 50%; background: #FF4D4D; color: #fff; font-weight: 900; font-size: 13px; display: flex; align-items: center; justify-content: center; border: 2px solid #fff; box-shadow: 0 0 10px rgba(255,77,77,.8); }
@@ -451,7 +452,7 @@
     <div class="eta-speed"><span>구조정 선속</span><input id="etaSpeed" type="number" min="1" max="60" step="1" inputmode="decimal"><span>kn</span>
       <label class="eta-avoid"><input type="checkbox" id="etaAvoid" checked> 어장·간출암 피해서</label></div>
     <div class="eta-speed"><span>최소 수심</span><input id="etaMinDepth" type="number" min="0" max="10" step="0.5" inputmode="decimal"><span>m 미만 피함 (0 = 수심 무시)</span></div>
-    <div id="etaNote" class="eta-note">사고 좌표를 정한 뒤 출발지를 고르면 거리와 도착 시각이 나옵니다.</div>
+    <div id="etaNote" class="eta-note">사고 좌표를 정하면 내 위치(GPS) 기준으로 거리·도착 시각이 나옵니다. 다른 출발지는 위 버튼으로.</div>
     <div id="etaResult" style="display:none">
       <div class="stat-grid-4 eta-grid">
         <div class="stat-box"><div class="label" id="etaDistLabel">해상 항로 거리</div><div class="value accent" id="etaDist">-</div></div>
