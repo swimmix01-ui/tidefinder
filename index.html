@@ -214,10 +214,21 @@
   .eta-row { display: flex; gap: 8px; }
   .eta-btn { flex: 1; padding: 11px 8px; border-radius: 10px; border: 1px solid var(--border); background: rgba(255,255,255,0.07); color: var(--text-hi); font-size: 14px; font-weight: 700; cursor: pointer; }
   .eta-btn.active { border-color: var(--cyan); background: rgba(34,211,238,0.18); color: var(--cyan); }
-  .eta-speed { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; color: var(--text-lo); }
-  .eta-speed input { width: 80px !important; text-align: center; }
-  .eta-avoid { margin-left: auto; display: flex; align-items: center; gap: 5px; font-size: 13px; color: var(--text-hi); }
-  .eta-avoid input { width: 18px; height: 18px; accent-color: var(--cyan); }
+  .eta-group-label { font-size: 12px; font-weight: 800; color: var(--text-lo); letter-spacing: .02em; margin: 14px 0 7px; }
+  .eta-list { border: 1px solid var(--border); border-radius: 12px; background: rgba(255,255,255,0.04); overflow: hidden; }
+  .eta-item { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; min-height: 52px; }
+  .eta-item + .eta-item { border-top: 1px solid var(--border); }
+  .eta-k { font-size: 14.5px; font-weight: 700; color: var(--text-hi); line-height: 1.3; min-width: 0; }
+  .eta-k small { display: block; font-size: 11.5px; font-weight: 500; color: var(--text-lo); margin-top: 2px; }
+  .eta-v { display: flex; align-items: center; gap: 6px; flex: none; }
+  .eta-v input { width: 64px !important; text-align: center; padding: 8px 4px !important; font-size: 16px !important; font-weight: 700; }
+  .eta-unit { font-size: 13px; color: var(--text-lo); width: 18px; }
+  .eta-toggle { cursor: pointer; }
+  .eta-switch { -webkit-appearance: none; appearance: none; flex: none; width: 48px; height: 28px; border-radius: 14px; background: rgba(255,255,255,0.18); position: relative; cursor: pointer; transition: background .15s; margin: 0; }
+  .eta-switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 22px; height: 22px; border-radius: 50%; background: #fff; transition: transform .15s; box-shadow: 0 1px 3px rgba(0,0,0,.4); }
+  .eta-switch:checked { background: var(--cyan); }
+  .eta-switch:checked::after { transform: translateX(20px); }
+  .eta-note:empty { display: none; }
   .eta-note { font-size: 12.5px; color: var(--text-lo); margin-top: 8px; min-height: 16px; }
   .eta-grid { margin-top: 10px; }
   .eta-from { font-size: 12px; color: var(--text-lo); margin-top: 8px; }
@@ -455,16 +466,41 @@
   </button>
 
   <div id="etaCard" class="card">
-    <div class="card-title">🚤 출동 거리 · 도착 예정</div>
+    <div class="card-title">🚤 출동 거리 · 도착 예정 (ETA)</div>
+
+    <div class="eta-group-label" style="margin-top:2px">출발 장소</div>
     <div class="eta-row">
       <button type="button" class="eta-btn" id="etaGpsBtn">📍 내 위치(GPS)</button>
-      <button type="button" class="eta-btn" id="etaPickBtn">🗺 지도에서 출발지</button>
+      <button type="button" class="eta-btn" id="etaPickBtn">🗺 지도에서 지정</button>
     </div>
-    <div class="eta-speed"><span>구조정 선속</span><input id="etaSpeed" type="number" min="1" max="60" step="1" inputmode="decimal"><span>kn</span>
-      <label class="eta-avoid"><input type="checkbox" id="etaAvoid" checked> 어장·간출암 피해서</label></div>
-    <div class="eta-speed"><span>최소 수심</span><input id="etaMinDepth" type="number" min="0" max="10" step="0.5" inputmode="decimal"><span>m 미만 피함 (0 = 수심 무시)</span></div>
-    <div class="eta-speed"><span>계류 필요 수심</span><input id="harborNeed" type="number" min="0.5" max="6" step="0.1" inputmode="decimal"><span>m (지도 '어항' 색 판정 · 흘수 0.56m+여유)</span></div>
-    <label class="eta-avoid" style="margin:2px 0 8px"><input type="checkbox" id="etaShowRoute" checked> 지도에 항로선 표시 <span style="opacity:.7;font-weight:500">(끄면 거리·도착시각만 계산)</span></label>
+
+    <div class="eta-group-label">운항 조건</div>
+    <div class="eta-list">
+      <div class="eta-item">
+        <div class="eta-k">구조정 선속</div>
+        <div class="eta-v"><input id="etaSpeed" type="number" min="1" max="60" step="1" inputmode="decimal"><span class="eta-unit">kn</span></div>
+      </div>
+      <div class="eta-item">
+        <div class="eta-k">운항 최소 수심<small>더 얕은 곳은 돌아감 · 0 = 무시</small></div>
+        <div class="eta-v"><input id="etaMinDepth" type="number" min="0" max="10" step="0.5" inputmode="decimal"><span class="eta-unit">m</span></div>
+      </div>
+      <label class="eta-item eta-toggle">
+        <div class="eta-k">어장·간출암 우회<small>정치망·양식장·간출암 피해 계산</small></div>
+        <input type="checkbox" id="etaAvoid" class="eta-switch" checked>
+      </label>
+      <label class="eta-item eta-toggle">
+        <div class="eta-k">지도에 항로선 표시<small>끄면 거리·도착 시각만 계산</small></div>
+        <input type="checkbox" id="etaShowRoute" class="eta-switch" checked>
+      </label>
+    </div>
+
+    <div class="eta-group-label">어항 계류 판단</div>
+    <div class="eta-list">
+      <div class="eta-item">
+        <div class="eta-k">계류 필요 수심<small>'어항' 색 기준 · 흘수 0.56m</small></div>
+        <div class="eta-v"><input id="harborNeed" type="number" min="0.5" max="6" step="0.1" inputmode="decimal"><span class="eta-unit">m</span></div>
+      </div>
+    </div>
     <div id="etaNote" class="eta-note">사고 좌표를 정하면 내 위치(GPS) 기준으로 거리·도착 시각이 나옵니다. 다른 출발지는 위 버튼으로.</div>
     <div id="etaResult" style="display:none">
       <div class="stat-grid-4 eta-grid">
