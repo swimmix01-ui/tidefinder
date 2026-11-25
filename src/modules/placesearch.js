@@ -30,6 +30,20 @@ export function matchHarbors(list, q, max = 5) {
   return starts.concat(contains).slice(0, max);
 }
 
+// "경상북도 포항시 북구 송라면 지경리" → "포항 송라" (같은 이름 구분용)
+export function regionOf(addr) {
+  const t = String(addr || '').split(/\s+/).filter(Boolean);
+  const si = t.find((w) => /(시|군)$/.test(w) && !/특별|광역/.test(w));
+  const eup = t.find((w) => /(읍|면)$/.test(w));
+  if (!si) { // 광역시: "울산광역시 북구 강동동" → "울산 북구"
+    const metro = t.find((w) => /광역시|특별시$/.test(w));
+    const gu = t.find((w) => /구$/.test(w));
+    if (metro) return [metro.replace(/(광역시|특별시)$/, ''), gu].filter(Boolean).join(' ');
+  }
+  const short = (w, re) => (w && w.replace(re, '').length >= 2 ? w.replace(re, '') : w); // 서면·북면은 그대로
+  return [short(si, /(시|군)$/), short(eup, /(읍|면)$/)].filter(Boolean).join(' ');
+}
+
 function kakaoSearch(q, center) {
   const svc = kakaoPlaces();
   if (!svc) return Promise.resolve([]);
@@ -38,7 +52,7 @@ function kakaoSearch(q, center) {
     if (center) opt.location = center;
     svc.keywordSearch(q, (data, status) => {
       if (status !== window.kakao.maps.services.Status.OK) return resolve([]);
-      resolve(data.map((d) => ({ name: d.place_name, sub: d.road_address_name || d.address_name, lat: parseFloat(d.y), lon: parseFloat(d.x), src: 'kakao' })));
+      resolve(data.map((d) => ({ name: d.place_name, region: regionOf(d.address_name || d.road_address_name), sub: d.address_name || d.road_address_name, lat: parseFloat(d.y), lon: parseFloat(d.x), src: 'kakao' })));
     }, opt);
   });
 }
@@ -55,7 +69,7 @@ export function initPlaceSearch(o) {
     if (!items.length) { close(); return; }
     list.innerHTML = items.map((it, i) => `<button type="button" class="ps-item" data-i="${i}">
       <span class="ps-ico">${it.src === 'harbor' ? '⚓' : it.src === 'coord' ? '🎯' : '📍'}</span>
-      <span class="ps-txt"><b>${esc(it.name)}</b><small>${esc(it.sub || '')}</small></span></button>`).join('');
+      <span class="ps-txt"><b>${it.region ? `<em class="ps-region">${esc(it.region)}</em>` : ''}${esc(it.name)}</b><small>${esc(it.sub || '')}</small></span></button>`).join('');
     list.style.display = 'block';
   };
   const pick = (it) => {
@@ -80,7 +94,7 @@ export function initPlaceSearch(o) {
       return;
     }
     const local = matchHarbors(o.getHarbors(), q).map((h) => ({
-      name: h.name, sub: `경북 어항 · ${h.addr.replace('경상북도 ', '')}${h.dmin != null ? ` · 항내 ${h.dmin}~${h.dmax}m` : ''}`, lat: h.lat, lon: h.lon, src: 'harbor',
+      name: h.name, region: regionOf(h.addr), sub: `경북 어항 · ${h.addr.replace('경상북도 ', '')}${h.dmin != null ? ` · 항내 ${h.dmin}~${h.dmax}m` : ''}`, lat: h.lat, lon: h.lon, src: 'harbor',
     }));
     items = local; render();
     if (q.length < 2) return;
@@ -97,7 +111,15 @@ export function initPlaceSearch(o) {
 
   input.addEventListener('input', () => { note.textContent = ''; run(); });
   input.addEventListener('focus', () => { if (input.value.trim()) run(); });
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (items[0]) pick(items[0]); } });
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const n = norm(input.value);
+    const exact = items.filter((it) => norm(it.name) === n);
+    if (items.length === 1) pick(items[0]);
+    else if (exact.length === 1 && items.filter((it) => norm(it.name).includes(n)).length === 1) pick(exact[0]);
+    else if (items.length) { note.textContent = '같거나 비슷한 이름이 여러 곳입니다 - 지역을 확인하고 목록에서 골라 주세요'; note.style.color = 'var(--amber)'; }
+  });
   list.addEventListener('click', (e) => { const b = e.target.closest('.ps-item'); if (b) pick(items[+b.dataset.i]); });
   document.addEventListener('click', (e) => { if (!list.contains(e.target) && e.target !== input) close(); });
 
