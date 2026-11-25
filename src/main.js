@@ -4,6 +4,7 @@
 //   Vite가 이 파일부터 시작해서 import 트리를 전부 번들링한다.
 // ==========================================================================
 import { loadLandPolygons } from './modules/route.js';
+import * as harbors from './modules/harbors.js';
 import { dmsToDecimal, decimalToDMS, parseCoordText, isValidKoreaSea, positionAtHour } from './modules/geo.js';
 import { loadCoastlineGeoJSON, loadSetnetGeoJSON } from './modules/coastline.js';
 import * as mapModule from './modules/map.js';
@@ -216,6 +217,7 @@ async function init() {
 
   // 비차단 로드 - 실패해도 페이지 동작에 영향 없음
   const seaLoad = seaLayers.loadSeaLayers();
+  const harborLoad = harbors.loadHarbors();
   const dataLoads = Promise.allSettled([loadCoastlineGeoJSON(), loadSetnetGeoJSON(), seaLoad, loadLandPolygons()]);
   dataLoads.then(() => eta.updateEta()); // 해안선이 늦게 오면 그때 항로를 다시 계산
   loadMarineStatus();
@@ -248,6 +250,14 @@ async function init() {
   });
   ['dateInput', 'hourInput', 'minuteInput'].forEach((id) => document.getElementById(id).addEventListener('input', updateDtNote));
   setInterval(updateDtNote, 60000);
+
+  // 어항 계류 판정 기준 수심 (기억)
+  const needEl = document.getElementById('harborNeed');
+  needEl.value = harbors.getNeedDepth();
+  needEl.addEventListener('change', () => {
+    const v = parseFloat(needEl.value);
+    if (v > 0 && v < 10) harbors.setNeedDepth(v); else needEl.value = harbors.getNeedDepth();
+  });
 
   // 좌표 한 번에 입력 - 플로터(도·분), 도분초, 도(소수) 어느 쪽이든 붙여넣으면 아래 칸을 채운다
   const pasteEl = document.getElementById('coordPaste');
@@ -318,7 +328,7 @@ async function init() {
     // 어장 도형/간출암을 누른 클릭이면 사고좌표를 옮기지 않는다
     // (도형 클릭과 지도 클릭 중 어느 쪽이 먼저 오는지 SDK가 보장하지 않아 잠깐 기다렸다 판단)
     setTimeout(() => {
-      if (seaLayers.shouldIgnoreMapClick()) return;
+      if (seaLayers.shouldIgnoreMapClick() || harbors.shouldIgnoreMapClick()) return;
       seaLayers.hideInfo();
       if (eta.consumeMapClick(lat, lon)) { ui.setStatus('ok', '🚤 출발지 지정 완료'); return; }
       incidentSet = true;
@@ -346,6 +356,7 @@ async function init() {
     await seaLoad;
     seaLayers.initSeaLayers(mapInstance);
     depth.initDepthLayer(mapInstance);
+    try { if (await harborLoad) { harbors.initHarbors(mapInstance); document.getElementById('harborChip').style.display = ''; } } catch (err) { console.warn('어항 레이어 실패(다른 기능엔 영향 없음):', err); }
     setupLayerChips();
     ui.setStatus('ok', '✅ 지도 연동 완료');
   } else {
@@ -381,6 +392,7 @@ function setupLayerChips() {
       const on = !chip.classList.contains('on');
       chip.classList.toggle('on', on);
       if (chip.dataset.layer === 'depth') depth.setDepthVisible(on);
+      else if (chip.dataset.layer === 'harbor') harbors.setHarborsVisible(on);
       else if (chip.dataset.layer) seaLayers.setLayerVisible(chip.dataset.layer, on);
       if (chip.dataset.maptype) mapModule.setMapType(on);
     });

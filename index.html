@@ -191,6 +191,9 @@
   .sea-info { background: rgba(8,24,38,0.95); color: var(--text-hi); border: 1px solid rgba(255,255,255,0.18); border-radius: 10px; padding: 8px 10px; font-size: 12px; line-height: 1.5; max-width: 230px; white-space: normal; box-shadow: 0 6px 18px rgba(0,0,0,.4); }
   .sea-info-head { font-weight: 800; font-size: 13px; margin-bottom: 2px; }
   .sea-info-sub { color: var(--text-lo); font-size: 10.5px; margin-top: 3px; }
+  .harbor-mark { display: flex; align-items: center; gap: 3px; cursor: pointer; white-space: nowrap; }
+  .harbor-mark i { width: 13px; height: 13px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(0,0,0,.35); flex: none; }
+  .harbor-mark span { font-size: 11px; font-weight: 800; color: #0B2233; background: rgba(255,255,255,.85); padding: 0 4px; border-radius: 4px; }
   .rock-mark { width: 14px; height: 14px; border-radius: 50%; background: #FF8A3D; border: 2px solid #fff; box-shadow: 0 0 0 2px rgba(255,138,61,.45); cursor: pointer; }
   .depth-num { font: 700 11px/1 -apple-system, 'Apple SD Gothic Neo', sans-serif; transform: translate(-50%, -50%); position: relative; left: 50%; white-space: nowrap; text-shadow: 0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff; pointer-events: none; }
   .depth-num.d0 { color: #D90429; }
@@ -362,6 +365,7 @@
       <button type="button" class="chip" data-layer="village"><i style="background:#34D399"></i>마을어업</button>
       <button type="button" class="chip on" data-layer="rock" id="rockChip" style="display:none"><i class="rock-dot"></i>간출암</button>
       <button type="button" class="chip" data-layer="depth"><i style="background:#FF9F1C"></i>수심</button>
+      <button type="button" class="chip" data-layer="harbor" id="harborChip" style="display:none"><i style="background:#22C55E"></i>어항</button>
       <button type="button" class="chip" data-maptype="sat">🛰 위성</button>
     </div>
   </div>
@@ -459,6 +463,7 @@
     <div class="eta-speed"><span>구조정 선속</span><input id="etaSpeed" type="number" min="1" max="60" step="1" inputmode="decimal"><span>kn</span>
       <label class="eta-avoid"><input type="checkbox" id="etaAvoid" checked> 어장·간출암 피해서</label></div>
     <div class="eta-speed"><span>최소 수심</span><input id="etaMinDepth" type="number" min="0" max="10" step="0.5" inputmode="decimal"><span>m 미만 피함 (0 = 수심 무시)</span></div>
+    <div class="eta-speed"><span>계류 필요 수심</span><input id="harborNeed" type="number" min="0.5" max="6" step="0.1" inputmode="decimal"><span>m (지도 '어항' 색 판정 · 흘수 0.56m+여유)</span></div>
     <label class="eta-avoid" style="margin:2px 0 8px"><input type="checkbox" id="etaShowRoute" checked> 지도에 항로선 표시 <span style="opacity:.7;font-weight:500">(끄면 거리·도착시각만 계산)</span></label>
     <div id="etaNote" class="eta-note">사고 좌표를 정하면 내 위치(GPS) 기준으로 거리·도착 시각이 나옵니다. 다른 출발지는 위 버튼으로.</div>
     <div id="etaResult" style="display:none">

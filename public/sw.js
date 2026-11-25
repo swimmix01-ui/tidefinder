@@ -12,10 +12,10 @@
 // ※ 해안선/정치망 데이터 파일을 교체하면 아래 CACHE_VERSION 숫자를 올려야
 //   폰에 저장된 옛 데이터가 새 것으로 바뀐다.
 // ==========================================================================
-const CACHE_VERSION = 'v5'; // v5: 해안선을 국립해양조사원 2025.12.31 자료로 교체(2026-11-20)
+const CACHE_VERSION = 'v6'; // v6: 경북 어항(소형선항만안내) 추가(2026-11-25)
 const CACHE_NAME = `tidefinder-${CACHE_VERSION}`;
 const CORE_URLS = ['/', '/manifest.webmanifest', '/icon.svg', '/apple-touch-icon.png', '/icon-192.png'];
-const DATA_FILES = ['/coastline-korea.geojson.gz', '/setnet-korea.geojson', '/fishery-pohang.geojson', '/rocks-pohang.geojson', '/land-east-core.geojson'];
+const DATA_FILES = ['/coastline-korea.geojson.gz', '/setnet-korea.geojson', '/fishery-pohang.geojson', '/rocks-pohang.geojson', '/land-east-core.geojson', '/harbors-gb.json'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
