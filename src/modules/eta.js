@@ -12,6 +12,7 @@ const NM = 1852;
 const SPEED_KEY = 'tf-boat-speed-kn';
 const AVOID_KEY = 'tf-route-avoid';
 const DEPTH_KEY = 'tf-route-min-depth';
+const SHOW_KEY = 'tf_eta_show_route';
 
 let map = null;
 let getTarget = () => null;
@@ -54,6 +55,14 @@ export function initEta({ kakaoMap, getTargetCoords, getDriftAt: driftFn }) {
   $('etaAvoid').addEventListener('change', () => {
     try { localStorage.setItem(AVOID_KEY, $('etaAvoid').checked ? '1' : '0'); } catch { /* 무시 */ }
     routeCache = null;
+    updateEta();
+  });
+  // 항로선 표시 여부 - 끄면 지도에 선을 안 긋고 거리·도착시각만 계산 (설정 기억)
+  try { $('etaShowRoute').checked = localStorage.getItem(SHOW_KEY) !== '0'; } catch { /* 기본 켬 */ }
+  $('etaShowRoute').addEventListener('change', () => {
+    try { localStorage.setItem(SHOW_KEY, $('etaShowRoute').checked ? '1' : '0'); } catch { /* 무시 */ }
+    lastHazardKey = '';
+    if (!$('etaShowRoute').checked) clearRoute();
     updateEta();
   });
   try { const v = localStorage.getItem(DEPTH_KEY); $('etaMinDepth').value = v !== null ? v : '2'; } catch { $('etaMinDepth').value = '2'; }
@@ -280,6 +289,7 @@ export async function updateEta() {
     sh.style.display = 'none';
   }
   box.style.display = 'block';
+  if (!$('etaShowRoute').checked) { clearRoute(); return; }
   drawRoute(origin, pts, hazards, routed, routed && route.shallowLastLegM > 0);
 
   // 위험물 목록이 바뀔 때만 지도 범위를 맞춘다(GPS 갱신마다 화면이 튀지 않게)
