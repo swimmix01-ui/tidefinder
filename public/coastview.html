@@ -90,7 +90,7 @@
 </header>
 
 <div id="coordBar">
-  <span>사고좌표 3D 지형 확인 · <b id="coordLabel">-</b></span>
+  <span>사고 지점 연안 3D · <b id="coordLabel">-</b></span>
   <span>출처: 국토교통부 브이월드(V-World)</span>
 </div>
 
@@ -125,7 +125,12 @@
     document.getElementById('statusOverlay').classList.add('hide');
   }
 
+  // 사고 지점 위에서 가장 가까운 해안 쪽(heading)을 비스듬히 내려다보게.
+  // 해안까지 멀수록 높이 올라가서 해안이 화면에 들어오게 한다.
   function initMap(lat, lon) {
+    const heading = parseFloat(getParam('heading')) || 0;
+    const dist = parseFloat(getParam('dist')) || 0;
+    const alt = Math.min(2500, Math.max(350, dist * 0.7 + 250));
     document.getElementById('coordLabel').textContent = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
     try {
       if (typeof vw === 'undefined') {
@@ -136,8 +141,8 @@
       const options = {
         mapId: 'vmap',
         initPosition: new vw.CameraPosition(
-          new vw.CoordZ(lon, lat, 900),
-          new vw.Direction(0, -45, 0)
+          new vw.CoordZ(lon, lat, alt),
+          new vw.Direction(heading, -35, 0)
         ),
         logo: false,
         navigation: true,

@@ -112,7 +112,7 @@ async function redraw() {
   if (note) {
     note.textContent = `수심(평균해면 기준, m): 빨강 2 미만 · 주황 2~5 · 노랑 5~10 · 이 화면 얕은 칸 ${n}개`
       + (level <= NUM_LEVEL ? '' : ' · 더 확대하면 해도처럼 수심 숫자 표시')
-      + (failed ? ` · ${failed}개 구역 불러오기 실패 (${lastError.slice(0, 80)})` : '');
+      + (failed ? ` · ${failed}개 구역 불러오기 실패 (${/HTTP 5\d\d/.test(lastError) ? '국립해양조사원 서버 일시 장애 - 잠시 뒤 다시 표시됨' : (lastError.match(/HTTP \d+/) || ['통신 오류'])[0]})` : '');
   }
 }
 

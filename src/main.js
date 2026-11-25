@@ -8,7 +8,7 @@ import * as harbors from './modules/harbors.js';
 import { initPlaceSearch } from './modules/placesearch.js';
 let placeSearch = null;
 import { dmsToDecimal, decimalToDMS, parseCoordText, isValidKoreaSea, positionAtHour } from './modules/geo.js';
-import { loadCoastlineGeoJSON, loadSetnetGeoJSON } from './modules/coastline.js';
+import { loadCoastlineGeoJSON, loadSetnetGeoJSON, getLocalCoastline, getCoastlineStatus } from './modules/coastline.js';
 import * as mapModule from './modules/map.js';
 import * as ui from './modules/ui.js';
 import { runPrediction } from './predict.js';
@@ -47,6 +47,7 @@ function setCoordsToInputs(lat, lon) {
   document.getElementById('lonS').value = lonDMS.s;
   ui.refreshInputCheckmarks();
   eta.updateEta();
+  updateCoastViewBtn();
 }
 
 // 입력값 점검 - 잘못된 값으로 계산이 돌아가 엉뚱한 구역이 나오는 걸 막는다
@@ -104,15 +105,52 @@ async function handleRunPrediction() {
   }
 }
 
-// "🗻 3D 지형 보기" 버튼 - 현재 입력된 좌표를 붙여서 coastview.html을 새 탭으로 연다.
-// (index.html에 onclick="openCoastView()"로 이미 연결돼 있어 전역에 노출해야 한다)
-window.openCoastView = function openCoastView() {
+// "🗻 연안 3D 지형 보기" - 브이월드 3D는 육상 지형만 있어 먼바다에선 바다만 보인다.
+// 사고 지점에서 가장 가까운 해안선까지 COAST_KM 이내일 때만 켜고, 카메라를 사고 지점 위에서
+// 가장 가까운 해안 쪽을 바라보게 넘긴다.
+const COAST_KM = 3;
+let coastView = null; // { lat, lon, distM, heading }
+function nearestCoast(lat, lon) {
+  const data = getLocalCoastline(lat, lon, COAST_KM + 2);
+  if (!data || !data.features.length) return null;
+  const kx = 111320 * Math.cos((lat * Math.PI) / 180), ky = 110540;
+  let best = null;
+  for (const f of data.features) {
+    const c = f.geometry && f.geometry.coordinates;
+    if (!c || typeof c[0][0] !== 'number') continue;
+    for (let i = 1; i < c.length; i++) {
+      const ax = (c[i - 1][0] - lon) * kx, ay = (c[i - 1][1] - lat) * ky, bx = (c[i][0] - lon) * kx, by = (c[i][1] - lat) * ky;
+      const dx = bx - ax, dy = by - ay, L = dx * dx + dy * dy;
+      const t = L ? Math.max(0, Math.min(1, -(ax * dx + ay * dy) / L)) : 0;
+      const px = ax + t * dx, py = ay + t * dy, d = Math.hypot(px, py);
+      if (!best || d < best.d) best = { d, px, py };
+    }
+  }
+  if (!best) return null;
+  return { distM: best.d, heading: (Math.atan2(best.px, best.py) * 180 / Math.PI + 360) % 360 };
+}
+function updateCoastViewBtn() {
+  const btn = document.getElementById('coastViewBtn'), sub = document.getElementById('coastViewSub');
+  if (!btn) return;
   const { lat, lon } = getCoordsFromInputs();
-  if (Number.isNaN(lat) || Number.isNaN(lon)) {
-    window.open('/coastview.html', '_blank', 'noopener');
+  if (!isValidKoreaSea(lat, lon)) { btn.disabled = true; sub.textContent = '사고 좌표를 먼저 정해 주세요'; coastView = null; return; }
+  if (!getCoastlineStatus().loaded) { btn.disabled = false; sub.textContent = '해안선 자료 불러오는 중 · 바다 위면 지형이 안 보일 수 있음'; coastView = { lat, lon, heading: 0 }; return; }
+  const n = nearestCoast(lat, lon);
+  if (!n || n.distM > COAST_KM * 1000) {
+    btn.disabled = true;
+    sub.textContent = `해안에서 ${COAST_KM}km 이내에서만 볼 수 있음 (먼바다는 3D 지형 없음)`;
+    coastView = null;
     return;
   }
-  window.open(`/coastview.html?lat=${lat}&lon=${lon}`, '_blank', 'noopener');
+  btn.disabled = false;
+  coastView = { lat, lon, heading: Math.round(n.heading), distM: n.distM };
+  sub.textContent = n.distM < 50 ? '사고 지점 연안 · 새 탭' : `가장 가까운 해안 ${n.distM < 1000 ? Math.round(n.distM) + 'm' : (n.distM / 1000).toFixed(1) + 'km'} 쪽을 바라봄 · 새 탭`;
+}
+window.openCoastView = function openCoastView() {
+  updateCoastViewBtn();
+  if (!coastView) return;
+  const { lat, lon, heading, distM } = coastView;
+  window.open(`/coastview.html?lat=${lat.toFixed(6)}&lon=${lon.toFixed(6)}&heading=${heading}&dist=${Math.round(distM || 0)}`, '_blank', 'noopener');
 };
 
 function windSourceText(src, obsLabel) {
@@ -218,6 +256,8 @@ async function init() {
   const seaLoad = seaLayers.loadSeaLayers();
   const harborLoad = harbors.loadHarbors();
   const dataLoads = Promise.allSettled([loadCoastlineGeoJSON(), loadSetnetGeoJSON(), seaLoad, loadLandPolygons()]);
+  dataLoads.then(updateCoastViewBtn);
+  updateCoastViewBtn();
   dataLoads.then(() => eta.updateEta()); // 해안선이 늦게 오면 그때 항로를 다시 계산
   loadMarineStatus();
 
@@ -233,7 +273,7 @@ async function init() {
   };
   ['latD', 'latM', 'latS', 'lonD', 'lonM', 'lonS'].forEach((id) => {
     const el = document.getElementById(id);
-    el.addEventListener('input', () => { incidentSet = true; eta.updateEta(); syncMarkerFromInputs(false); });
+    el.addEventListener('input', () => { incidentSet = true; eta.updateEta(); syncMarkerFromInputs(false); updateCoastViewBtn(); });
     el.addEventListener('change', () => syncMarkerFromInputs(true));
   });
   ui.refreshInputCheckmarks();
