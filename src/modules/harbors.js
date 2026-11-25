@@ -26,6 +26,7 @@ export function setNeedDepth(v) {
   try { localStorage.setItem(NEED_KEY, String(v)); } catch { /* 무시 */ }
   redraw();
 }
+export function getHarbors() { return data ? data.harbors : []; }
 export function shouldIgnoreMapClick() { return Date.now() < ignoreUntil; }
 
 // 🟢 수심 충분 / 🟡 일부 구역만 / 🔴 얕음 / ⚪ 정보 없음

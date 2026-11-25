@@ -5,6 +5,8 @@
 // ==========================================================================
 import { loadLandPolygons } from './modules/route.js';
 import * as harbors from './modules/harbors.js';
+import { initPlaceSearch } from './modules/placesearch.js';
+let placeSearch = null;
 import { dmsToDecimal, decimalToDMS, parseCoordText, isValidKoreaSea, positionAtHour } from './modules/geo.js';
 import { loadCoastlineGeoJSON, loadSetnetGeoJSON } from './modules/coastline.js';
 import * as mapModule from './modules/map.js';
@@ -199,10 +201,7 @@ function resetAll() {
   lastPredictionResult = null;
   incidentSet = false;
   ['aiCard', 'resultCard', 'searchCard'].forEach((id) => { document.getElementById(id).style.display = 'none'; });
-  const paste = document.getElementById('coordPaste');
-  paste.value = '';
-  const note = document.getElementById('coordPasteNote');
-  note.textContent = '도·분(소수) / 도분초 / 도(소수) 모두 됩니다'; note.style.color = '';
+  if (placeSearch) placeSearch.clear();
   setNowToInputs();
   document.getElementById('hoursAhead').value = 6;
   eta.resetEta(); // 출발지·항로선 지우기 (GPS 추적도 끔)
@@ -259,23 +258,20 @@ async function init() {
     if (v > 0 && v < 10) harbors.setNeedDepth(v); else needEl.value = harbors.getNeedDepth();
   });
 
-  // 좌표 한 번에 입력 - 플로터(도·분), 도분초, 도(소수) 어느 쪽이든 붙여넣으면 아래 칸을 채운다
-  const pasteEl = document.getElementById('coordPaste');
-  const pasteNote = document.getElementById('coordPasteNote');
-  const applyPaste = () => {
-    const v = pasteEl.value.trim();
-    if (!v) { pasteNote.textContent = '도·분(소수) / 도분초 / 도(소수) 모두 됩니다'; pasteNote.style.color = ''; return; }
-    const c = parseCoordText(v);
-    if (!c) { pasteNote.textContent = '⚠ 좌표로 읽을 수 없습니다 (숫자 2·4·6개, 한반도 해역)'; pasteNote.style.color = 'var(--amber)'; return; }
-    incidentSet = true;
-    setCoordsToInputs(c.lat, c.lon);
-    mapModule.setMarkerPosition(c.lat, c.lon);
-    mapModule.centerMap(c.lat, c.lon);
-    pasteNote.textContent = `✅ ${c.format} 형식으로 읽음 → ${c.lat.toFixed(5)}, ${c.lon.toFixed(5)}`;
-    pasteNote.style.color = 'var(--green)';
-  };
-  pasteEl.addEventListener('change', applyPaste);
-  pasteEl.addEventListener('input', () => { if (parseCoordText(pasteEl.value)) applyPaste(); });
+  // 위치 검색: 항구·지명(경북 어항 + 카카오 장소검색) 또는 좌표 → 사고 좌표 입력 + 지도 이동
+  placeSearch = initPlaceSearch({
+    input: document.getElementById('placeSearch'),
+    list: document.getElementById('placeList'),
+    note: document.getElementById('placeNote'),
+    getHarbors: harbors.getHarbors,
+    getCenter: () => { const m = mapModule.getMap(); return m ? m.getCenter() : null; },
+    onPick: (lat, lon) => {
+      incidentSet = true;
+      setCoordsToInputs(lat, lon);
+      mapModule.setMarkerPosition(lat, lon);
+      mapModule.centerMap(lat, lon, 6);
+    },
+  });
 
   document.getElementById('runPredictionBtn').addEventListener('click', handleRunPrediction);
 
