@@ -144,13 +144,16 @@ function updateCoastViewBtn() {
   }
   btn.disabled = false;
   coastView = { lat, lon, heading: Math.round(n.heading), distM: n.distM };
-  sub.textContent = n.distM < 50 ? '사고 지점 연안 · 새 탭' : `가장 가까운 해안 ${n.distM < 1000 ? Math.round(n.distM) + 'm' : (n.distM / 1000).toFixed(1) + 'km'} 쪽을 바라봄 · 새 탭`;
+  sub.textContent = `해안까지 ${n.distM < 1000 ? Math.round(n.distM) + 'm' : (n.distM / 1000).toFixed(1) + 'km'} · 지도와 같은 방향(북쪽 위) · 새 탭`;
 }
 window.openCoastView = function openCoastView() {
   updateCoastViewBtn();
   if (!coastView) return;
-  const { lat, lon, heading, distM } = coastView;
-  window.open(`/coastview.html?lat=${lat.toFixed(6)}&lon=${lon.toFixed(6)}&heading=${heading}&dist=${Math.round(distM || 0)}`, '_blank', 'noopener');
+  const { lat, lon } = coastView;
+  // 3D도 지도와 같은 모양(북쪽 위)·비슷한 범위로 보이게 지금 지도 확대 단계를 넘긴다
+  const m = mapModule.getMap();
+  const level = m ? m.getLevel() : 5;
+  window.open(`/coastview.html?lat=${lat.toFixed(6)}&lon=${lon.toFixed(6)}&level=${level}`, '_blank', 'noopener');
 };
 
 function windSourceText(src, obsLabel) {

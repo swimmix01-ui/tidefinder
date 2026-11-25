@@ -90,7 +90,7 @@
 </header>
 
 <div id="coordBar">
-  <span>사고 지점 연안 3D · <b id="coordLabel">-</b></span>
+  <span>사고 지점 연안 3D (북쪽 위) · <b id="coordLabel">-</b></span>
   <span>출처: 국토교통부 브이월드(V-World)</span>
 </div>
 
@@ -125,12 +125,16 @@
     document.getElementById('statusOverlay').classList.add('hide');
   }
 
-  // 사고 지점 위에서 가장 가까운 해안 쪽(heading)을 비스듬히 내려다보게.
-  // 해안까지 멀수록 높이 올라가서 해안이 화면에 들어오게 한다.
+  // 메인 지도와 같은 모양으로: 북쪽이 위(heading 0), 사고 지점이 화면 가운데.
+  // 카메라를 사고 지점 남쪽에 두고 북쪽을 비스듬히(-55°) 내려다본다.
+  // 높이는 메인 지도 확대 단계(level)에 맞춤 - 카카오 지도 한 단계마다 범위가 2배.
+  const TILT = 55;
+  let viewer = null;
   function initMap(lat, lon) {
-    const heading = parseFloat(getParam('heading')) || 0;
-    const dist = parseFloat(getParam('dist')) || 0;
-    const alt = Math.min(2500, Math.max(350, dist * 0.7 + 250));
+    const level = parseInt(getParam('level'), 10) || 5;
+    const alt = Math.min(15000, Math.max(250, 160 * Math.pow(2, level - 2)));
+    const backM = alt / Math.tan(TILT * Math.PI / 180);
+    const camLat = lat - backM / 111000;
     document.getElementById('coordLabel').textContent = `${lat.toFixed(5)}, ${lon.toFixed(5)}`;
     try {
       if (typeof vw === 'undefined') {
@@ -141,8 +145,8 @@
       const options = {
         mapId: 'vmap',
         initPosition: new vw.CameraPosition(
-          new vw.CoordZ(lon, lat, alt),
-          new vw.Direction(heading, -35, 0)
+          new vw.CoordZ(lon, camLat, alt),
+          new vw.Direction(0, -TILT, 0)
         ),
         logo: false,
         navigation: true,
@@ -150,7 +154,17 @@
       map.setOption(options);
       map.setMapId('vmap');
       map.start();
+      viewer = map;
       document.getElementById('statusOverlay').classList.add('hide');
+      // 사고 지점 표시 (메인 지도의 핀 위치와 같게). 브이월드 버전에 따라 안 될 수 있어 실패해도 무시
+      setTimeout(() => {
+        try {
+          const pt = new vw.geom.Point(new vw.Coord(lon, lat));
+          pt.setImage(location.origin + '/pin-incident.png');
+          pt.setName('사고 지점');
+          pt.create();
+        } catch (e) { console.warn('3D 사고지점 표시 실패', e); }
+      }, 1500);
     } catch (err) {
       showError('3D 지도 초기화 중 오류: ' + (err && err.message ? err.message : err));
     }
