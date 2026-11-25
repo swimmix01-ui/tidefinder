@@ -6,8 +6,10 @@
 import { loadLandPolygons } from './modules/route.js';
 import * as harbors from './modules/harbors.js';
 import { initPlaceSearch } from './modules/placesearch.js';
+import * as currents from './modules/currentarrows.js';
+import * as measure from './modules/measure.js';
 let placeSearch = null;
-import { dmsToDecimal, decimalToDMS, parseCoordText, isValidKoreaSea, positionAtHour } from './modules/geo.js';
+import { dmsToDecimal, decimalToDMS, parseCoordText, isValidKoreaSea, positionAtHour, bearingToCompass } from './modules/geo.js';
 import { loadCoastlineGeoJSON, loadSetnetGeoJSON, getLocalCoastline, getCoastlineStatus } from './modules/coastline.js';
 import * as mapModule from './modules/map.js';
 import * as ui from './modules/ui.js';
@@ -113,6 +115,9 @@ let coastView = null; // { lat, lon, distM, heading }
 function nearestCoast(lat, lon) {
   const data = getLocalCoastline(lat, lon, COAST_KM + 2);
   if (!data || !data.features.length) return null;
+  return nearestCoastIn(data, lat, lon);
+}
+function nearestCoastIn(data, lat, lon) {
   const kx = 111320 * Math.cos((lat * Math.PI) / 180), ky = 110540;
   let best = null;
   for (const f of data.features) {
@@ -129,13 +134,34 @@ function nearestCoast(lat, lon) {
   if (!best) return null;
   return { distM: best.d, heading: (Math.atan2(best.px, best.py) * 180 / Math.PI + 360) % 360 };
 }
+// 지도 아래 "가장 가까운 해안" 한 줄 (안전해 '육지 방향 보기'와 같은 개념) - 사고 좌표를 정했을 때만
+// 3km 밖이면 반경을 넓혀 한 번 더 (먼바다에서도 '가장 가까운 해안'은 보여주기 위해)
+function nearestCoastFar(lat, lon) {
+  for (const km of [10, 30]) {
+    const data = getLocalCoastline(lat, lon, km);
+    if (data && data.features.length) return nearestCoastIn(data, lat, lon);
+  }
+  return null;
+}
+
+function updateCoastInfo(n) {
+  const el = document.getElementById('coastInfo');
+  if (!el) return;
+  if (!incidentSet || !n) { el.style.display = 'none'; return; }
+  const dist = n.distM < 1000 ? `${Math.round(n.distM)}m` : `${(n.distM / 1000).toFixed(1)}km (${(n.distM / 1852).toFixed(1)}NM)`;
+  el.style.display = '';
+  el.textContent = n.distM < 30 ? '🏝 사고 지점이 해안선 위입니다 (갯바위·방파제 확인)'
+    : `🏝 가장 가까운 해안: ${String(Math.round(n.heading)).padStart(3, '0')}° ${bearingToCompass(n.heading)} 방향 ${dist}`;
+}
+
 function updateCoastViewBtn() {
   const btn = document.getElementById('coastViewBtn'), sub = document.getElementById('coastViewSub');
   if (!btn) return;
   const { lat, lon } = getCoordsFromInputs();
   if (!isValidKoreaSea(lat, lon)) { btn.disabled = true; sub.textContent = '사고 좌표를 먼저 정해 주세요'; coastView = null; return; }
   if (!getCoastlineStatus().loaded) { btn.disabled = false; sub.textContent = '해안선 자료 불러오는 중 · 바다 위면 지형이 안 보일 수 있음'; coastView = { lat, lon, heading: 0 }; return; }
-  const n = nearestCoast(lat, lon);
+  const n = nearestCoast(lat, lon) || nearestCoastFar(lat, lon);
+  updateCoastInfo(n);
   if (!n || n.distM > COAST_KM * 1000) {
     btn.disabled = true;
     sub.textContent = `해안에서 ${COAST_KM}km 이내에서만 볼 수 있음 (먼바다는 3D 지형 없음)`;
@@ -246,6 +272,8 @@ function resetAll() {
   setNowToInputs();
   document.getElementById('hoursAhead').value = 6;
   eta.resetEta(); // 출발지·항로선 지우기 (GPS 추적도 끔)
+  measure.setMeasure(false);
+  const mc = document.getElementById('measureChip'); if (mc) mc.classList.remove('on');
   setCoordsToInputs(DEFAULT_COORD.lat, DEFAULT_COORD.lon);
   mapModule.resetMapView();
   if (myPos) mapModule.centerMap(myPos.lat, myPos.lon, 7);
@@ -367,6 +395,7 @@ async function init() {
     // 어장 도형/간출암을 누른 클릭이면 사고좌표를 옮기지 않는다
     // (도형 클릭과 지도 클릭 중 어느 쪽이 먼저 오는지 SDK가 보장하지 않아 잠깐 기다렸다 판단)
     setTimeout(() => {
+      if (measure.handleMapClick(lat, lon)) return; // 거리재기 중엔 사고 좌표로 안 들어감
       if (seaLayers.shouldIgnoreMapClick() || harbors.shouldIgnoreMapClick()) return;
       seaLayers.hideInfo();
       if (eta.consumeMapClick(lat, lon)) { ui.setStatus('ok', '🚤 출발지 지정 완료'); return; }
@@ -396,6 +425,11 @@ async function init() {
     seaLayers.initSeaLayers(mapInstance);
     depth.initDepthLayer(mapInstance);
     try { if (await harborLoad) { harbors.initHarbors(mapInstance); document.getElementById('harborChip').style.display = ''; } } catch (err) { console.warn('어항 레이어 실패(다른 기능엔 영향 없음):', err); }
+    try {
+      currents.initCurrentArrows(mapInstance, document.getElementById('mapToolNote'));
+      measure.initMeasure(mapInstance, document.getElementById('mapToolNote'));
+      if (mapInstance) { document.getElementById('currentChip').style.display = ''; document.getElementById('measureChip').style.display = ''; }
+    } catch (err) { console.warn('조류·거리재기 초기화 실패:', err); }
     setupLayerChips();
     ui.setStatus('ok', '✅ 지도 연동 완료');
   } else {
@@ -403,7 +437,44 @@ async function init() {
   }
 
   locateMeOnStart();
+  setupStatusStrip();
   registerServiceWorker(dataLoads);
+}
+
+// 상단 고정 상태바 - 해상상태 카드(아래쪽)의 값을 그대로 따라 보여준다. 누르면 해상상태 카드로.
+function setupStatusStrip() {
+  const pairs = [['marineWind', 'ssWind'], ['marineWaveHeight', 'ssWave'], ['marineWaterTemp', 'ssWater'], ['marineNextTide', 'ssTide']];
+  const short = (id, t) => {
+    t = (t || '-').trim();
+    if (id === 'marineWaveHeight') t = t.replace(/\s*\(.*$/, ''); // "0.8m (실측·구룡포 21km)" → "0.8m"
+    if (id === 'marineWind') { // "45° / 9.0m/s (해상예보)" → "북동 9.0m/s"
+      const m = t.match(/(\d+(?:\.\d+)?)°\s*\/\s*([\d.]+\s*m\/s)/);
+      if (m) t = `${bearingToCompass(+m[1])} ${m[2].replace(/\s/g, '')}`;
+      else t = t.replace(/\s*\(.*$/, '');
+    }
+    if (id === 'marineNextTide') t = t.replace(/^(\S+)\s+\d{4}-\d{2}-\d{2}\s+(\d{2}:\d{2}).*$/, '$1 $2'); // "만조 2026-11-26 09:12:00 (…)" → "만조 09:12"
+    return t === '불러오는 중…' ? '…' : t;
+  };
+  const sync = () => {
+    pairs.forEach(([from, to]) => { const f = document.getElementById(from), t = document.getElementById(to); if (f && t) t.textContent = short(from, f.textContent); });
+    const box = document.getElementById('marineAlertBox'), al = document.getElementById('ssAlert');
+    if (box && al) {
+      const on = box.style.display !== 'none' && box.textContent.trim();
+      al.style.display = on ? '' : 'none';
+      // "[특보] 제11-26호 : … / 풍랑주의보 발표(*)" → "⚠ 풍랑주의보"
+      const names = on ? [...new Set((box.textContent.match(/(풍랑|태풍|폭풍해일|해일|강풍)\s*(주의보|경보)/g) || []).map((x) => x.replace(/\s/g, '')))] : [];
+      al.textContent = on ? `⚠ ${names.length ? names.join('·') : '기상특보 발효'}` : '';
+    }
+  };
+  const obs = new MutationObserver(sync);
+  pairs.forEach(([from]) => { const el = document.getElementById(from); if (el) obs.observe(el, { childList: true, characterData: true, subtree: true }); });
+  const box = document.getElementById('marineAlertBox');
+  if (box) obs.observe(box, { childList: true, characterData: true, subtree: true, attributes: true, attributeFilter: ['style'] });
+  sync();
+  const strip = document.getElementById('statusStrip');
+  const go = () => document.getElementById('marineCard').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  strip.addEventListener('click', go);
+  strip.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
 }
 
 // 앱 열 때 내 위치를 한 번 받아 지도를 그쪽으로 옮기고, 출동 거리의 기본 출발지로 쓴다.
@@ -430,8 +501,10 @@ function setupLayerChips() {
     chip.addEventListener('click', () => {
       const on = !chip.classList.contains('on');
       chip.classList.toggle('on', on);
+      if (chip.dataset.tool === 'measure') { measure.setMeasure(on); return; }
       if (chip.dataset.layer === 'depth') depth.setDepthVisible(on);
       else if (chip.dataset.layer === 'harbor') harbors.setHarborsVisible(on);
+      else if (chip.dataset.layer === 'current') currents.setCurrentArrowsVisible(on);
       else if (chip.dataset.layer) seaLayers.setLayerVisible(chip.dataset.layer, on);
       if (chip.dataset.maptype) mapModule.setMapType(on);
     });

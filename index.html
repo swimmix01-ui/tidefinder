@@ -195,6 +195,17 @@
   .coast3d-btn .c3-sub { font-size: 11.5px; font-weight: 500; color: var(--text-lo); }
   .coast3d-btn:disabled { opacity: .55; cursor: not-allowed; }
   .coast3d-btn:disabled .c3-main { text-decoration: none; }
+  #marineCard, #searchCard, #etaCard, #status { scroll-margin-top: 52px; }
+  .sstrip { position: sticky; top: 0; z-index: 60; display: flex; gap: 6px; align-items: center; overflow-x: auto; white-space: nowrap; padding: 7px 12px; background: rgba(8,22,36,.94); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); border-bottom: 1px solid var(--border); scrollbar-width: none; cursor: pointer; }
+  .sstrip::-webkit-scrollbar { display: none; }
+  .ss-item { display: inline-flex; gap: 5px; align-items: baseline; font-size: 12.5px; color: var(--text-hi); background: rgba(255,255,255,.06); border-radius: 8px; padding: 4px 8px; font-weight: 700; }
+  .ss-item b { font-size: 11px; color: var(--text-lo); font-weight: 600; }
+  .ss-alert { font-size: 12px; font-weight: 800; color: #fff; background: #DC2626; border-radius: 8px; padding: 4px 8px; }
+  .map-info { font-size: 12.5px; color: var(--text-hi); margin: 6px 4px 0; line-height: 1.5; }
+  .map-info:empty { display: none; }
+  .map-tool { color: #F9A8D4; font-weight: 700; }
+  .cur-arrow { width: 14px; display: flex; justify-content: center; pointer-events: none; transform-origin: 50% 50%; filter: drop-shadow(0 0 1.5px rgba(0,0,0,.7)); }
+  .measure-label { background: #0B2233; color: #FBCFE8; border: 1.5px solid #F472B6; border-radius: 6px; padding: 2px 6px; font-size: 11.5px; font-weight: 800; white-space: nowrap; text-align: center; }
   .ps-wrap { position: relative; }
   .ps-list { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 50; background: #0F2A3F; border: 1px solid var(--border); border-radius: 12px; overflow: hidden; box-shadow: 0 10px 28px rgba(0,0,0,.5); max-height: 320px; overflow-y: auto; }
   .ps-item { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 12px; background: none; border: 0; color: var(--text-hi); text-align: left; cursor: pointer; }
@@ -284,6 +295,15 @@
     <svg viewBox="0 0 24 24" fill="none"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
   </button>
 </header>
+
+<!-- 상단 고정 상태바: 해상상태 카드 값을 그대로 옮겨 보여줌. 누르면 해상상태 카드로 이동 -->
+<div id="statusStrip" class="sstrip" role="button" tabindex="0" aria-label="현재 해상 상태 요약">
+  <span class="ss-alert" id="ssAlert" style="display:none"></span>
+  <span class="ss-item"><b>바람</b><span id="ssWind">-</span></span>
+  <span class="ss-item"><b>파고</b><span id="ssWave">-</span></span>
+  <span class="ss-item"><b>물때</b><span id="ssTide">-</span></span>
+  <span class="ss-item"><b>수온</b><span id="ssWater">-</span></span>
+</div>
 
 <main>
 
@@ -396,10 +416,14 @@
       <button type="button" class="chip on" data-layer="rock" id="rockChip" style="display:none"><i class="rock-dot"></i>간출암</button>
       <button type="button" class="chip" data-layer="depth"><i style="background:#FF9F1C"></i>수심</button>
       <button type="button" class="chip" data-layer="harbor" id="harborChip" style="display:none"><i style="background:#22C55E"></i>어항</button>
+      <button type="button" class="chip" data-layer="current" id="currentChip" style="display:none"><i style="background:#22D3EE"></i>조류</button>
+      <button type="button" class="chip" data-tool="measure" id="measureChip" style="display:none">📏 거리</button>
       <button type="button" class="chip" data-maptype="sat">🛰 위성</button>
     </div>
   </div>
   <div class="map-src">어장: 국립해양조사원 어장정보(포항·경주·영덕, 면허 구역도) · 도형을 누르면 상세 정보<br><span id="depthNote"></span></div>
+  <div id="coastInfo" class="map-info" style="display:none"></div>
+  <div id="mapToolNote" class="map-info map-tool"></div>
 
   <div id="searchCard" class="card" style="display:none;">
     <div class="card-title">
